@@ -6,14 +6,18 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 
 import { ProductsService } from './products.service';
+
 import { CreateProductDto } from '../auth/dto/create-product.dto';
 
 import { JwtAuthGuard } from '../auth/jwt-auth/jwt-auth.guard';
+
 import { RolesGuard } from '../auth/roles.guard';
+
 import { Roles } from '../auth/roles.decorator';
 
 @Controller('products')
@@ -38,6 +42,17 @@ export class ProductsController {
   @Roles('ADMIN')
   create(@Body() createProductDto: CreateProductDto) {
     return this.productsService.create(createProductDto);
+  }
+
+  // Only ADMIN can update products
+  @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateProductDto: CreateProductDto,
+  ) {
+    return this.productsService.update(id, updateProductDto);
   }
 
   // Only ADMIN can delete products
