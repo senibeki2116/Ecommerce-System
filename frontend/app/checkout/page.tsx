@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -9,6 +10,8 @@ export default function CheckoutPage() {
   const { cart, cartTotal, cartCount, clearCart } = useCart();
 
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [error, setError] = useState("");
 
   const shipping = cartTotal >= 100 ? 0 : 10;
   const finalTotal = cartTotal + shipping;
@@ -33,11 +36,70 @@ export default function CheckoutPage() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  // ================= PLACE ORDER =================
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    setOrderPlaced(true);
-    clearCart();
+    setError("");
+    setPlacingOrder(true);
+
+    try {
+      // Get JWT token
+      const token = localStorage.getItem("accessToken");
+
+      if (!token) {
+        setError("Please login before placing an order.");
+        setPlacingOrder(false);
+        return;
+      }
+
+      console.log("Token found:", token.substring(0, 20) + "...");
+
+      // Send order request to NestJS backend
+      const response = await fetch("http://localhost:3001/orders", {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      console.log("Order response:", data);
+
+      // Backend returned an error
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError(
+            "Your login session has expired or the token is invalid. Please login again.",
+          );
+        } else {
+          setError(data.message || "Failed to place the order.");
+        }
+
+        setPlacingOrder(false);
+        return;
+      }
+
+      // Order successfully created
+      console.log("Order created successfully:", data);
+
+      setOrderPlaced(true);
+
+      // Clear cart only after successful order
+      clearCart();
+    } catch (error) {
+      console.error("Order request failed:", error);
+
+      setError(
+        "Could not connect to the server. Make sure your NestJS backend is running.",
+      );
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   /* ================= EMPTY CART ================= */
@@ -102,6 +164,7 @@ export default function CheckoutPage() {
             <div className="mx-auto mt-8 max-w-md rounded-2xl bg-slate-50 p-5 text-left">
               <div className="flex justify-between">
                 <span className="text-slate-500">Customer</span>
+
                 <span className="font-bold text-slate-900">
                   {formData.firstName} {formData.lastName}
                 </span>
@@ -109,6 +172,7 @@ export default function CheckoutPage() {
 
               <div className="mt-3 flex justify-between">
                 <span className="text-slate-500">Email</span>
+
                 <span className="font-bold text-slate-900">
                   {formData.email}
                 </span>
@@ -116,18 +180,28 @@ export default function CheckoutPage() {
 
               <div className="mt-3 flex justify-between">
                 <span className="text-slate-500">Payment</span>
+
                 <span className="font-bold text-slate-900">
                   {formData.payment}
                 </span>
               </div>
             </div>
 
-            <Link
-              href="/products"
-              className="mt-8 inline-flex rounded-xl bg-blue-600 px-7 py-4 font-bold text-white shadow-lg transition hover:bg-blue-700"
-            >
-              Continue Shopping →
-            </Link>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <Link
+                href="/orders"
+                className="inline-flex justify-center rounded-xl bg-slate-900 px-7 py-4 font-bold text-white shadow-lg transition hover:bg-slate-800"
+              >
+                View My Orders
+              </Link>
+
+              <Link
+                href="/products"
+                className="inline-flex justify-center rounded-xl bg-blue-600 px-7 py-4 font-bold text-white shadow-lg transition hover:bg-blue-700"
+              >
+                Continue Shopping →
+              </Link>
+            </div>
           </div>
         </main>
       </div>
@@ -142,7 +216,7 @@ export default function CheckoutPage() {
 
       {/* ================= HERO ================= */}
 
-      <section className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 px-6 py-12 text-white">
+      <section className="bg-linear-to-r from-blue-700 via-indigo-700 to-purple-800 px-6 py-12 text-white">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-bold uppercase tracking-widest text-blue-200">
             Secure Checkout
@@ -167,6 +241,22 @@ export default function CheckoutPage() {
 
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit} className="space-y-7">
+              {/* Error Message */}
+
+              {error && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl">⚠️</span>
+
+                    <div>
+                      <p className="font-bold">Order Failed</p>
+
+                      <p className="mt-1 text-sm">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Personal Information */}
 
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -462,14 +552,24 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Place Order */}
+              {/* ================= PLACE ORDER ================= */}
 
               <button
                 type="submit"
-                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-5 text-lg font-black text-white shadow-xl shadow-blue-600/20 transition duration-300 hover:-translate-y-1 hover:bg-blue-700 hover:shadow-2xl"
+                disabled={placingOrder}
+                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-5 text-lg font-black text-white shadow-xl shadow-blue-600/20 transition duration-300 hover:-translate-y-1 hover:bg-blue-700 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Place Order
-                <span className="text-2xl">→</span>
+                {placingOrder ? (
+                  <>
+                    <span className="h-6 w-6 animate-spin rounded-full border-4 border-white border-t-transparent"></span>
+                    Placing Order...
+                  </>
+                ) : (
+                  <>
+                    Place Order
+                    <span className="text-2xl">→</span>
+                  </>
+                )}
               </button>
 
               <p className="text-center text-xs text-slate-400">
@@ -484,7 +584,7 @@ export default function CheckoutPage() {
             <div className="sticky top-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
               {/* Header */}
 
-              <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white">
+              <div className="bg-linear-to-r from-slate-900 to-slate-800 p-6 text-white">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   Your Order
                 </p>
@@ -506,7 +606,7 @@ export default function CheckoutPage() {
                     <div key={item.id} className="flex gap-3">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                         <img
-                          src={item.image}
+                          src={item.image ?? "/file.svg"}
                           alt={item.name}
                           className="h-full w-full object-cover"
                         />
@@ -536,6 +636,7 @@ export default function CheckoutPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between text-slate-500">
                     <span>Items</span>
+
                     <span className="font-bold text-slate-900">
                       {cartCount}
                     </span>
@@ -543,6 +644,7 @@ export default function CheckoutPage() {
 
                   <div className="flex justify-between text-slate-500">
                     <span>Subtotal</span>
+
                     <span className="font-bold text-slate-900">
                       ${cartTotal.toFixed(2)}
                     </span>

@@ -266,7 +266,7 @@ export default function ProductsPage() {
 
       {/* ================= HERO ================= */}
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-700 to-purple-800 text-white">
+      <section className="relative overflow-hidden bg-linear-to-br from-blue-700 via-indigo-700 to-purple-800 text-white">
         <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
 
         <div className="absolute -bottom-32 left-10 h-80 w-80 rounded-full bg-blue-400/20 blur-3xl" />
@@ -557,7 +557,7 @@ export default function ProductsPage() {
 
         {/* Bottom Banner */}
 
-        <section className="mt-16 overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-700 px-8 py-12 text-white shadow-xl md:px-14">
+        <section className="mt-16 overflow-hidden rounded-3xl bg-linear-to-r from-blue-600 to-indigo-700 px-8 py-12 text-white shadow-xl md:px-14">
           <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
             <div>
               <p className="text-sm font-bold uppercase tracking-widest text-blue-200">
