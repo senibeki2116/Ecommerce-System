@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 
@@ -76,6 +77,25 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
+  const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@shopease.local';
+  const adminPassword = process.env.ADMIN_PASSWORD ?? 'Admin123!';
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
+
+  await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {
+      name: 'ShopEase Admin',
+      password: adminPasswordHash,
+      role: 'ADMIN',
+    },
+    create: {
+      name: 'ShopEase Admin',
+      email: adminEmail,
+      password: adminPasswordHash,
+      role: 'ADMIN',
+    },
+  });
+
   for (const product of products) {
     const existingProduct = await prisma.product.findFirst({
       where: {
@@ -97,7 +117,7 @@ async function main() {
     }
   }
 
-  console.log(`Seeded ${products.length} products.`);
+  console.log(`Seeded ${products.length} products and admin ${adminEmail}.`);
 }
 
 main()
