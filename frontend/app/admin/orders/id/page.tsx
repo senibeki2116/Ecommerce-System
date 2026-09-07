@@ -42,12 +42,18 @@ export default function AdminOrderDetailsPage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false);
 
-  const fetchOrder = async () => {
+  const fetchOrder = async (showRefreshing = false) => {
     try {
-      setLoading(true);
+      if (showRefreshing) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       setError("");
 
       const token = localStorage.getItem("accessToken");
@@ -76,11 +82,13 @@ export default function AdminOrderDetailsPage() {
       }
 
       const data = await response.json();
+
       setOrder(data);
     } catch (err: any) {
       setError(err.message || "Could not load order.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -120,6 +128,7 @@ export default function AdminOrderDetailsPage() {
 
       if (!response.ok) {
         const message = await response.text();
+
         throw new Error(message || "Failed to update status.");
       }
 
@@ -155,12 +164,76 @@ export default function AdminOrderDetailsPage() {
     }
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return "⏳";
+
+      case "CONFIRMED":
+        return "✓";
+
+      case "SHIPPED":
+        return "🚚";
+
+      case "DELIVERED":
+        return "✓";
+
+      case "CANCELLED":
+        return "✕";
+
+      default:
+        return "📦";
+    }
+  };
+
+  const getStatusDescription = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return "Order is waiting for confirmation.";
+
+      case "CONFIRMED":
+        return "Order has been confirmed.";
+
+      case "SHIPPED":
+        return "Order has been shipped to the customer.";
+
+      case "DELIVERED":
+        return "Order has been successfully delivered.";
+
+      case "CANCELLED":
+        return "This order has been cancelled.";
+
+      default:
+        return "Order status.";
+    }
+  };
+
+  const getProgressWidth = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return "0%";
+
+      case "CONFIRMED":
+        return "33%";
+
+      case "SHIPPED":
+        return "66%";
+
+      case "DELIVERED":
+        return "100%";
+
+      default:
+        return "0%";
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100">
         <div className="text-center">
-          <div className="text-4xl">📦</div>
-          <p className="mt-3 text-slate-500">Loading order...</p>
+          <div className="text-5xl">📦</div>
+
+          <p className="mt-4 font-medium text-slate-500">Loading order...</p>
         </div>
       </div>
     );
@@ -189,8 +262,8 @@ export default function AdminOrderDetailsPage() {
             </p>
 
             <button
-              onClick={fetchOrder}
-              className="mt-6 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700"
+              onClick={() => fetchOrder()}
+              className="mt-6 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700"
             >
               Try Again
             </button>
@@ -200,12 +273,20 @@ export default function AdminOrderDetailsPage() {
     );
   }
 
+  const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const calculatedSubtotal = order.items.reduce(
+    (sum, item) => sum + Number(item.price) * item.quantity,
+    0,
+  );
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 hidden h-screen w-64 bg-slate-950 text-white lg:block">
         <div className="border-b border-slate-800 px-6 py-6">
           <h1 className="text-xl font-bold">ShopHub</h1>
+
           <p className="mt-1 text-sm text-slate-400">Admin Panel</p>
         </div>
 
@@ -249,17 +330,18 @@ export default function AdminOrderDetailsPage() {
 
       {/* Main */}
       <main className="lg:ml-64">
+        {/* Header */}
         <header className="border-b border-slate-200 bg-white px-5 py-5 md:px-8">
-          <Link
-            href="/admin/orders"
-            className="text-sm font-semibold text-blue-600 hover:text-blue-800"
-          >
-            ← Back to Orders
-          </Link>
-
-          <div className="mt-4 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <p className="text-sm font-medium text-blue-600">
+              <Link
+                href="/admin/orders"
+                className="text-sm font-semibold text-blue-600 hover:text-blue-800"
+              >
+                ← Back to Orders
+              </Link>
+
+              <p className="mt-4 text-sm font-medium text-blue-600">
                 Order Management
               </p>
 
@@ -272,22 +354,124 @@ export default function AdminOrderDetailsPage() {
               </p>
             </div>
 
-            <span
-              className={`w-fit rounded-full px-4 py-2 text-sm font-bold ${getStatusStyle(
-                order.status,
-              )}`}
-            >
-              {order.status}
-            </span>
+            <div className="flex flex-col items-start gap-3 sm:items-end">
+              <span
+                className={`rounded-full px-4 py-2 text-sm font-bold ${getStatusStyle(
+                  order.status,
+                )}`}
+              >
+                {getStatusIcon(order.status)} {order.status}
+              </span>
+
+              <button
+                onClick={() => fetchOrder(true)}
+                disabled={refreshing}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                {refreshing ? "Refreshing..." : "↻ Refresh"}
+              </button>
+            </div>
           </div>
         </header>
 
         <div className="p-5 md:p-8">
+          {/* Error */}
           {error && (
             <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}
+
+          {/* Order Progress */}
+          <div className="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+            <div className="mb-6">
+              <h3 className="text-xl font-bold">Order Progress</h3>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Track the current status of this order.
+              </p>
+            </div>
+
+            {order.status === "CANCELLED" ? (
+              <div className="rounded-xl bg-red-50 p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100 text-xl text-red-600">
+                    ✕
+                  </div>
+
+                  <div>
+                    <p className="font-bold text-red-800">Order Cancelled</p>
+
+                    <p className="text-sm text-red-600">
+                      {getStatusDescription(order.status)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Progress bar */}
+                <div className="relative mb-8">
+                  <div className="absolute left-0 right-0 top-5 h-1 rounded-full bg-slate-200" />
+
+                  <div
+                    className="absolute left-0 top-5 h-1 rounded-full bg-blue-600 transition-all duration-500"
+                    style={{
+                      width: getProgressWidth(order.status),
+                    }}
+                  />
+
+                  <div className="relative flex justify-between">
+                    {statuses
+                      .filter((status) => status !== "CANCELLED")
+                      .map((status, index) => {
+                        const currentIndex = statuses
+                          .filter((item) => item !== "CANCELLED")
+                          .indexOf(order.status);
+
+                        const completed = index <= currentIndex;
+
+                        return (
+                          <div
+                            key={status}
+                            className="flex flex-col items-center"
+                          >
+                            <div
+                              className={`flex h-10 w-10 items-center justify-center rounded-full border-4 border-white text-sm font-bold shadow-sm ${
+                                completed
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-slate-200 text-slate-500"
+                              }`}
+                            >
+                              {completed ? "✓" : index + 1}
+                            </div>
+
+                            <p
+                              className={`mt-2 text-xs font-semibold ${
+                                completed ? "text-blue-600" : "text-slate-400"
+                              }`}
+                            >
+                              {status}
+                            </p>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="font-semibold">
+                    Current status:{" "}
+                    <span className="text-blue-600">{order.status}</span>
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    {getStatusDescription(order.status)}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Customer + Status */}
           <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -299,40 +483,40 @@ export default function AdminOrderDetailsPage() {
                 </div>
 
                 <div>
-                  <h3 className="font-bold">Customer</h3>
-                  <p className="text-sm text-slate-500">Customer information</p>
+                  <h3 className="font-bold">Customer Information</h3>
+
+                  <p className="text-sm text-slate-500">
+                    Details about the customer
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">
-                    Name
-                  </p>
-                  <p className="mt-1 font-semibold">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <span className="text-sm text-slate-500">Name</span>
+
+                  <span className="font-semibold">
                     {order.user?.name || "Unknown"}
-                  </p>
+                  </span>
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">
-                    Email
-                  </p>
-                  <p className="mt-1 text-slate-700">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                  <span className="text-sm text-slate-500">Email</span>
+
+                  <span className="break-all text-right text-sm font-medium">
                     {order.user?.email || "No email"}
-                  </p>
+                  </span>
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-400">
-                    User ID
-                  </p>
-                  <p className="mt-1 text-slate-700">#{order.user?.id}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-500">User ID</span>
+
+                  <span className="font-semibold">#{order.user?.id}</span>
                 </div>
               </div>
             </div>
 
-            {/* Status */}
+            {/* Status Update */}
             <div className="rounded-2xl bg-white p-6 shadow-sm">
               <div className="mb-5 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-100 text-xl">
@@ -340,15 +524,16 @@ export default function AdminOrderDetailsPage() {
                 </div>
 
                 <div>
-                  <h3 className="font-bold">Order Status</h3>
+                  <h3 className="font-bold">Update Order</h3>
+
                   <p className="text-sm text-slate-500">
-                    Update the order progress
+                    Change the order status
                   </p>
                 </div>
               </div>
 
               <label className="mb-2 block text-sm font-semibold">
-                Current Status
+                Order Status
               </label>
 
               <select
@@ -367,8 +552,15 @@ export default function AdminOrderDetailsPage() {
               </select>
 
               {updating && (
-                <p className="mt-2 text-sm text-slate-400">
+                <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
+                  <span className="animate-spin">⟳</span>
                   Updating order status...
+                </div>
+              )}
+
+              {!updating && (
+                <p className="mt-3 text-xs text-slate-400">
+                  Changes are saved immediately.
                 </p>
               )}
             </div>
@@ -376,104 +568,177 @@ export default function AdminOrderDetailsPage() {
 
           {/* Products */}
           <div className="rounded-2xl bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-6 py-5">
-              <h3 className="text-xl font-bold">Ordered Products</h3>
+            <div className="flex flex-col justify-between gap-2 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-xl font-bold">Ordered Products</h3>
 
-              <p className="mt-1 text-sm text-slate-500">
-                {order.items.length} product
-                {order.items.length !== 1 ? "s" : ""} in this order
-              </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {order.items.length} product
+                  {order.items.length !== 1 ? "s" : ""} • {totalItems} item
+                  {totalItems !== 1 ? "s" : ""} total
+                </p>
+              </div>
             </div>
 
             <div className="divide-y divide-slate-100">
-              {order.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex flex-col gap-4 px-6 py-6 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-center gap-4">
-                    {item.product?.image ? (
-                      <img
-                        src={item.product.image}
-                        alt={item.product.name}
-                        className="h-20 w-20 rounded-xl object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-100 text-3xl">
-                        📦
+              {order.items.map((item) => {
+                const itemSubtotal = Number(item.price) * item.quantity;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-col gap-5 px-6 py-6 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-center gap-4">
+                      {item.product?.image ? (
+                        <img
+                          src={item.product.image}
+                          alt={item.product.name}
+                          className="h-20 w-20 shrink-0 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-3xl">
+                          📦
+                        </div>
+                      )}
+
+                      <div className="min-w-0">
+                        <h4 className="truncate font-bold">
+                          {item.product?.name || "Product"}
+                        </h4>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          Product ID: #{item.product?.id}
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                          <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-600">
+                            Qty: {item.quantity}
+                          </span>
+
+                          <span className="rounded-lg bg-blue-50 px-2 py-1 text-blue-600">
+                            ${Number(item.price).toFixed(2)} each
+                          </span>
+                        </div>
                       </div>
-                    )}
+                    </div>
 
-                    <div>
-                      <h4 className="font-bold">
-                        {item.product?.name || "Product"}
-                      </h4>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        Quantity: {item.quantity}
+                    <div className="text-left sm:min-w-32.5 sm:text-right">
+                      <p className="text-xs font-semibold uppercase text-slate-400">
+                        Subtotal
                       </p>
 
-                      <p className="mt-1 text-sm text-slate-500">
-                        Price: ${item.price.toFixed(2)}
+                      <p className="mt-1 text-xl font-bold">
+                        ${itemSubtotal.toFixed(2)}
                       </p>
                     </div>
                   </div>
-
-                  <div className="text-left sm:text-right">
-                    <p className="text-sm text-slate-500">Subtotal</p>
-
-                    <p className="mt-1 text-xl font-bold">
-                      ${(item.price * item.quantity).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {/* Total */}
+            {/* Summary */}
             <div className="border-t border-slate-200 bg-slate-50 px-6 py-6">
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-semibold text-slate-600">
-                  Order Total
-                </span>
+              <div className="ml-auto max-w-md space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Items</span>
 
-                <span className="text-3xl font-bold text-blue-600">
-                  ${order.total.toFixed(2)}
-                </span>
+                  <span className="font-semibold">{totalItems}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Calculated Subtotal</span>
+
+                  <span className="font-semibold">
+                    ${calculatedSubtotal.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="border-t border-slate-200 pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-semibold text-slate-600">
+                      Order Total
+                    </span>
+
+                    <span className="text-3xl font-bold text-blue-600">
+                      ${Number(order.total).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Order Information */}
           <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
-            <h3 className="mb-5 text-xl font-bold">Order Information</h3>
-
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-400">
-                  Order ID
-                </p>
-                <p className="mt-1 font-semibold">#{order.id}</p>
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-xl">
+                ℹ️
               </div>
 
               <div>
+                <h3 className="text-xl font-bold">Order Information</h3>
+
+                <p className="text-sm text-slate-500">
+                  Important order details
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase text-slate-400">
+                  Order ID
+                </p>
+
+                <p className="mt-2 text-lg font-bold">#{order.id}</p>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase text-slate-400">
+                  Status
+                </p>
+
+                <p className="mt-2 font-bold text-blue-600">{order.status}</p>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase text-slate-400">
                   Created
                 </p>
-                <p className="mt-1 text-sm">
+
+                <p className="mt-2 text-sm font-semibold">
                   {new Date(order.createdAt).toLocaleString()}
                 </p>
               </div>
 
-              <div>
+              <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase text-slate-400">
                   Last Updated
                 </p>
-                <p className="mt-1 text-sm">
+
+                <p className="mt-2 text-sm font-semibold">
                   {new Date(order.updatedAt).toLocaleString()}
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Bottom Navigation */}
+          <div className="mt-6 flex flex-col justify-between gap-3 sm:flex-row">
+            <Link
+              href="/admin/orders"
+              className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-slate-50"
+            >
+              ← Back to All Orders
+            </Link>
+
+            <Link
+              href="/admin"
+              className="rounded-xl bg-slate-900 px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-600"
+            >
+              📊 Go to Dashboard
+            </Link>
           </div>
         </div>
       </main>

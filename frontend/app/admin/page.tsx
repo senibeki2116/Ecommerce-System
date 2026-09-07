@@ -14,17 +14,37 @@ type Order = {
   };
 };
 
+type User = {
+  id: number;
+  name: string;
+  email: string;
+  role: "CUSTOMER" | "ADMIN";
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Product = {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  image?: string | null;
+};
+
 export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
+  const fetchDashboardData = async () => {
     try {
+      setLoading(true);
+      setError("");
+
       const token = localStorage.getItem("accessToken");
 
       if (!token) {
@@ -33,44 +53,164 @@ export default function AdminDashboard() {
         return;
       }
 
-      const response = await fetch("http://localhost:3001/admin/orders", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
 
-      const data = await response.json();
+      const [ordersResponse, usersResponse, productsResponse] =
+        await Promise.all([
+          fetch("http://localhost:3001/admin/orders", {
+            headers,
+          }),
 
-      if (!response.ok) {
-        setError(data.message || "Failed to load dashboard.");
-        setLoading(false);
-        return;
+          fetch("http://localhost:3001/admin/users", {
+            headers,
+          }),
+
+          fetch("http://localhost:3001/products"),
+        ]);
+
+      if (!ordersResponse.ok) {
+        throw new Error("Failed to load orders.");
       }
 
-      setOrders(data);
-    } catch (error) {
-      console.error(error);
-      setError("Could not connect to the backend.");
+      if (!usersResponse.ok) {
+        throw new Error("Failed to load users.");
+      }
+
+      if (!productsResponse.ok) {
+        throw new Error("Failed to load products.");
+      }
+
+      const ordersData = await ordersResponse.json();
+      const usersData = await usersResponse.json();
+      const productsData = await productsResponse.json();
+
+      setOrders(ordersData);
+      setUsers(usersData);
+      setProducts(productsData);
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error ? err.message : "Could not load dashboard data.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  // =========================================================
+  // REAL STATISTICS
+  // =========================================================
+
+  const totalOrders = orders.length;
+
+  const totalCustomers = users.filter(
+    (user) => user.role === "CUSTOMER",
+  ).length;
+
+  const totalProducts = products.length;
+
   const totalSales = orders
     .filter((order) => order.status !== "CANCELLED")
-    .reduce((sum, order) => sum + order.total, 0);
+    .reduce((sum, order) => sum + Number(order.total), 0);
 
   const pendingOrders = orders.filter(
     (order) => order.status === "PENDING",
+  ).length;
+
+  const confirmedOrders = orders.filter(
+    (order) => order.status === "CONFIRMED",
+  ).length;
+
+  const shippedOrders = orders.filter(
+    (order) => order.status === "SHIPPED",
   ).length;
 
   const deliveredOrders = orders.filter(
     (order) => order.status === "DELIVERED",
   ).length;
 
-  const confirmedOrders = orders.filter(
-    (order) => order.status === "CONFIRMED",
+  const cancelledOrders = orders.filter(
+    (order) => order.status === "CANCELLED",
   ).length;
+
+  const inStockProducts = products.filter(
+    (product) => product.stock > 0,
+  ).length;
+
+  const outOfStockProducts = products.filter(
+    (product) => product.stock === 0,
+  ).length;
+
+  // =========================================================
+  // REAL MONTHLY SALES
+  // =========================================================
+
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  const monthlySales = monthNames.map((month, monthIndex) => {
+    const sales = orders
+      .filter((order) => {
+        if (order.status === "CANCELLED") {
+          return false;
+        }
+
+        const date = new Date(order.createdAt);
+
+        return date.getMonth() === monthIndex;
+      })
+      .reduce((sum, order) => sum + Number(order.total), 0);
+
+    return {
+      month,
+      sales,
+    };
+  });
+
+  const maxMonthlySales = Math.max(
+    ...monthlySales.map((item) => item.sales),
+    1,
+  );
+
+  const bestSalesMonth = monthlySales.reduce(
+    (best, current) => (current.sales > best.sales ? current : best),
+    monthlySales[0],
+  );
+
+  // =========================================================
+  // STATUS PERCENTAGE
+  // =========================================================
+
+  const getStatusPercentage = (count: number) => {
+    if (totalOrders === 0) {
+      return 0;
+    }
+
+    return Math.round((count / totalOrders) * 100);
+  };
+
+  // =========================================================
+  // STATUS STYLE
+  // =========================================================
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -94,539 +234,731 @@ export default function AdminDashboard() {
     }
   };
 
+  // =========================================================
+  // RECENT ORDERS
+  // =========================================================
+
+  const recentOrders = [...orders]
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    .slice(0, 8);
+
+  // =========================================================
+  // LOADING
+  // =========================================================
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950">
         <div className="text-center">
-          <div className="w-14 h-14 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin mx-auto mb-5" />
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-700 border-t-blue-500" />
 
-          <p className="text-slate-300 font-medium">Loading dashboard...</p>
+          <p className="mt-5 text-sm font-medium text-slate-400">
+            Loading admin dashboard...
+          </p>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="flex min-h-screen">
-        {/* SIDEBAR */}
-        <aside className="hidden lg:flex w-72 bg-slate-950 text-white flex-col fixed left-0 top-0 bottom-0">
-          {/* Logo */}
-          <div className="px-7 py-7 border-b border-slate-800">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-blue-600 rounded-xl flex items-center justify-center text-2xl shadow-lg shadow-blue-600/20">
-                🛒
-              </div>
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
 
-              <div>
-                <h1 className="text-lg font-bold">
-                  Shop<span className="text-blue-400">Hub</span>
-                </h1>
+      <aside className="fixed left-0 top-0 hidden h-screen w-72 bg-slate-950 text-white lg:block">
+        <div className="border-b border-slate-800 px-7 py-7">
+          <h1 className="text-2xl font-bold">ShopHub</h1>
 
-                <p className="text-xs text-slate-500">Admin Panel</p>
-              </div>
-            </Link>
-          </div>
+          <p className="mt-1 text-sm text-slate-400">Admin Panel</p>
+        </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-4 py-7">
-            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold px-3 mb-3">
-              Overview
-            </p>
+        <nav className="px-4 py-6">
+          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Management
+          </p>
 
-            <Link
-              href="/admin"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white mb-2 shadow-lg shadow-blue-600/20"
-            >
-              <span className="text-xl">📊</span>
-              <span className="font-medium">Dashboard</span>
-            </Link>
+          <Link
+            href="/admin"
+            className="mb-2 flex items-center rounded-xl bg-white px-4 py-3 font-semibold text-slate-950 shadow-sm"
+          >
+            📊
+            <span className="ml-3">Dashboard</span>
+          </Link>
 
-            <Link
-              href="/admin/orders"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-900 hover:text-white transition mb-1"
-            >
-              <span className="text-xl">📦</span>
-              <span>Orders</span>
-            </Link>
+          <Link
+            href="/admin/orders"
+            className="mb-2 flex items-center rounded-xl px-4 py-3 text-slate-300 transition hover:bg-slate-900 hover:text-white"
+          >
+            📦
+            <span className="ml-3">Orders</span>
+          </Link>
 
-            <Link
-              href="/admin/products"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-900 hover:text-white transition mb-1"
-            >
-              <span className="text-xl">🛍️</span>
-              <span>Products</span>
-            </Link>
+          <Link
+            href="/admin/products"
+            className="mb-2 flex items-center rounded-xl px-4 py-3 text-slate-300 transition hover:bg-slate-900 hover:text-white"
+          >
+            🛍️
+            <span className="ml-3">Products</span>
+          </Link>
 
-            <Link
-              href="/admin/users"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-900 hover:text-white transition"
-            >
-              <span className="text-xl">👥</span>
-              <span>Customers</span>
-            </Link>
+          <Link
+            href="/admin/users"
+            className="mb-2 flex items-center rounded-xl px-4 py-3 text-slate-300 transition hover:bg-slate-900 hover:text-white"
+          >
+            👥
+            <span className="ml-3">Customers</span>
+          </Link>
 
-            <div className="border-t border-slate-800 my-7" />
+          <p className="mb-3 mt-8 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Store
+          </p>
 
-            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold px-3 mb-3">
-              Store
-            </p>
+          <Link
+            href="/"
+            className="flex items-center rounded-xl px-4 py-3 text-slate-300 transition hover:bg-slate-900 hover:text-white"
+          >
+            🏠
+            <span className="ml-3">View Store</span>
+          </Link>
+        </nav>
 
-            <Link
-              href="/"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-900 hover:text-white transition"
-            >
-              <span className="text-xl">🏪</span>
-              <span>View Store</span>
-            </Link>
-          </nav>
+        <div className="absolute bottom-0 left-0 right-0 border-t border-slate-800 p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 font-bold">
+              A
+            </div>
 
-          {/* Admin Profile */}
-          <div className="p-4 border-t border-slate-800">
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-900">
-              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold">
-                A
-              </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Administrator</p>
 
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">Administrator</p>
-
-                <p className="text-xs text-slate-500 truncate">Store Manager</p>
-              </div>
+              <p className="text-xs text-slate-500">Store Manager</p>
             </div>
           </div>
-        </aside>
+        </div>
+      </aside>
 
-        {/* MAIN CONTENT */}
-        <section className="flex-1 lg:ml-72">
-          {/* TOP BAR */}
-          <header className="bg-white border-b border-slate-200 px-5 sm:px-8 py-5">
-            <div className="max-w-7xl mx-auto flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Welcome back 👋</p>
+      {/* =====================================================
+          MAIN
+      ===================================================== */}
 
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">
-                  Dashboard
-                </h1>
-              </div>
+      <main className="lg:ml-72">
+        {/* HEADER */}
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={fetchOrders}
-                  className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium transition"
-                >
-                  🔄 Refresh
-                </button>
+        <header className="border-b border-slate-200 bg-white px-6 py-5 lg:px-10">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+            <div>
+              <p className="text-sm font-medium text-blue-600">
+                Administration
+              </p>
 
-                <Link
-                  href="/"
-                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium transition"
-                >
-                  Store →
-                </Link>
-              </div>
-            </div>
-          </header>
-
-          <div className="max-w-7xl mx-auto px-5 sm:px-8 py-8">
-            {/* ERROR */}
-            {error && (
-              <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-700">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">⚠️</span>
-                  <span>{error}</span>
-                </div>
-              </div>
-            )}
-
-            {/* STATISTICS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
-              {/* Sales */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">
-                      Total Revenue
-                    </p>
-
-                    <h2 className="text-3xl font-bold text-slate-900 mt-2">
-                      ${totalSales.toFixed(2)}
-                    </h2>
-
-                    <p className="text-xs text-emerald-600 font-medium mt-2">
-                      ↗ From all active orders
-                    </p>
-                  </div>
-
-                  <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl">
-                    💰
-                  </div>
-                </div>
-              </div>
-
-              {/* Orders */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">
-                      Total Orders
-                    </p>
-
-                    <h2 className="text-3xl font-bold text-slate-900 mt-2">
-                      {orders.length}
-                    </h2>
-
-                    <p className="text-xs text-blue-600 font-medium mt-2">
-                      All customer orders
-                    </p>
-                  </div>
-
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl">
-                    📦
-                  </div>
-                </div>
-              </div>
-
-              {/* Pending */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">
-                      Pending
-                    </p>
-
-                    <h2 className="text-3xl font-bold text-slate-900 mt-2">
-                      {pendingOrders}
-                    </h2>
-
-                    <p className="text-xs text-amber-600 font-medium mt-2">
-                      Waiting for processing
-                    </p>
-                  </div>
-
-                  <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-2xl">
-                    ⏳
-                  </div>
-                </div>
-              </div>
-
-              {/* Delivered */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">
-                      Delivered
-                    </p>
-
-                    <h2 className="text-3xl font-bold text-slate-900 mt-2">
-                      {deliveredOrders}
-                    </h2>
-
-                    <p className="text-xs text-emerald-600 font-medium mt-2">
-                      Successfully completed
-                    </p>
-                  </div>
-
-                  <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl">
-                    ✅
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* MIDDLE SECTION */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-              {/* Sales Overview */}
-              <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-center justify-between mb-7">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">
-                      Sales Overview
-                    </h2>
-
-                    <p className="text-sm text-slate-500 mt-1">
-                      Current store performance
-                    </p>
-                  </div>
-
-                  <span className="px-3 py-1.5 rounded-lg bg-slate-100 text-xs font-semibold text-slate-600">
-                    All Time
-                  </span>
-                </div>
-
-                <div className="h-56 flex items-end gap-3 sm:gap-5">
-                  {[35, 52, 42, 68, 55, 78, 63, 88, 72, 94, 80, 100].map(
-                    (height, index) => (
-                      <div
-                        key={index}
-                        className="flex-1 h-full flex items-end group"
-                      >
-                        <div
-                          className="w-full bg-blue-100 group-hover:bg-blue-600 rounded-t-lg transition-all"
-                          style={{ height: `${height}%` }}
-                        />
-                      </div>
-                    ),
-                  )}
-                </div>
-
-                <div className="flex justify-between text-xs text-slate-400 mt-3">
-                  <span>Jan</span>
-                  <span>Feb</span>
-                  <span>Mar</span>
-                  <span>Apr</span>
-                  <span>May</span>
-                  <span>Jun</span>
-                  <span>Jul</span>
-                  <span>Aug</span>
-                  <span>Sep</span>
-                  <span>Oct</span>
-                  <span>Nov</span>
-                  <span>Dec</span>
-                </div>
-              </div>
-
-              {/* Order Status */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <h2 className="text-lg font-bold text-slate-900">
-                  Order Status
-                </h2>
-
-                <p className="text-sm text-slate-500 mt-1 mb-6">
-                  Current order distribution
-                </p>
-
-                <div className="space-y-5">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-slate-600">Pending</span>
-                      <span className="font-semibold">{pendingOrders}</span>
-                    </div>
-
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-amber-400 rounded-full"
-                        style={{
-                          width: `${orders.length ? (pendingOrders / orders.length) * 100 : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-slate-600">Confirmed</span>
-                      <span className="font-semibold">{confirmedOrders}</span>
-                    </div>
-
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full"
-                        style={{
-                          width: `${orders.length ? (confirmedOrders / orders.length) * 100 : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-slate-600">Delivered</span>
-                      <span className="font-semibold">{deliveredOrders}</span>
-                    </div>
-
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500 rounded-full"
-                        style={{
-                          width: `${orders.length ? (deliveredOrders / orders.length) * 100 : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <Link
-                  href="/admin/orders"
-                  className="block text-center mt-7 bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3 font-medium transition"
-                >
-                  Manage Orders →
-                </Link>
-              </div>
-            </div>
-
-            {/* RECENT ORDERS */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">
-                    Recent Orders
-                  </h2>
-
-                  <p className="text-sm text-slate-500 mt-1">
-                    Latest customer activity
-                  </p>
-                </div>
-
-                <Link
-                  href="/admin/orders"
-                  className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                >
-                  View all →
-                </Link>
-              </div>
-
-              {orders.length === 0 ? (
-                <div className="py-16 text-center">
-                  <div className="text-5xl mb-4">📦</div>
-
-                  <h3 className="text-lg font-bold text-slate-900">
-                    No orders yet
-                  </h3>
-
-                  <p className="text-sm text-slate-500 mt-2">
-                    Orders will appear here when customers purchase products.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="text-left px-6 py-4 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                          Order
-                        </th>
-
-                        <th className="text-left px-6 py-4 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                          Customer
-                        </th>
-
-                        <th className="text-left px-6 py-4 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                          Date
-                        </th>
-
-                        <th className="text-left px-6 py-4 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                          Amount
-                        </th>
-
-                        <th className="text-left px-6 py-4 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {orders.slice(0, 8).map((order) => (
-                        <tr
-                          key={order.id}
-                          className="border-t border-slate-100 hover:bg-slate-50 transition"
-                        >
-                          <td className="px-6 py-5">
-                            <span className="font-bold text-slate-900">
-                              #{order.id}
-                            </span>
-                          </td>
-
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
-                                {order.user?.name?.charAt(0).toUpperCase() ||
-                                  "C"}
-                              </div>
-
-                              <div>
-                                <p className="font-semibold text-slate-900">
-                                  {order.user?.name || "Customer"}
-                                </p>
-
-                                <p className="text-xs text-slate-500">
-                                  {order.user?.email || "-"}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-5 text-sm text-slate-600">
-                            {new Date(order.createdAt).toLocaleDateString()}
-                          </td>
-
-                          <td className="px-6 py-5 font-bold text-slate-900">
-                            ${order.total.toFixed(2)}
-                          </td>
-
-                          <td className="px-6 py-5">
-                            <span
-                              className={`inline-flex px-3 py-1.5 rounded-full text-xs font-bold ${getStatusStyle(
-                                order.status,
-                              )}`}
-                            >
-                              {order.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* QUICK ACTIONS */}
-            <div className="mt-8">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">
-                Quick Actions
+              <h2 className="mt-1 text-2xl font-bold text-slate-900 md:text-3xl">
+                Dashboard
               </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                <Link
-                  href="/admin/products"
-                  className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:-translate-y-1 transition"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition">
-                    🛍️
-                  </div>
+              <p className="mt-1 text-sm text-slate-500">
+                Welcome back. Here is what is happening in your store.
+              </p>
+            </div>
 
-                  <h3 className="font-bold text-slate-900">Manage Products</h3>
+            <div className="flex gap-3">
+              <button
+                onClick={fetchDashboardData}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                ↻ Refresh
+              </button>
 
-                  <p className="text-sm text-slate-500 mt-1">
-                    Add, edit and remove products.
+              <Link
+                href="/"
+                className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                View Store
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <div className="p-6 lg:p-10">
+          {/* ERROR */}
+
+          {error && (
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* =================================================
+              TOP STATISTICS
+          ================================================= */}
+
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {/* REVENUE */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">
+                    Total Revenue
                   </p>
-                </Link>
 
-                <Link
-                  href="/admin/orders"
-                  className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:-translate-y-1 transition"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition">
-                    📦
-                  </div>
-
-                  <h3 className="font-bold text-slate-900">Manage Orders</h3>
-
-                  <p className="text-sm text-slate-500 mt-1">
-                    Process and update customer orders.
+                  <p className="mt-3 text-3xl font-bold text-slate-900">
+                    ${totalSales.toFixed(2)}
                   </p>
-                </Link>
 
-                <Link
-                  href="/admin/users"
-                  className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:-translate-y-1 transition"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition">
-                    👥
-                  </div>
-
-                  <h3 className="font-bold text-slate-900">Manage Customers</h3>
-
-                  <p className="text-sm text-slate-500 mt-1">
-                    View and manage your customers.
+                  <p className="mt-2 text-sm text-emerald-600">
+                    Excluding cancelled orders
                   </p>
-                </Link>
+                </div>
+
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-2xl">
+                  💰
+                </div>
+              </div>
+            </div>
+
+            {/* ORDERS */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">
+                    Total Orders
+                  </p>
+
+                  <p className="mt-3 text-3xl font-bold text-slate-900">
+                    {totalOrders}
+                  </p>
+
+                  <p className="mt-2 text-sm text-blue-600">All orders</p>
+                </div>
+
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-2xl">
+                  📦
+                </div>
+              </div>
+            </div>
+
+            {/* CUSTOMERS */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">
+                    Total Customers
+                  </p>
+
+                  <p className="mt-3 text-3xl font-bold text-slate-900">
+                    {totalCustomers}
+                  </p>
+
+                  <p className="mt-2 text-sm text-purple-600">
+                    Registered customers
+                  </p>
+                </div>
+
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-2xl">
+                  👥
+                </div>
+              </div>
+            </div>
+
+            {/* PRODUCTS */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">
+                    Total Products
+                  </p>
+
+                  <p className="mt-3 text-3xl font-bold text-slate-900">
+                    {totalProducts}
+                  </p>
+
+                  <p className="mt-2 text-sm text-amber-600">
+                    {inStockProducts} currently in stock
+                  </p>
+                </div>
+
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-2xl">
+                  🛍️
+                </div>
               </div>
             </div>
           </div>
-        </section>
-      </div>
-    </main>
+
+          {/* =================================================
+              ORDER STATUS CARDS
+          ================================================= */}
+
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-slate-500">Pending</p>
+
+              <p className="mt-2 text-2xl font-bold text-amber-600">
+                {pendingOrders}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-slate-500">Confirmed</p>
+
+              <p className="mt-2 text-2xl font-bold text-blue-600">
+                {confirmedOrders}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-slate-500">Shipped</p>
+
+              <p className="mt-2 text-2xl font-bold text-purple-600">
+                {shippedOrders}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-slate-500">Delivered</p>
+
+              <p className="mt-2 text-2xl font-bold text-emerald-600">
+                {deliveredOrders}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-slate-500">Cancelled</p>
+
+              <p className="mt-2 text-2xl font-bold text-red-600">
+                {cancelledOrders}
+              </p>
+            </div>
+          </div>
+
+          {/* =================================================
+              MIDDLE SECTION
+          ================================================= */}
+
+          <div className="mt-8 grid gap-6 xl:grid-cols-2">
+            {/* REAL SALES OVERVIEW */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Sales Overview
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Real sales from your orders
+                  </p>
+                </div>
+
+                <span className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                  ${totalSales.toFixed(2)} total
+                </span>
+              </div>
+
+              {/* BEST MONTH */}
+
+              <div className="mt-5 rounded-xl bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Best Sales Month
+                    </p>
+
+                    <p className="mt-1 text-lg font-bold text-slate-900">
+                      {bestSalesMonth.month}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400">Sales</p>
+
+                    <p className="text-lg font-bold text-emerald-600">
+                      ${bestSalesMonth.sales.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* CHART */}
+
+              <div className="mt-8 flex h-64 items-end gap-2">
+                {monthlySales.map((item) => {
+                  const height =
+                    item.sales === 0
+                      ? 3
+                      : Math.max((item.sales / maxMonthlySales) * 100, 8);
+
+                  return (
+                    <div
+                      key={item.month}
+                      className="group flex h-full flex-1 flex-col justify-end"
+                    >
+                      {/* SALES VALUE */}
+
+                      {item.sales > 0 && (
+                        <div className="mb-2 text-center text-[10px] font-semibold text-slate-500 opacity-0 transition group-hover:opacity-100">
+                          ${item.sales.toFixed(0)}
+                        </div>
+                      )}
+
+                      {/* BAR */}
+
+                      <div
+                        className={`w-full rounded-t-lg transition ${
+                          item.sales > 0
+                            ? "bg-blue-600 hover:bg-blue-700"
+                            : "bg-slate-100"
+                        }`}
+                        style={{
+                          height: `${height}%`,
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* MONTH LABELS */}
+
+              <div className="mt-4 grid grid-cols-12 text-center text-xs text-slate-400">
+                {monthNames.map((month) => (
+                  <span key={month}>{month}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* ORDER STATUS */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-900">Order Status</h3>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Current order distribution
+              </p>
+
+              <div className="mt-8 space-y-6">
+                {/* PENDING */}
+
+                <div>
+                  <div className="mb-2 flex justify-between text-sm">
+                    <span className="font-medium text-slate-700">Pending</span>
+
+                    <span className="font-semibold text-slate-900">
+                      {pendingOrders} ({getStatusPercentage(pendingOrders)}%)
+                    </span>
+                  </div>
+
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-amber-500"
+                      style={{
+                        width: `${getStatusPercentage(pendingOrders)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* CONFIRMED */}
+
+                <div>
+                  <div className="mb-2 flex justify-between text-sm">
+                    <span className="font-medium text-slate-700">
+                      Confirmed
+                    </span>
+
+                    <span className="font-semibold text-slate-900">
+                      {confirmedOrders} ({getStatusPercentage(confirmedOrders)}
+                      %)
+                    </span>
+                  </div>
+
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-blue-500"
+                      style={{
+                        width: `${getStatusPercentage(confirmedOrders)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* SHIPPED */}
+
+                <div>
+                  <div className="mb-2 flex justify-between text-sm">
+                    <span className="font-medium text-slate-700">Shipped</span>
+
+                    <span className="font-semibold text-slate-900">
+                      {shippedOrders} ({getStatusPercentage(shippedOrders)}%)
+                    </span>
+                  </div>
+
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-purple-500"
+                      style={{
+                        width: `${getStatusPercentage(shippedOrders)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* DELIVERED */}
+
+                <div>
+                  <div className="mb-2 flex justify-between text-sm">
+                    <span className="font-medium text-slate-700">
+                      Delivered
+                    </span>
+
+                    <span className="font-semibold text-slate-900">
+                      {deliveredOrders} ({getStatusPercentage(deliveredOrders)}
+                      %)
+                    </span>
+                  </div>
+
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-emerald-500"
+                      style={{
+                        width: `${getStatusPercentage(deliveredOrders)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* CANCELLED */}
+
+                <div>
+                  <div className="mb-2 flex justify-between text-sm">
+                    <span className="font-medium text-slate-700">
+                      Cancelled
+                    </span>
+
+                    <span className="font-semibold text-slate-900">
+                      {cancelledOrders} ({getStatusPercentage(cancelledOrders)}
+                      %)
+                    </span>
+                  </div>
+
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-red-500"
+                      style={{
+                        width: `${getStatusPercentage(cancelledOrders)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* =================================================
+              QUICK STORE STATUS
+          ================================================= */}
+
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500">Customers</p>
+
+                  <p className="mt-2 text-2xl font-bold">{totalCustomers}</p>
+                </div>
+
+                <div className="text-3xl">👥</div>
+              </div>
+
+              <Link
+                href="/admin/users"
+                className="mt-5 block text-sm font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Manage customers →
+              </Link>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500">Products</p>
+
+                  <p className="mt-2 text-2xl font-bold">{totalProducts}</p>
+                </div>
+
+                <div className="text-3xl">🛍️</div>
+              </div>
+
+              <p className="mt-2 text-sm text-slate-500">
+                {inStockProducts} in stock · {outOfStockProducts} out of stock
+              </p>
+
+              <Link
+                href="/admin/products"
+                className="mt-5 block text-sm font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Manage products →
+              </Link>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500">Orders</p>
+
+                  <p className="mt-2 text-2xl font-bold">{totalOrders}</p>
+                </div>
+
+                <div className="text-3xl">📦</div>
+              </div>
+
+              <p className="mt-2 text-sm text-slate-500">
+                {pendingOrders} waiting for processing
+              </p>
+
+              <Link
+                href="/admin/orders"
+                className="mt-5 block text-sm font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Manage orders →
+              </Link>
+            </div>
+          </div>
+
+          {/* =================================================
+              RECENT ORDERS
+          ================================================= */}
+
+          <div className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col justify-between gap-3 border-b border-slate-200 p-6 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Recent Orders
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Latest orders from your store
+                </p>
+              </div>
+
+              <Link
+                href="/admin/orders"
+                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+              >
+                View all orders →
+              </Link>
+            </div>
+
+            {recentOrders.length === 0 ? (
+              <div className="p-10 text-center">
+                <div className="text-4xl">📦</div>
+
+                <p className="mt-3 font-semibold text-slate-900">
+                  No orders yet
+                </p>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Orders will appear here when customers place them.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-200">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Order
+                      </th>
+
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Customer
+                      </th>
+
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Date
+                      </th>
+
+                      <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Amount
+                      </th>
+
+                      <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {recentOrders.map((order) => (
+                      <tr
+                        key={order.id}
+                        className="transition hover:bg-slate-50"
+                      >
+                        <td className="px-6 py-5">
+                          <Link
+                            href={`/admin/orders/${order.id}`}
+                            className="font-semibold text-blue-600 hover:text-blue-700"
+                          >
+                            #{order.id}
+                          </Link>
+                        </td>
+
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
+                              {order.user?.name?.charAt(0).toUpperCase() || "U"}
+                            </div>
+
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {order.user?.name || "Unknown"}
+                              </p>
+
+                              <p className="text-xs text-slate-500">
+                                {order.user?.email || "No email"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-5 text-sm text-slate-600">
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </td>
+
+                        <td className="px-6 py-5 font-semibold text-slate-900">
+                          ${Number(order.total).toFixed(2)}
+                        </td>
+
+                        <td className="px-6 py-5 text-right">
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusStyle(
+                              order.status,
+                            )}`}
+                          >
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* FOOTER */}
+
+          <div className="mt-8 pb-4 text-center text-sm text-slate-400">
+            ShopHub Admin Dashboard
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }
