@@ -55,6 +55,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem("accessToken");
   };
 
+  const clearInvalidSession = () => {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("user");
+    setCart([]);
+  };
+
   // Load cart from backend
   const refreshCart = async () => {
     const token = getToken();
@@ -75,6 +81,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          clearInvalidSession();
+          return;
+        }
+
         throw new Error(data.message || "Failed to load cart");
       }
 

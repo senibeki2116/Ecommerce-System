@@ -74,6 +74,14 @@ export default function AdminProductsPage() {
     setStock(String(product.stock));
     setImage(product.image || "");
     setShowForm(true);
+
+    // Scroll to the edit form
+    setTimeout(() => {
+      document.getElementById("product-form")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -262,7 +270,10 @@ export default function AdminProductsPage() {
 
           {/* Product Form */}
           {showForm && (
-            <div className="mb-8 rounded-2xl bg-white p-6 shadow-sm md:p-8">
+            <div
+              id="product-form"
+              className="mb-8 rounded-2xl bg-white p-6 shadow-sm md:p-8"
+            >
               <div className="mb-6 flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold">
@@ -473,7 +484,11 @@ export default function AdminProductsPage() {
                         <td className="px-6 py-5">
                           <div className="flex justify-end gap-2">
                             <button
-                              onClick={() => openEditForm(product)}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                openEditForm(product);
+                              }}
                               className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-100"
                             >
                               Edit
