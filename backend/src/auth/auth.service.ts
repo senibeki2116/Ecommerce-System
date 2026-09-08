@@ -18,14 +18,14 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  // =========================
+  // ==========================================
   // REGISTER
-  // =========================
+  // ==========================================
   async register(registerDto: RegisterDto) {
     try {
       const { name, email, password } = registerDto;
 
-      // Check if email already exists
+      // Check whether email already exists
       const existingUser = await this.usersService.findByEmail(email);
 
       if (existingUser) {
@@ -35,17 +35,29 @@ export class AuthService {
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 12);
 
-      // Create user
+      /*
+       * IMPORTANT:
+       * We do NOT accept a role from registration.
+       *
+       * The UsersService/database will automatically create
+       * the user as CUSTOMER.
+       */
       const user = await this.usersService.createUser({
         name,
         email,
         password: hashedPassword,
       });
 
-      // Never return the password
+      // Never return password
       return {
         message: 'User registered successfully',
-        user,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+        },
       };
     } catch (error) {
       console.error('====================================');
@@ -63,14 +75,14 @@ export class AuthService {
     }
   }
 
-  // =========================
+  // ==========================================
   // LOGIN
-  // =========================
+  // ==========================================
   async login(loginDto: LoginDto) {
     try {
       const { email, password } = loginDto;
 
-      // Find user
+      // Find user by email
       const user = await this.usersService.findByEmail(email);
 
       if (!user) {
@@ -84,19 +96,27 @@ export class AuthService {
         throw new UnauthorizedException('Invalid email or password');
       }
 
-      // JWT payload
+      /*
+       * JWT payload
+       *
+       * The role is included so RolesGuard can determine
+       * whether the user is CUSTOMER or ADMIN.
+       */
       const payload = {
         sub: user.id,
         email: user.email,
         role: user.role,
       };
 
-      // Create JWT
+      // Generate JWT
       const accessToken = await this.jwtService.signAsync(payload);
 
+      // Return token + safe user information
       return {
         message: 'Login successful',
+
         accessToken,
+
         user: {
           id: user.id,
           name: user.name,
