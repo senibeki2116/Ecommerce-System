@@ -5,33 +5,57 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { Role } from '../generated/prisma/client';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Find user by email
+  // =========================================================
+  // FIND USER BY EMAIL
+  // Used during registration and login
+  // =========================================================
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: {
+        email,
+      },
     });
   }
 
-  // Create a new user
+  // =========================================================
+  // CREATE USER
+  // IMPORTANT:
+  // New users are CUSTOMER by default.
+  // We do not allow registration to choose ADMIN.
+  // =========================================================
   async createUser(data: { name: string; email: string; password: string }) {
     return this.prisma.user.create({
-      data,
+      data: {
+        name: data.name,
+        email: data.email,
+        password: data.password,
+
+        // Always CUSTOMER when registering
+        role: Role.CUSTOMER,
+      },
+
+      // Never return password
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
         createdAt: true,
+        updatedAt: true,
       },
     });
   }
 
-  // Get all users
+  // =========================================================
+  // GET ALL USERS
+  // ADMIN ONLY - controller will protect this endpoint
+  // =========================================================
   async getAllUsers() {
     return this.prisma.user.findMany({
       select: {
@@ -42,16 +66,23 @@ export class UsersService {
         createdAt: true,
         updatedAt: true,
       },
+
       orderBy: {
         createdAt: 'desc',
       },
     });
   }
 
-  // Get one user with their orders
+  // =========================================================
+  // GET USER BY ID
+  // Includes user's orders
+  // =========================================================
   async getUserById(id: number) {
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
+
       select: {
         id: true,
         name: true,
@@ -59,13 +90,25 @@ export class UsersService {
         role: true,
         createdAt: true,
         updatedAt: true,
+
         orders: {
           select: {
             id: true,
             total: true,
             status: true,
             createdAt: true,
+            updatedAt: true,
+
+            items: {
+              select: {
+                id: true,
+                productId: true,
+                quantity: true,
+                price: true,
+              },
+            },
           },
+
           orderBy: {
             createdAt: 'desc',
           },
@@ -80,21 +123,37 @@ export class UsersService {
     return user;
   }
 
-  // Change user role
-  async updateUserRole(id: number, role: 'CUSTOMER' | 'ADMIN') {
+  // =========================================================
+  // CHANGE USER ROLE
+  //
+  // CUSTOMER -> ADMIN
+  // ADMIN    -> CUSTOMER
+  //
+  // ADMIN ONLY - controller will protect this endpoint
+  // =========================================================
+  async updateUserRole(id: number, role: Role) {
+    // Check whether user exists
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    return this.prisma.user.update({
-      where: { id },
+    // Update role
+    const updatedUser = await this.prisma.user.update({
+      where: {
+        id,
+      },
+
       data: {
         role,
       },
+
+      // Never return password
       select: {
         id: true,
         name: true,
@@ -104,24 +163,48 @@ export class UsersService {
         updatedAt: true,
       },
     });
+
+    return {
+      message: `User role changed to ${role}`,
+      user: updatedUser,
+    };
   }
 
-  // Delete user safely
+  // =========================================================
+  // DELETE USER
+  //
+  // ADMIN ONLY
+  //
+  // Deletes:
+  // 1. Cart items
+  // 2. Cart
+  // 3. Order items
+  // 4. Orders
+  // 5. User
+  // =========================================================
   async deleteUser(id: number, currentUserId: number) {
-    // Prevent admin from deleting their own account
+    // -------------------------------------------------------
+    // Prevent admin from deleting themselves
+    // -------------------------------------------------------
     if (id === currentUserId) {
       throw new BadRequestException('You cannot delete your own account');
     }
 
-    // Find user and related data
+    // -------------------------------------------------------
+    // Find user
+    // -------------------------------------------------------
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
+
       include: {
         cart: {
           include: {
             items: true,
           },
         },
+
         orders: {
           include: {
             items: true,
@@ -134,7 +217,9 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    // -------------------------------------------------------
     // Delete cart items
+    // -------------------------------------------------------
     if (user.cart) {
       await this.prisma.cartItem.deleteMany({
         where: {
@@ -150,7 +235,9 @@ export class UsersService {
       });
     }
 
+    // -------------------------------------------------------
     // Delete order items
+    // -------------------------------------------------------
     for (const order of user.orders) {
       await this.prisma.orderItem.deleteMany({
         where: {
@@ -159,14 +246,18 @@ export class UsersService {
       });
     }
 
+    // -------------------------------------------------------
     // Delete user's orders
+    // -------------------------------------------------------
     await this.prisma.order.deleteMany({
       where: {
         userId: id,
       },
     });
 
-    // Finally delete the user
+    // -------------------------------------------------------
+    // Finally delete user
+    // -------------------------------------------------------
     await this.prisma.user.delete({
       where: {
         id,
