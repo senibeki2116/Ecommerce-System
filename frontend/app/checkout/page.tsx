@@ -1,22 +1,34 @@
-
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import Navbar from "../Components/Navbar";
+import { useEffect, useState } from "react";
 import { useCart } from "../Context/CartContext";
+import Navbar from "../Components/Navbar";
+
+type FormDataType = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
+  payment: string;
+};
 
 export default function CheckoutPage() {
   const { cart, cartTotal, cartCount, clearCart } = useCart();
 
+  /* =========================
+     STATE
+  ========================= */
+
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [error, setError] = useState("");
+  const [orderId, setOrderId] = useState("");
 
-  const shipping = cartTotal >= 100 ? 0 : 10;
-  const finalTotal = cartTotal + shipping;
-
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormDataType>({
     firstName: "",
     lastName: "",
     email: "",
@@ -27,36 +39,213 @@ export default function CheckoutPage() {
     payment: "Cash on Delivery",
   });
 
+  /* =========================
+     LOAD SAVED ADDRESS
+  ========================= */
+
+  useEffect(() => {
+    try {
+      const savedAddress = localStorage.getItem("shippingAddress");
+
+      if (savedAddress) {
+        const parsed = JSON.parse(savedAddress);
+
+        const savedFullName = parsed.fullName || "";
+        const nameParts = savedFullName.trim().split(" ");
+
+        setFormData((prev) => ({
+          ...prev,
+          firstName: nameParts[0] || "",
+          lastName: nameParts.slice(1).join(" ") || "",
+          address: parsed.address || "",
+        }));
+      }
+
+      /* Try to load logged-in user information */
+      const userData =
+        localStorage.getItem("user") || localStorage.getItem("currentUser");
+
+      if (userData) {
+        const user = JSON.parse(userData);
+
+        setFormData((prev) => ({
+          ...prev,
+          firstName:
+            prev.firstName || user.firstName || user.name?.split(" ")[0] || "",
+          lastName:
+            prev.lastName ||
+            user.lastName ||
+            user.name?.split(" ").slice(1).join(" ") ||
+            "",
+          email: prev.email || user.email || "",
+        }));
+      }
+    } catch (error) {
+      console.error("Could not load saved checkout data:", error);
+    }
+  }, []);
+
+  /* =========================
+     PRICE CALCULATIONS
+  ========================= */
+
+  const shipping = cartTotal >= 100 ? 0 : 10;
+
+  const tax = cartTotal * 0.08;
+
+  const couponDiscount = cartTotal > 0 ? Math.min(40.6, cartTotal) : 0;
+
+  const finalTotal = Math.max(0, cartTotal + shipping + tax - couponDiscount);
+
+  /* =========================
+     INPUT CHANGE
+  ========================= */
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
+
+    setError("");
   };
 
-  // ================= PLACE ORDER =================
+  /* =========================
+     PAYMENT SELECT
+  ========================= */
+
+  const selectPayment = (payment: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      payment,
+    }));
+
+    setError("");
+  };
+
+  /* =========================
+     VALIDATION
+  ========================= */
+
+  const validateForm = () => {
+    if (!formData.firstName.trim()) {
+      return "Please enter your first name.";
+    }
+
+    if (!formData.lastName.trim()) {
+      return "Please enter your last name.";
+    }
+
+    if (!formData.email.trim()) {
+      return "Please enter your email address.";
+    }
+
+    if (!formData.phone.trim()) {
+      return "Please enter your phone number.";
+    }
+
+    if (!formData.address.trim()) {
+      return "Please enter your delivery address.";
+    }
+
+    if (!formData.city.trim()) {
+      return "Please enter your city.";
+    }
+
+    if (!formData.country.trim()) {
+      return "Please select your country.";
+    }
+
+    if (!formData.payment.trim()) {
+      return "Please select a payment method.";
+    }
+
+    return "";
+  };
+
+  /* =========================
+     PLACE ORDER
+  ========================= */
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     setError("");
+
+    if (cart.length === 0) {
+      setError("Your cart is empty.");
+      return;
+    }
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setError(validationError);
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+
+      return;
+    }
+
     setPlacingOrder(true);
 
     try {
-      // Get JWT token
-      const token = localStorage.getItem("accessToken");
+      const token =
+        localStorage.getItem("accessToken") || localStorage.getItem("token");
 
       if (!token) {
         setError("Please login before placing an order.");
+
         setPlacingOrder(false);
         return;
       }
 
-      console.log("Token found:", token.substring(0, 20) + "...");
+      /* =========================
+         CREATE ORDER DATA
+      ========================= */
 
-      // Send order request to NestJS backend
+      const orderData = {
+        items: cart.map((item: any) => ({
+          productId: item._id || item.id,
+          name: item.name,
+          price: Number(item.price),
+          quantity: Number(item.quantity),
+          image: item.image || "",
+        })),
+
+        subtotal: Number(cartTotal.toFixed(2)),
+        shipping: Number(shipping.toFixed(2)),
+        tax: Number(tax.toFixed(2)),
+        discount: Number(couponDiscount.toFixed(2)),
+        total: Number(finalTotal.toFixed(2)),
+
+        customer: {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+        },
+
+        shippingAddress: {
+          address: formData.address.trim(),
+          city: formData.city.trim(),
+          country: formData.country,
+        },
+
+        paymentMethod: formData.payment,
+      };
+
+      console.log("Sending order:", orderData);
+
+      /* =========================
+         BACKEND REQUEST
+      ========================= */
+
       const response = await fetch("http://localhost:3001/orders", {
         method: "POST",
 
@@ -64,70 +253,96 @@ export default function CheckoutPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+
+        body: JSON.stringify(orderData),
       });
 
-      const data = await response.json();
+      let data: any = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
 
       console.log("Order response:", data);
 
-      // Backend returned an error
+      /* =========================
+         BACKEND ERROR
+      ========================= */
+
       if (!response.ok) {
         if (response.status === 401) {
-          setError(
-            "Your login session has expired or the token is invalid. Please login again.",
-          );
+          setError("Your login session has expired. Please login again.");
         } else {
-          setError(data.message || "Failed to place the order.");
+          setError(
+            data?.message || "Failed to place the order. Please try again.",
+          );
         }
 
-        setPlacingOrder(false);
         return;
       }
 
-      // Order successfully created
-      console.log("Order created successfully:", data);
+      /* =========================
+         SUCCESS
+      ========================= */
+
+      const createdOrderId =
+        data?.id || data?._id || data?.order?.id || data?.order?._id || "";
+
+      setOrderId(createdOrderId);
 
       setOrderPlaced(true);
 
-      // Clear cart only after successful order
+      /*
+        Clear cart only after backend confirms
+        the order was successfully created.
+      */
       clearCart();
     } catch (error) {
       console.error("Order request failed:", error);
 
       setError(
-        "Could not connect to the server. Make sure your NestJS backend is running.",
+        "Could not connect to the server. Make sure your NestJS backend is running on port 3001.",
       );
     } finally {
       setPlacingOrder(false);
     }
   };
 
-  /* ================= EMPTY CART ================= */
+  /* =========================
+     EMPTY CART
+  ========================= */
 
   if (cart.length === 0 && !orderPlaced) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f6f7f9]">
         <Navbar />
 
-        <main className="mx-auto max-w-4xl px-6 py-20">
+        <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 lg:py-24">
           <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">
-            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-blue-50 text-5xl">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 text-4xl">
               🛒
             </div>
 
-            <h1 className="mt-7 text-3xl font-black text-slate-900">
+            <p className="mt-7 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+              Checkout
+            </p>
+
+            <h1 className="mt-2 text-3xl font-black text-slate-900">
               Your cart is empty
             </h1>
 
-            <p className="mx-auto mt-3 max-w-lg text-slate-500">
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
               Add some products to your cart before proceeding to checkout.
             </p>
 
             <Link
               href="/products"
-              className="mt-8 inline-flex rounded-xl bg-blue-600 px-7 py-4 font-bold text-white shadow-lg transition hover:bg-blue-700"
+              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[#171717] px-7 py-4 text-sm font-bold text-white shadow-lg transition hover:bg-black hover:-translate-y-0.5"
             >
-              Browse Products →
+              Browse Products
+              <span>→</span>
             </Link>
           </div>
         </main>
@@ -135,72 +350,120 @@ export default function CheckoutPage() {
     );
   }
 
-  /* ================= SUCCESS ================= */
+  /* =========================
+     SUCCESS PAGE
+  ========================= */
 
   if (orderPlaced) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f6f7f9]">
         <Navbar />
 
-        <main className="mx-auto max-w-3xl px-6 py-20">
-          <div className="rounded-3xl border border-green-100 bg-white px-6 py-16 text-center shadow-xl">
-            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-green-100 text-5xl">
-              ✓
+        <main className="mx-auto max-w-3xl px-5 py-16 sm:px-6 lg:py-24">
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+            {/* SUCCESS HEADER */}
+
+            <div className="bg-[#171717] px-6 py-12 text-center text-white">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-green-500 text-5xl font-black shadow-lg shadow-green-500/20">
+                ✓
+              </div>
+
+              <p className="mt-6 text-xs font-black uppercase tracking-[0.25em] text-green-400">
+                Order Successful
+              </p>
+
+              <h1 className="mt-2 text-4xl font-black">Thank You!</h1>
+
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-300">
+                Your order has been successfully placed. We'll contact you
+                shortly to confirm your delivery.
+              </p>
             </div>
 
-            <p className="mt-7 text-sm font-black uppercase tracking-widest text-green-600">
-              Order Successful
-            </p>
+            {/* ORDER DETAILS */}
 
-            <h1 className="mt-2 text-4xl font-black text-slate-900">
-              Thank You!
-            </h1>
+            <div className="p-6 sm:p-8">
+              {orderId && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Order ID
+                  </p>
 
-            <p className="mx-auto mt-4 max-w-xl leading-7 text-slate-500">
-              Your order has been successfully placed. We will contact you
-              shortly to confirm your delivery details.
-            </p>
+                  <p className="mt-2 break-all text-sm font-black text-slate-900">
+                    {orderId}
+                  </p>
+                </div>
+              )}
 
-            <div className="mx-auto mt-8 max-w-md rounded-2xl bg-slate-50 p-5 text-left">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Customer</span>
+              <div className="mt-5 space-y-4 rounded-2xl border border-slate-200 p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-slate-500">Customer</span>
 
-                <span className="font-bold text-slate-900">
-                  {formData.firstName} {formData.lastName}
-                </span>
+                  <span className="text-right text-sm font-bold text-slate-900">
+                    {formData.firstName} {formData.lastName}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-slate-500">Email</span>
+
+                  <span className="break-all text-right text-sm font-bold text-slate-900">
+                    {formData.email}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-slate-500">Phone</span>
+
+                  <span className="text-sm font-bold text-slate-900">
+                    {formData.phone}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-slate-500">Payment</span>
+
+                  <span className="text-sm font-bold text-slate-900">
+                    {formData.payment}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-sm text-slate-500">Delivery</span>
+
+                  <span className="max-w-[60%] text-right text-sm font-bold text-slate-900">
+                    {formData.address}, {formData.city}, {formData.country}
+                  </span>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-slate-900">Total</span>
+
+                    <span className="text-2xl font-black text-green-600">
+                      ${finalTotal.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <div className="mt-3 flex justify-between">
-                <span className="text-slate-500">Email</span>
+              {/* ACTIONS */}
 
-                <span className="font-bold text-slate-900">
-                  {formData.email}
-                </span>
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                <Link
+                  href="/products"
+                  className="flex items-center justify-center rounded-xl bg-[#171717] px-5 py-4 text-sm font-bold text-white transition hover:bg-black"
+                >
+                  Continue Shopping →
+                </Link>
+
+                <Link
+                  href="/orders"
+                  className="flex items-center justify-center rounded-xl border border-slate-200 px-5 py-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  View My Orders
+                </Link>
               </div>
-
-              <div className="mt-3 flex justify-between">
-                <span className="text-slate-500">Payment</span>
-
-                <span className="font-bold text-slate-900">
-                  {formData.payment}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <Link
-                href="/orders"
-                className="inline-flex justify-center rounded-xl bg-slate-900 px-7 py-4 font-bold text-white shadow-lg transition hover:bg-slate-800"
-              >
-                View My Orders
-              </Link>
-
-              <Link
-                href="/products"
-                className="inline-flex justify-center rounded-xl bg-blue-600 px-7 py-4 font-bold text-white shadow-lg transition hover:bg-blue-700"
-              >
-                Continue Shopping →
-              </Link>
             </div>
           </div>
         </main>
@@ -208,74 +471,100 @@ export default function CheckoutPage() {
     );
   }
 
-  /* ================= CHECKOUT ================= */
+  /* =========================
+     CHECKOUT PAGE
+  ========================= */
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f6f7f9] text-slate-900">
       <Navbar />
 
-      {/* ================= HERO ================= */}
+      {/* =========================
+          HERO
+      ========================= */}
 
-      <section className="bg-linear-to-r from-blue-700 via-indigo-700 to-purple-800 px-6 py-12 text-white">
+      <section className="bg-[#171717] px-5 py-12 text-white sm:px-6">
         <div className="mx-auto max-w-7xl">
-          <p className="text-sm font-bold uppercase tracking-widest text-blue-200">
-            Secure Checkout
-          </p>
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">
+                Secure Checkout
+              </p>
 
-          <h1 className="mt-2 text-4xl font-black md:text-5xl">
-            Complete Your Order
-          </h1>
+              <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">
+                Complete Your Order
+              </h1>
 
-          <p className="mt-3 max-w-2xl text-blue-100">
-            Enter your delivery information and choose your preferred payment
-            method.
-          </p>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                Enter your delivery information, select a payment method, and
+                place your order securely.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-slate-300">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10">
+                ✓
+              </span>
+
+              <span>Secure checkout</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ================= MAIN ================= */}
+      {/* =========================
+          MAIN
+      ========================= */}
 
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:py-14">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          {/* ================= CUSTOMER INFORMATION ================= */}
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
+        <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_390px]">
+          {/* =========================
+              LEFT
+          ========================= */}
 
-          <div className="lg:col-span-2">
-            <form onSubmit={handleSubmit} className="space-y-7">
-              {/* Error Message */}
+          <div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* ERROR */}
 
               {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
                   <div className="flex items-start gap-3">
-                    <span className="text-xl">⚠️</span>
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                      !
+                    </span>
 
                     <div>
-                      <p className="font-bold">Order Failed</p>
+                      <p className="font-black">
+                        Please check your information
+                      </p>
 
-                      <p className="mt-1 text-sm">{error}</p>
+                      <p className="mt-1 text-sm leading-5">{error}</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Personal Information */}
+              {/* =========================
+                  PERSONAL INFORMATION
+              ========================= */}
 
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-                <div className="mb-7">
-                  <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-                    Step 01
-                  </p>
+              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+                <div className="mb-7 flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black">
+                    01
+                  </div>
 
-                  <h2 className="mt-1 text-2xl font-black text-slate-900">
-                    Personal Information
-                  </h2>
+                  <div>
+                    <h2 className="text-xl font-black">Personal Information</h2>
 
-                  <p className="mt-2 text-sm text-slate-500">
-                    Tell us who we are delivering the order to.
-                  </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Tell us who will receive this order.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* First Name */}
+                  {/* FIRST NAME */}
 
                   <div>
                     <label
@@ -292,12 +581,12 @@ export default function CheckoutPage() {
                       required
                       value={formData.firstName}
                       onChange={handleChange}
-                      placeholder="Enter your first name"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      placeholder="Your first name"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
                   </div>
 
-                  {/* Last Name */}
+                  {/* LAST NAME */}
 
                   <div>
                     <label
@@ -314,12 +603,12 @@ export default function CheckoutPage() {
                       required
                       value={formData.lastName}
                       onChange={handleChange}
-                      placeholder="Enter your last name"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      placeholder="Your last name"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
                   </div>
 
-                  {/* Email */}
+                  {/* EMAIL */}
 
                   <div>
                     <label
@@ -337,11 +626,11 @@ export default function CheckoutPage() {
                       value={formData.email}
                       onChange={handleChange}
                       placeholder="you@example.com"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
                   </div>
 
-                  {/* Phone */}
+                  {/* PHONE */}
 
                   <div>
                     <label
@@ -359,30 +648,32 @@ export default function CheckoutPage() {
                       value={formData.phone}
                       onChange={handleChange}
                       placeholder="+251 9XX XXX XXX"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
                   </div>
                 </div>
-              </div>
+              </section>
 
-              {/* ================= DELIVERY ================= */}
+              {/* =========================
+                  DELIVERY
+              ========================= */}
 
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-                <div className="mb-7">
-                  <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-                    Step 02
-                  </p>
+              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+                <div className="mb-7 flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black">
+                    02
+                  </div>
 
-                  <h2 className="mt-1 text-2xl font-black text-slate-900">
-                    Delivery Address
-                  </h2>
+                  <div>
+                    <h2 className="text-xl font-black">Delivery Address</h2>
 
-                  <p className="mt-2 text-sm text-slate-500">
-                    Where should we deliver your order?
-                  </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Where should we deliver your order?
+                    </p>
+                  </div>
                 </div>
 
-                {/* Address */}
+                {/* ADDRESS */}
 
                 <div>
                   <label
@@ -399,13 +690,13 @@ export default function CheckoutPage() {
                     required
                     value={formData.address}
                     onChange={handleChange}
-                    placeholder="Enter your street address"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    placeholder="Street, building, house number"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                   />
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* City */}
+                  {/* CITY */}
 
                   <div>
                     <label
@@ -422,12 +713,12 @@ export default function CheckoutPage() {
                       required
                       value={formData.city}
                       onChange={handleChange}
-                      placeholder="Enter your city"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      placeholder="Addis Ababa"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
                   </div>
 
-                  {/* Country */}
+                  {/* COUNTRY */}
 
                   <div>
                     <label
@@ -442,7 +733,7 @@ export default function CheckoutPage() {
                       name="country"
                       value={formData.country}
                       onChange={handleChange}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     >
                       <option>Ethiopia</option>
                       <option>Kenya</option>
@@ -451,43 +742,71 @@ export default function CheckoutPage() {
                     </select>
                   </div>
                 </div>
-              </div>
 
-              {/* ================= PAYMENT ================= */}
+                {/* SAVED ADDRESS INFO */}
 
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-                <div className="mb-7">
-                  <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-                    Step 03
-                  </p>
+                {formData.address && (
+                  <div className="mt-5 flex items-center gap-3 rounded-xl border border-green-100 bg-green-50 p-4">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600">
+                      ✓
+                    </span>
 
-                  <h2 className="mt-1 text-2xl font-black text-slate-900">
-                    Payment Method
-                  </h2>
+                    <div>
+                      <p className="text-sm font-bold text-green-800">
+                        Saved address loaded
+                      </p>
 
-                  <p className="mt-2 text-sm text-slate-500">
-                    Select how you would like to pay.
-                  </p>
+                      <p className="text-xs text-green-700">
+                        Your address from the Cart page has been added
+                        automatically.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              {/* =========================
+                  PAYMENT
+              ========================= */}
+
+              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+                <div className="mb-7 flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black">
+                    03
+                  </div>
+
+                  <div>
+                    <h2 className="text-xl font-black">Payment Method</h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Select your preferred payment method.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-4">
-                  {/* Cash */}
+                <div className="space-y-3">
+                  {/* CASH */}
 
-                  <label className="flex cursor-pointer items-center gap-4 rounded-2xl border border-slate-200 p-5 transition hover:border-blue-400 hover:bg-blue-50">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="Cash on Delivery"
-                      checked={formData.payment === "Cash on Delivery"}
-                      onChange={handleChange}
-                      className="h-5 w-5 accent-blue-600"
-                    />
-
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100 text-xl">
+                  <button
+                    type="button"
+                    onClick={() => selectPayment("Cash on Delivery")}
+                    className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
+                      formData.payment === "Cash on Delivery"
+                        ? "border-slate-900 bg-slate-50 ring-2 ring-slate-100"
+                        : "border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl ${
+                        formData.payment === "Cash on Delivery"
+                          ? "bg-green-100"
+                          : "bg-slate-100"
+                      }`}
+                    >
                       💵
                     </div>
 
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-black text-slate-900">
                         Cash on Delivery
                       </p>
@@ -496,50 +815,84 @@ export default function CheckoutPage() {
                         Pay when your order arrives.
                       </p>
                     </div>
-                  </label>
 
-                  {/* Telebirr */}
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        formData.payment === "Cash on Delivery"
+                          ? "border-slate-900 bg-slate-900"
+                          : "border-slate-300"
+                      }`}
+                    >
+                      {formData.payment === "Cash on Delivery" && (
+                        <span className="h-2 w-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                  </button>
 
-                  <label className="flex cursor-pointer items-center gap-4 rounded-2xl border border-slate-200 p-5 transition hover:border-blue-400 hover:bg-blue-50">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="Telebirr"
-                      checked={formData.payment === "Telebirr"}
-                      onChange={handleChange}
-                      className="h-5 w-5 accent-blue-600"
-                    />
+                  {/* TELEBIRR */}
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-xl">
+                  <button
+                    type="button"
+                    onClick={() => selectPayment("Telebirr")}
+                    className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
+                      formData.payment === "Telebirr"
+                        ? "border-slate-900 bg-slate-50 ring-2 ring-slate-100"
+                        : "border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl ${
+                        formData.payment === "Telebirr"
+                          ? "bg-blue-100"
+                          : "bg-slate-100"
+                      }`}
+                    >
                       📱
                     </div>
 
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-black text-slate-900">Telebirr</p>
 
                       <p className="mt-1 text-xs text-slate-500">
                         Pay securely using Telebirr.
                       </p>
                     </div>
-                  </label>
 
-                  {/* Card */}
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        formData.payment === "Telebirr"
+                          ? "border-slate-900 bg-slate-900"
+                          : "border-slate-300"
+                      }`}
+                    >
+                      {formData.payment === "Telebirr" && (
+                        <span className="h-2 w-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                  </button>
 
-                  <label className="flex cursor-pointer items-center gap-4 rounded-2xl border border-slate-200 p-5 transition hover:border-blue-400 hover:bg-blue-50">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="Credit / Debit Card"
-                      checked={formData.payment === "Credit / Debit Card"}
-                      onChange={handleChange}
-                      className="h-5 w-5 accent-blue-600"
-                    />
+                  {/* CARD */}
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-100 text-xl">
+                  <button
+                    type="button"
+                    onClick={() => selectPayment("Credit / Debit Card")}
+                    className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
+                      formData.payment === "Credit / Debit Card"
+                        ? "border-slate-900 bg-slate-50 ring-2 ring-slate-100"
+                        : "border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl ${
+                        formData.payment === "Credit / Debit Card"
+                          ? "bg-purple-100"
+                          : "bg-slate-100"
+                      }`}
+                    >
                       💳
                     </div>
 
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-black text-slate-900">
                         Credit / Debit Card
                       </p>
@@ -548,49 +901,69 @@ export default function CheckoutPage() {
                         Visa, Mastercard and other cards.
                       </p>
                     </div>
-                  </label>
-                </div>
-              </div>
 
-              {/* ================= PLACE ORDER ================= */}
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        formData.payment === "Credit / Debit Card"
+                          ? "border-slate-900 bg-slate-900"
+                          : "border-slate-300"
+                      }`}
+                    >
+                      {formData.payment === "Credit / Debit Card" && (
+                        <span className="h-2 w-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                  </button>
+                </div>
+              </section>
+
+              {/* =========================
+                  PLACE ORDER
+              ========================= */}
 
               <button
                 type="submit"
                 disabled={placingOrder}
-                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-5 text-lg font-black text-white shadow-xl shadow-blue-600/20 transition duration-300 hover:-translate-y-1 hover:bg-blue-700 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60"
+                className="group flex w-full items-center justify-center gap-3 rounded-2xl bg-[#171717] px-6 py-5 text-base font-black text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-black hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {placingOrder ? (
                   <>
-                    <span className="h-6 w-6 animate-spin rounded-full border-4 border-white border-t-transparent"></span>
-                    Placing Order...
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Processing Order...
                   </>
                 ) : (
                   <>
                     Place Order
-                    <span className="text-2xl">→</span>
+                    <span className="text-xl transition group-hover:translate-x-1">
+                      →
+                    </span>
                   </>
                 )}
               </button>
 
-              <p className="text-center text-xs text-slate-400">
-                🔒 Your information is secure and protected.
-              </p>
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+                <span>🔒</span>
+
+                <span>Your personal information is secure and protected.</span>
+              </div>
             </form>
           </div>
 
-          {/* ================= ORDER SUMMARY ================= */}
+          {/* =========================
+              RIGHT ORDER SUMMARY
+          ========================= */}
 
-          <div className="lg:col-span-1">
+          <aside>
             <div className="sticky top-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
-              {/* Header */}
+              {/* HEADER */}
 
-              <div className="bg-linear-to-r from-slate-900 to-slate-800 p-6 text-white">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              <div className="bg-[#171717] p-6 text-white">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
                   Your Order
                 </p>
 
-                <div className="mt-1 flex items-center justify-between">
-                  <h2 className="text-2xl font-black">Order Summary</h2>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <h2 className="text-2xl font-black">Summary</h2>
 
                   <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold">
                     {cartCount} items
@@ -599,50 +972,53 @@ export default function CheckoutPage() {
               </div>
 
               <div className="p-6">
-                {/* Products */}
+                {/* PRODUCTS */}
 
-                <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
-                  {cart.map((item) => (
-                    <div key={item.id} className="flex gap-3">
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                        <img
-                          src={item.image ?? "/file.svg"}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
+                <div className="max-h-72 space-y-4 overflow-y-auto pr-1">
+                  {cart.map((item: any) => {
+                    const itemId = item._id || item.id;
 
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-900">
-                          {item.name}
+                    return (
+                      <div key={itemId} className="flex gap-3">
+                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                          <img
+                            src={item.image || "/file.svg"}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                          />
+
+                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#171717] px-1 text-[10px] font-bold text-white">
+                            {item.quantity}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-slate-900">
+                            {item.name}
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            ${Number(item.price).toFixed(2)} each
+                          </p>
+                        </div>
+
+                        <p className="text-sm font-black text-slate-900">
+                          $
+                          {(Number(item.price) * Number(item.quantity)).toFixed(
+                            2,
+                          )}
                         </p>
-
-                        <p className="mt-1 text-xs text-slate-400">
-                          Qty: {item.quantity}
-                        </p>
                       </div>
-
-                      <p className="text-sm font-black text-slate-900">
-                        ${(Number(item.price) * item.quantity).toFixed(2)}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="my-6 border-t border-dashed border-slate-200" />
 
-                {/* Prices */}
+                {/* PRICE DETAILS */}
 
-                <div className="space-y-4">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Items</span>
-
-                    <span className="font-bold text-slate-900">
-                      {cartCount}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-slate-500">
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm text-slate-500">
                     <span>Subtotal</span>
 
                     <span className="font-bold text-slate-900">
@@ -650,7 +1026,7 @@ export default function CheckoutPage() {
                     </span>
                   </div>
 
-                  <div className="flex justify-between text-slate-500">
+                  <div className="flex justify-between text-sm text-slate-500">
                     <span>Shipping</span>
 
                     {shipping === 0 ? (
@@ -661,41 +1037,79 @@ export default function CheckoutPage() {
                       </span>
                     )}
                   </div>
+
+                  <div className="flex justify-between text-sm text-slate-500">
+                    <span>Tax</span>
+
+                    <span className="font-bold text-slate-900">
+                      ${tax.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-600">Coupon (DUO10)</span>
+
+                    <span className="font-bold text-green-600">
+                      - ${couponDiscount.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="my-6 border-t border-slate-200" />
 
-                {/* Total */}
+                {/* TOTAL */}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-black text-slate-900">
-                    Total
-                  </span>
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-slate-500">Total</p>
 
-                  <span className="text-3xl font-black text-blue-600">
+                    <p className="mt-1 text-xs text-slate-400">
+                      Including taxes & shipping
+                    </p>
+                  </div>
+
+                  <p className="text-3xl font-black text-slate-900">
                     ${finalTotal.toFixed(2)}
-                  </span>
+                  </p>
                 </div>
 
-                {/* Security */}
+                {/* ADDRESS PREVIEW */}
 
-                <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-                  <div className="flex gap-3">
-                    <span className="text-xl">🔒</span>
+                {formData.address && (
+                  <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+                    <div className="flex items-center gap-2">
+                      <span>📍</span>
 
-                    <div>
                       <p className="text-sm font-black text-slate-900">
-                        Secure Order
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Your personal information is protected.
+                        Delivery to
                       </p>
                     </div>
+
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      {formData.address}
+                      {formData.city && `, ${formData.city}`}
+                      {formData.country && `, ${formData.country}`}
+                    </p>
+                  </div>
+                )}
+
+                {/* SECURITY */}
+
+                <div className="mt-5 flex gap-3 rounded-2xl border border-slate-100 bg-white p-4">
+                  <span className="text-xl">🔒</span>
+
+                  <div>
+                    <p className="text-sm font-black text-slate-900">
+                      Secure Checkout
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Your information is protected during checkout.
+                    </p>
                   </div>
                 </div>
 
-                {/* Back */}
+                {/* BACK */}
 
                 <Link
                   href="/cart"
@@ -705,16 +1119,18 @@ export default function CheckoutPage() {
                 </Link>
               </div>
             </div>
-          </div>
+          </aside>
         </div>
       </main>
 
-      {/* ================= FOOTER ================= */}
+      {/* =========================
+          FOOTER
+      ========================= */}
 
       <footer className="border-t border-slate-200 bg-white py-10">
         <div className="mx-auto max-w-7xl px-6 text-center">
           <p className="text-2xl font-black text-slate-900">
-            Shop<span className="text-blue-600">Ease</span>
+            Shop<span className="text-slate-500">Ease</span>
           </p>
 
           <p className="mt-2 text-sm text-slate-500">
