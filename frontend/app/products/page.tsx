@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useCart } from "../Context/CartContext";
-import Navbar from "../Components/Navbar";
 
 type BackendProduct = {
   id: number;
@@ -10,13 +9,13 @@ type BackendProduct = {
   description: string;
   price: number;
   stock: number;
-  image: string | null;
+  image: string;
   createdAt?: string;
   updatedAt?: string;
 };
 
 type Product = BackendProduct & {
-  oldPrice: number;
+  oldPrice?: number;
   rating: number;
   reviews: number;
   category: string;
@@ -32,72 +31,72 @@ const catalogInfo: Record<
   }
 > = {
   "Premium Laptop": {
-    oldPrice: 899,
+    oldPrice: 999,
     rating: 4.8,
     reviews: 124,
     category: "Electronics",
   },
 
   "Smartphone Pro": {
-    oldPrice: 599,
+    oldPrice: 799,
     rating: 4.7,
     reviews: 98,
     category: "Electronics",
   },
 
   "Wireless Headphones": {
-    oldPrice: 129,
-    rating: 4.9,
-    reviews: 215,
+    oldPrice: 149,
+    rating: 4.6,
+    reviews: 86,
     category: "Audio",
   },
 
   "Smart Watch": {
-    oldPrice: 199,
-    rating: 4.6,
-    reviews: 87,
+    oldPrice: 229,
+    rating: 4.8,
+    reviews: 73,
     category: "Wearables",
   },
 
   "Modern Camera": {
-    oldPrice: 799,
-    rating: 4.8,
-    reviews: 76,
+    oldPrice: 699,
+    rating: 4.7,
+    reviews: 61,
     category: "Photography",
   },
 
   "Gaming Keyboard": {
-    oldPrice: 99,
-    rating: 4.7,
-    reviews: 154,
+    oldPrice: 129,
+    rating: 4.6,
+    reviews: 54,
     category: "Gaming",
   },
 
   "Wireless Speaker": {
-    oldPrice: 159,
-    rating: 4.6,
-    reviews: 63,
+    oldPrice: 119,
+    rating: 4.5,
+    reviews: 45,
     category: "Audio",
   },
 
   "Gaming Mouse": {
-    oldPrice: 69,
-    rating: 4.8,
-    reviews: 201,
+    oldPrice: 89,
+    rating: 4.7,
+    reviews: 39,
     category: "Gaming",
   },
 
   "Dell Laptop": {
-    oldPrice: 60000,
-    rating: 4.5,
-    reviews: 40,
+    oldPrice: 949,
+    rating: 4.7,
+    reviews: 82,
     category: "Electronics",
   },
 
   "Samsung Galaxy S25": {
-    oldPrice: 40000,
-    rating: 4.7,
-    reviews: 55,
+    oldPrice: 899,
+    rating: 4.9,
+    reviews: 113,
     category: "Electronics",
   },
 };
@@ -115,491 +114,668 @@ export default function ProductsPage() {
   const { addToCart } = useCart();
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  // What the user is typing
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("featured");
+
+  // Search only becomes active after clicking Search or pressing Enter
+  const [searchSubmitted, setSearchSubmitted] = useState("");
+
+  const [category, setCategory] = useState("All");
+  const [sort, setSort] = useState("featured");
 
   const [wishlist, setWishlist] = useState<number[]>([]);
   const [addedProduct, setAddedProduct] = useState<number | null>(null);
 
-  // ==========================================
-  // LOAD PRODUCTS FROM BACKEND
-  // ==========================================
+  /*
+  ============================================================
+  LOAD PRODUCTS
+  ============================================================
+  */
 
   useEffect(() => {
     const loadProducts = async () => {
       try {
-        setLoading(true);
-
         const response = await fetch("http://localhost:3001/products");
 
         if (!response.ok) {
-          throw new Error("Failed to load products");
+          throw new Error("Failed to fetch products");
         }
 
-        const backendProducts: BackendProduct[] = await response.json();
+        const data: BackendProduct[] = await response.json();
 
-        const formattedProducts: Product[] = backendProducts.map((product) => {
-          const info = catalogInfo[product.name];
+        const enhancedProducts: Product[] = data.map((product) => ({
+          ...product,
+          oldPrice: catalogInfo[product.name]?.oldPrice,
+          rating: catalogInfo[product.name]?.rating ?? 4.5,
+          reviews: catalogInfo[product.name]?.reviews ?? 20,
+          category: catalogInfo[product.name]?.category ?? "Electronics",
+        }));
 
-          return {
-            ...product,
-
-            oldPrice: info?.oldPrice ?? product.price,
-
-            rating: info?.rating ?? 4.5,
-
-            reviews: info?.reviews ?? 0,
-
-            category: info?.category ?? "Electronics",
-          };
-        });
-
-        setProducts(formattedProducts);
+        setProducts(enhancedProducts);
       } catch (error) {
-        console.error("Failed to load products:", error);
-      } finally {
-        setLoading(false);
+        console.error("Error loading products:", error);
       }
     };
 
     loadProducts();
   }, []);
 
-  // ==========================================
-  // WISHLIST
-  // ==========================================
+  /*
+  ============================================================
+  SEARCH
+  ============================================================
+  */
+
+  const handleSearch = () => {
+    setSearchSubmitted(search.trim());
+
+    // Scroll to products after searching
+    setTimeout(() => {
+      document.getElementById("product-results")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
+  };
+
+  const clearSearch = () => {
+    setSearch("");
+    setSearchSubmitted("");
+  };
+
+  /*
+  ============================================================
+  FILTER + SORT
+  ============================================================
+  */
+
+  const filteredProducts = useMemo(() => {
+    let result = [...products];
+
+    // Search
+    if (searchSubmitted.trim()) {
+      const keyword = searchSubmitted.toLowerCase();
+
+      result = result.filter(
+        (product) =>
+          product.name.toLowerCase().includes(keyword) ||
+          product.description.toLowerCase().includes(keyword) ||
+          product.category.toLowerCase().includes(keyword),
+      );
+    }
+
+    // Category
+    if (category !== "All") {
+      result = result.filter((product) => product.category === category);
+    }
+
+    // Sorting
+    if (sort === "price-low") {
+      result.sort((a, b) => a.price - b.price);
+    }
+
+    if (sort === "price-high") {
+      result.sort((a, b) => b.price - a.price);
+    }
+
+    if (sort === "rating") {
+      result.sort((a, b) => b.rating - a.rating);
+    }
+
+    if (sort === "newest") {
+      result.reverse();
+    }
+
+    return result;
+  }, [products, searchSubmitted, category, sort]);
+
+  /*
+  ============================================================
+  WISHLIST
+  ============================================================
+  */
 
   const toggleWishlist = (id: number) => {
     setWishlist((current) =>
       current.includes(id)
-        ? current.filter((productId) => productId !== id)
+        ? current.filter((item) => item !== id)
         : [...current, id],
     );
   };
 
-  // ==========================================
-  // ADD TO CART
-  // ==========================================
+  /*
+  ============================================================
+  ADD TO CART
+  ============================================================
+  */
 
-  const handleAddToCart = async (product: Product) => {
-    try {
-      console.log("Adding product to cart:", product);
-
-      await addToCart(product);
-
-      setAddedProduct(product.id);
-
-      setTimeout(() => {
-        setAddedProduct(null);
-      }, 1500);
-    } catch (error) {
-      console.error("Add to cart error:", error);
-    }
-  };
-
-  // ==========================================
-  // SEARCH + FILTER + SORT
-  // ==========================================
-
-  const filteredProducts = useMemo(() => {
-    let result = products.filter((product) => {
-      const matchesCategory =
-        selectedCategory === "All" || product.category === selectedCategory;
-
-      const searchText = search.toLowerCase();
-
-      const matchesSearch =
-        product.name.toLowerCase().includes(searchText) ||
-        product.description.toLowerCase().includes(searchText) ||
-        product.category.toLowerCase().includes(searchText);
-
-      return matchesCategory && matchesSearch;
+  const handleAddToCart = (product: Product) => {
+    addToCart({
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      image: product.image,
     });
 
-    if (sortBy === "price-low") {
-      result = [...result].sort((a, b) => a.price - b.price);
-    }
+    setAddedProduct(product.id);
 
-    if (sortBy === "price-high") {
-      result = [...result].sort((a, b) => b.price - a.price);
-    }
+    setTimeout(() => {
+      setAddedProduct(null);
+    }, 1500);
+  };
 
-    if (sortBy === "rating") {
-      result = [...result].sort((a, b) => b.rating - a.rating);
-    }
-
-    return result;
-  }, [products, selectedCategory, search, sortBy]);
-
-  // ==========================================
-  // LOADING SCREEN
-  // ==========================================
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-
-        <div className="flex min-h-[70vh] items-center justify-center">
-          <div className="text-center">
-            <div className="mx-auto h-14 w-14 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
-
-            <h2 className="mt-5 text-xl font-bold text-gray-900">
-              Loading Products...
-            </h2>
-
-            <p className="mt-2 text-gray-500">
-              Please wait while we load our products.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  /*
+  ============================================================
+  PAGE
+  ============================================================
+  */
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      {/* =====================================================
+          NAVBAR
+      ====================================================== */}
 
-      {/* ================= HERO ================= */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          {/* Logo */}
 
-      <section className="relative overflow-hidden bg-linear-to-br from-blue-700 via-indigo-700 to-purple-800 text-white">
-        <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
-
-        <div className="absolute -bottom-32 left-10 h-80 w-80 rounded-full bg-blue-400/20 blur-3xl" />
-
-        <div className="relative mx-auto max-w-7xl px-6 py-20">
-          <div className="max-w-3xl">
-            <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur">
-              ✨ Explore Our Collection
+          <a href="/" className="group flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br from-blue-600 to-violet-600 text-xl shadow-lg shadow-blue-500/20 transition duration-300 group-hover:scale-105">
+              🛍️
             </div>
 
-            <h1 className="text-4xl font-extrabold leading-tight md:text-6xl">
-              Find Products
-              <span className="block text-blue-200">You&apos;ll Love.</span>
-            </h1>
+            <div>
+              <div className="text-xl font-extrabold tracking-tight text-slate-900">
+                E-Shop
+              </div>
 
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-blue-100">
-              Discover high-quality electronics, gaming accessories, audio
-              products and more at amazing prices.
-            </p>
+              <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+                Smart Shopping
+              </div>
+            </div>
+          </a>
 
-            {/* Search */}
+          {/* Navigation */}
 
-            <div className="mt-8 max-w-2xl">
-              <div className="flex items-center overflow-hidden rounded-2xl bg-white p-2 shadow-2xl">
-                <span className="px-3 text-xl text-gray-400">🔎</span>
+          <nav className="hidden items-center gap-1 md:flex">
+            <a
+              href="/"
+              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-blue-600"
+            >
+              Home
+            </a>
+
+            <a
+              href="/products"
+              className="rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-600"
+            >
+              Products
+            </a>
+
+            <a
+              href="/orders"
+              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-blue-600"
+            >
+              Orders
+            </a>
+
+            <a
+              href="/cart"
+              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-blue-600"
+            >
+              Cart
+            </a>
+          </nav>
+
+          {/* Right side */}
+
+          <div className="flex items-center gap-3">
+            {/* Cart icon */}
+
+            <a
+              href="/cart"
+              className="relative hidden h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-600 sm:flex"
+            >
+              🛒
+            </a>
+
+            {/* Login */}
+
+            <a
+              href="/login"
+              className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-blue-600"
+            >
+              Login
+            </a>
+          </div>
+        </div>
+      </header>
+
+      {/* =====================================================
+          HERO
+      ====================================================== */}
+
+      <section className="relative overflow-hidden bg-white">
+        {/* Background decorations */}
+
+        <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-blue-200/40 blur-3xl" />
+
+        <div className="pointer-events-none absolute -right-32 top-0 h-80 w-80 rounded-full bg-violet-200/40 blur-3xl" />
+
+        <div className="relative mx-auto max-w-7xl px-4 pb-14 pt-14 sm:px-6 lg:px-8 lg:pb-20 lg:pt-20">
+          <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+            {/* =================================================
+                HERO LEFT
+            ================================================== */}
+
+            <div>
+              {/* Badge */}
+
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600">
+                <span className="h-2 w-2 rounded-full bg-blue-600" />
+                New collection is here
+              </div>
+
+              {/* Heading */}
+
+              <h1 className="max-w-3xl text-4xl font-black leading-[1.08] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+                Discover products
+                <span className="block bg-linear-to-r from-blue-600 via-violet-600 to-purple-600 bg-clip-text text-transparent">
+                  made for you.
+                </span>
+              </h1>
+
+              {/* Description */}
+
+              <p className="mt-6 max-w-2xl text-base leading-7 text-slate-500 sm:text-lg">
+                Explore our latest collection of technology, gaming gear, audio
+                devices and everyday essentials— all in one beautiful shopping
+                experience.
+              </p>
+
+              {/* =================================================
+                  SEARCH BOX
+              ================================================== */}
+
+              <div className="mt-8 flex max-w-2xl items-center rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/60">
+                {/* Search icon */}
+
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl">
+                  🔍
+                </div>
+
+                {/* Input */}
 
                 <input
-                  type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search products..."
-                  className="w-full bg-transparent px-2 py-3 text-gray-900 outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSearch();
+                    }
+                  }}
+                  placeholder="Search for products..."
+                  className="min-w-0 flex-1 bg-transparent px-4 text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400 sm:text-base"
                 />
+
+                {/* Clear button */}
+
+                {search && (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="mr-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+                  >
+                    ×
+                  </button>
+                )}
+
+                {/* Search button */}
 
                 <button
                   type="button"
-                  className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
+                  onClick={handleSearch}
+                  className="rounded-xl bg-linear-to-r from-blue-600 to-violet-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:shadow-xl"
                 >
                   Search
                 </button>
+              </div>
+
+              {/* Search status */}
+
+              {searchSubmitted && (
+                <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
+                  <span>
+                    Showing results for{" "}
+                    <strong className="text-slate-900">
+                      "{searchSubmitted}"
+                    </strong>
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="font-semibold text-blue-600 hover:text-blue-700"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+
+              {/* =================================================
+                  STATS
+              ================================================== */}
+
+              <div className="mt-8 flex flex-wrap gap-7">
+                <div>
+                  <div className="text-2xl font-black text-slate-900">100+</div>
+
+                  <div className="text-xs font-medium text-slate-400">
+                    Quality Products
+                  </div>
+                </div>
+
+                <div className="h-10 w-px bg-slate-200" />
+
+                <div>
+                  <div className="text-2xl font-black text-slate-900">
+                    4.8/5
+                  </div>
+
+                  <div className="text-xs font-medium text-slate-400">
+                    Customer Rating
+                  </div>
+                </div>
+
+                <div className="h-10 w-px bg-slate-200" />
+
+                <div>
+                  <div className="text-2xl font-black text-slate-900">Fast</div>
+
+                  <div className="text-xs font-medium text-slate-400">
+                    Secure Delivery
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* =================================================
+                HERO RIGHT
+            ================================================== */}
+
+            <div className="relative hidden min-h-107.5 lg:block">
+              {/* Main product card */}
+
+              <div className="absolute right-5 top-10 w-90 rotate-2 rounded-4xl border border-white bg-white p-5 shadow-2xl shadow-slate-300/50">
+                <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 via-indigo-50 to-violet-100 p-8">
+                  {/* Trending badge */}
+
+                  <div className="absolute right-4 top-4 rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-600 shadow-sm">
+                    TRENDING
+                  </div>
+
+                  {/* Product image */}
+
+                  <div className="flex h-64 items-center justify-center">
+                    {products[0]?.image ? (
+                      <img
+                        src={products[0].image}
+                        alt={products[0].name}
+                        className="h-full w-full object-contain drop-shadow-2xl"
+                      />
+                    ) : (
+                      <div className="text-8xl">💻</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Product information */}
+
+                <div className="px-2 pb-1 pt-5">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+                    Featured Product
+                  </div>
+
+                  <div className="mt-1 text-xl font-extrabold text-slate-900">
+                    {products[0]?.name || "Premium Technology"}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="font-black text-slate-900">
+                      ${products[0]?.price ?? "899"}
+                    </span>
+
+                    <span className="text-sm text-amber-500">★ 4.8</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating security card */}
+
+              <div className="absolute bottom-8 left-0 flex items-center gap-3 rounded-2xl border border-white bg-white p-4 shadow-xl shadow-slate-300/40">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-xl">
+                  ✓
+                </div>
+
+                <div>
+                  <div className="text-sm font-bold text-slate-900">
+                    Secure Shopping
+                  </div>
+
+                  <div className="text-xs text-slate-400">
+                    Safe & trusted checkout
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating circle */}
+
+              <div className="absolute right-0 top-0 flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-violet-500 to-blue-600 text-3xl shadow-xl shadow-violet-300/40">
+                ✨
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= PRODUCTS ================= */}
+      {/* =====================================================
+          FILTER AREA
+      ====================================================== */}
 
-      <main className="mx-auto max-w-7xl px-6 py-14">
-        {/* Heading */}
+      <section className="border-y border-slate-200 bg-slate-50">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            {/* Title */}
 
-        <div className="mb-8">
-          <p className="text-sm font-bold uppercase tracking-widest text-blue-600">
-            Shop Now
-          </p>
-
-          <div className="mt-2 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <h2 className="text-3xl font-extrabold text-gray-900 md:text-4xl">
-                Popular Products
-              </h2>
-
-              <p className="mt-2 text-gray-500">
-                Discover our best-selling products.
+              <p className="text-sm font-semibold text-blue-600">
+                Our collection
               </p>
+
+              <h2 className="mt-1 text-2xl font-black text-slate-900">
+                Explore our products
+              </h2>
             </div>
 
-            <div className="rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600">
-              {filteredProducts.length} Products
-            </div>
-          </div>
-        </div>
+            {/* Filters */}
 
-        {/* Filters */}
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {/* Categories */}
 
-        <div className="mb-10 flex flex-col gap-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => setSelectedCategory(category)}
-                className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-                  selectedCategory === category
-                    ? "bg-blue-600 text-white shadow-md"
-                    : "bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
+              <div className="flex flex-wrap gap-2">
+                {categories.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setCategory(item)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      category === item
+                        ? "bg-slate-900 text-white shadow-lg"
+                        : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600"
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sort */}
+
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 outline-none focus:border-blue-500"
               >
-                {category}
-              </button>
-            ))}
+                <option value="featured">Featured</option>
+
+                <option value="newest">Newest</option>
+
+                <option value="rating">Top Rated</option>
+
+                <option value="price-low">Price: Low to High</option>
+
+                <option value="price-high">Price: High to Low</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          PRODUCT RESULTS
+      ====================================================== */}
+
+      <section
+        id="product-results"
+        className="scroll-mt-24 mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8"
+      >
+        {/* Result count */}
+
+        <div className="mb-6 flex items-center justify-between">
+          <div className="text-sm text-slate-500">
+            <span className="font-bold text-slate-900">
+              {filteredProducts.length}
+            </span>{" "}
+            products found
           </div>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 outline-none transition focus:border-blue-500"
-          >
-            <option value="featured">Sort: Featured</option>
-            <option value="price-low">Price: Low to High</option>
-            <option value="price-high">Price: High to Low</option>
-            <option value="rating">Highest Rated</option>
-          </select>
+          {searchSubmitted && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+            >
+              Clear search
+            </button>
+          )}
         </div>
 
-        {/* ================= PRODUCT GRID ================= */}
+        {/* Product grid */}
 
-        {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredProducts.map((product) => {
-              const discount =
-                product.oldPrice > product.price
-                  ? Math.round(
-                      ((product.oldPrice - product.price) / product.oldPrice) *
-                        100,
-                    )
-                  : 0;
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredProducts.map((product) => (
+            <article
+              key={product.id}
+              className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+            >
+              {/* Image */}
 
-              const isFavorite = wishlist.includes(product.id);
+              <div className="relative h-64 bg-slate-100">
+                {product.image && (
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                  />
+                )}
 
-              return (
-                <div
-                  key={product.id}
-                  className="group overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition duration-300 hover:-translate-y-2 hover:shadow-2xl"
+                {/* Wishlist */}
+
+                <button
+                  type="button"
+                  onClick={() => toggleWishlist(product.id)}
+                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-lg shadow-lg transition hover:scale-110"
                 >
-                  {/* Product Image */}
+                  {wishlist.includes(product.id) ? "❤️" : "♡"}
+                </button>
+              </div>
 
-                  <div className="relative h-64 overflow-hidden bg-gray-100">
-                    {product.image ? (
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-5xl">
-                        📦
-                      </div>
-                    )}
+              {/* Information */}
 
-                    {/* Discount */}
-
-                    {discount > 0 && (
-                      <div className="absolute left-4 top-4 rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white shadow-md">
-                        -{discount}%
-                      </div>
-                    )}
-
-                    {/* Wishlist */}
-
-                    <button
-                      type="button"
-                      onClick={() => toggleWishlist(product.id)}
-                      aria-label={`${
-                        isFavorite ? "Remove" : "Add"
-                      } ${product.name} ${isFavorite ? "from" : "to"} wishlist`}
-                      className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-xl shadow-md backdrop-blur transition hover:scale-110 ${
-                        isFavorite ? "text-red-500" : "text-gray-600"
-                      }`}
-                    >
-                      {isFavorite ? "♥" : "♡"}
-                    </button>
-
-                    {/* Quick View */}
-
-                    <div className="absolute bottom-4 left-4 right-4 translate-y-16 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                      <button
-                        type="button"
-                        className="w-full rounded-xl bg-white/95 py-3 text-sm font-bold text-gray-900 shadow-lg backdrop-blur transition hover:bg-white"
-                      >
-                        👁 Quick View
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Product Information */}
-
-                  <div className="p-5">
-                    <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
-                      {product.category}
-                    </p>
-
-                    <h3 className="mt-2 text-lg font-bold text-gray-900">
-                      {product.name}
-                    </h3>
-
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-gray-500">
-                      {product.description}
-                    </p>
-
-                    {/* Rating */}
-
-                    <div className="mt-4 flex items-center gap-2">
-                      <div className="text-sm tracking-wide text-yellow-400">
-                        ★★★★★
-                      </div>
-
-                      <span className="text-sm font-semibold text-gray-700">
-                        {product.rating}
-                      </span>
-
-                      <span className="text-xs text-gray-400">
-                        ({product.reviews})
-                      </span>
-                    </div>
-
-                    {/* Stock */}
-
-                    <div className="mt-3 text-xs font-semibold">
-                      {product.stock > 0 ? (
-                        <span className="text-green-600">
-                          ✓ {product.stock} in stock
-                        </span>
-                      ) : (
-                        <span className="text-red-500">Out of stock</span>
-                      )}
-                    </div>
-
-                    {/* Price */}
-
-                    <div className="mt-4 flex items-center gap-3">
-                      <span className="text-2xl font-extrabold text-gray-900">
-                        ${product.price}
-                      </span>
-
-                      {product.oldPrice > product.price && (
-                        <span className="text-sm text-gray-400 line-through">
-                          ${product.oldPrice}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Add To Cart */}
-
-                    <button
-                      type="button"
-                      disabled={
-                        product.stock <= 0 || addedProduct === product.id
-                      }
-                      onClick={() => handleAddToCart(product)}
-                      className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold text-white transition duration-300 active:scale-95 ${
-                        addedProduct === product.id
-                          ? "bg-green-600"
-                          : product.stock <= 0
-                            ? "cursor-not-allowed bg-gray-400"
-                            : "bg-gray-900 hover:bg-blue-600"
-                      }`}
-                    >
-                      <span>{addedProduct === product.id ? "✓" : "🛒"}</span>
-
-                      {addedProduct === product.id
-                        ? "Added to Cart!"
-                        : product.stock <= 0
-                          ? "Out of Stock"
-                          : "Add to Cart"}
-                    </button>
-                  </div>
+              <div className="p-5">
+                <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+                  {product.category}
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          /* No Results */
 
-          <div className="rounded-3xl border border-gray-100 bg-white px-6 py-20 text-center shadow-sm">
-            <div className="text-6xl">🔎</div>
+                <h3 className="mt-2 text-lg font-bold text-slate-900">
+                  {product.name}
+                </h3>
 
-            <h3 className="mt-5 text-2xl font-bold text-gray-900">
+                <div className="mt-2 text-sm text-amber-500">
+                  ★ {product.rating}{" "}
+                  <span className="text-slate-400">({product.reviews})</span>
+                </div>
+
+                {/* Price */}
+
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-xl font-black text-slate-900">
+                    ${product.price}
+                  </span>
+
+                  {product.oldPrice && (
+                    <span className="text-sm text-slate-400 line-through">
+                      ${product.oldPrice}
+                    </span>
+                  )}
+                </div>
+
+                {/* Add to cart */}
+
+                <button
+                  type="button"
+                  onClick={() => handleAddToCart(product)}
+                  className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-3 font-bold text-white transition hover:bg-blue-600"
+                >
+                  {addedProduct === product.id
+                    ? "✓ Added to Cart"
+                    : "Add to Cart"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {/* No products */}
+
+        {filteredProducts.length === 0 && (
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center">
+            <div className="text-5xl">🔎</div>
+
+            <h3 className="mt-5 text-xl font-bold text-slate-900">
               No products found
             </h3>
 
-            <p className="mt-2 text-gray-500">
-              Try another search or select a different category.
+            <p className="mt-2 text-sm text-slate-500">
+              We couldn't find anything matching your search.
             </p>
 
             <button
               type="button"
               onClick={() => {
-                setSearch("");
-                setSelectedCategory("All");
+                clearSearch();
+                setCategory("All");
               }}
-              className="mt-6 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
+              className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
             >
-              Show All Products
+              View All Products
             </button>
           </div>
         )}
-
-        {/* Bottom Banner */}
-
-        <section className="mt-16 overflow-hidden rounded-3xl bg-linear-to-r from-blue-600 to-indigo-700 px-8 py-12 text-white shadow-xl md:px-14">
-          <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-widest text-blue-200">
-                Special Offer
-              </p>
-
-              <h2 className="mt-2 text-3xl font-extrabold md:text-4xl">
-                Save More. Shop More.
-              </h2>
-
-              <p className="mt-3 text-blue-100">
-                Enjoy amazing deals on selected products.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="whitespace-nowrap rounded-xl bg-white px-7 py-3.5 font-bold text-blue-700 shadow-lg transition hover:-translate-y-1 hover:bg-blue-50"
-            >
-              Explore Deals →
-            </button>
-          </div>
-        </section>
-      </main>
-
-      {/* Footer */}
-
-      <footer className="border-t border-gray-200 bg-white py-8">
-        <div className="mx-auto max-w-7xl px-6 text-center">
-          <p className="text-xl font-extrabold text-gray-900">
-            Shop<span className="text-blue-600">Ease</span>
-          </p>
-
-          <p className="mt-2 text-sm text-gray-500">
-            Quality products. Great prices. Easy shopping.
-          </p>
-
-          <p className="mt-4 text-xs text-gray-400">
-            © 2026 ShopEase. All rights reserved.
-          </p>
-        </div>
-      </footer>
-    </div>
+      </section>
+    </main>
   );
 }
