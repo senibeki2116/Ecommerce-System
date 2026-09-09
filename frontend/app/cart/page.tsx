@@ -176,7 +176,23 @@ export default function CartPage() {
                               <button
                                 type="button"
                                 onClick={() => increaseQuantity(item.id)}
-                                className="flex h-10 w-10 items-center justify-center bg-slate-50 text-xl font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-600"
+                                disabled={
+                                  typeof item.stock === "number" &&
+                                  item.quantity >= item.stock
+                                }
+                                aria-label={
+                                  typeof item.stock === "number" &&
+                                  item.quantity >= item.stock
+                                    ? `Maximum available quantity: ${item.stock}`
+                                    : `Increase quantity of ${item.name}`
+                                }
+                                title={
+                                  typeof item.stock === "number" &&
+                                  item.quantity >= item.stock
+                                    ? `Only ${item.stock} available`
+                                    : "Increase quantity"
+                                }
+                                className="flex h-10 w-10 items-center justify-center bg-slate-50 text-xl font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-300"
                               >
                                 +
                               </button>

@@ -176,6 +176,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (typeof item.stock === "number" && item.quantity >= item.stock) {
+      alert(`Not enough stock available. Only ${item.stock} available.`);
+      return;
+    }
+
     try {
       setLoading(true);
 
