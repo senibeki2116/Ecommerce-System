@@ -114,6 +114,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const existingItem = cart.find((item) => item.id === product.id);
+    const availableStock = product.stock ?? existingItem?.stock;
+
+    if (
+      existingItem &&
+      typeof availableStock === "number" &&
+      existingItem.quantity >= availableStock
+    ) {
+      alert(`Not enough stock available. Only ${availableStock} available.`);
+      return;
+    }
+
     console.log("=================================");
     console.log("ADDING PRODUCT TO CART");
     console.log("PRODUCT:", product);

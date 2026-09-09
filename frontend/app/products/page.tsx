@@ -257,6 +257,7 @@ export default function ProductsPage() {
       description: product.description,
       price: product.price,
       image: product.image,
+      stock: product.stock,
     });
 
     setAddedProduct(product.id);
