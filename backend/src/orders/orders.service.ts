@@ -13,6 +13,10 @@ export type OrderStatusValue =
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
+  // =========================================================
+  // CUSTOMER - CREATE ORDER
+  // =========================================================
+
   async create(userId: number, createOrderDto: CreateOrderDto) {
     const { items } = createOrderDto;
 
@@ -34,6 +38,7 @@ export class OrdersService {
       throw new BadRequestException('One or more products do not exist');
     }
 
+    // Check stock
     for (const item of items) {
       const product = products.find((product) => product.id === item.productId);
 
@@ -43,11 +48,16 @@ export class OrdersService {
         );
       }
 
+      if (item.quantity <= 0) {
+        throw new BadRequestException('Quantity must be greater than zero');
+      }
+
       if (product.stock < item.quantity) {
         throw new BadRequestException(`Not enough stock for ${product.name}`);
       }
     }
 
+    // Calculate total
     let total = 0;
 
     for (const item of items) {
@@ -58,12 +68,14 @@ export class OrdersService {
       }
     }
 
+    // Create order + reduce stock
     const order = await this.prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: {
           userId,
           total,
           status: 'PENDING',
+
           items: {
             create: items.map((item) => {
               const product = products.find(
@@ -78,6 +90,7 @@ export class OrdersService {
             }),
           },
         },
+
         include: {
           items: {
             include: {
@@ -92,6 +105,7 @@ export class OrdersService {
           where: {
             id: item.productId,
           },
+
           data: {
             stock: {
               decrement: item.quantity,
@@ -106,14 +120,20 @@ export class OrdersService {
     return order;
   }
 
+  // =========================================================
+  // CUSTOMER - GET MY ORDERS
+  // =========================================================
+
   async findAll(userId: number) {
     return this.prisma.order.findMany({
       where: {
         userId,
       },
+
       orderBy: {
         createdAt: 'desc',
       },
+
       include: {
         items: {
           include: {
@@ -124,12 +144,25 @@ export class OrdersService {
     });
   }
 
+  // =========================================================
+  // ADMIN - GET ALL ORDERS
+  // =========================================================
+
   async getAllOrders() {
     return this.prisma.order.findMany({
       orderBy: {
         createdAt: 'desc',
       },
+
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+
         items: {
           include: {
             product: true,
@@ -138,6 +171,10 @@ export class OrdersService {
       },
     });
   }
+
+  // =========================================================
+  // CUSTOMER - GET ONE ORDER
+  // =========================================================
 
   async findOne(userId: number, orderId: number) {
     const order = await this.prisma.order.findFirst({
@@ -145,6 +182,7 @@ export class OrdersService {
         id: orderId,
         userId,
       },
+
       include: {
         items: {
           include: {
@@ -160,13 +198,26 @@ export class OrdersService {
 
     return order;
   }
+
+  // =========================================================
+  // ADMIN - GET ONE ORDER
+  // =========================================================
 
   async getOrder(orderId: number) {
     const order = await this.prisma.order.findUnique({
       where: {
         id: orderId,
       },
+
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+
         items: {
           include: {
             product: true,
@@ -182,17 +233,116 @@ export class OrdersService {
     return order;
   }
 
+  // =========================================================
+  // ADMIN - UPDATE ORDER STATUS
+  // =========================================================
+
   async updateOrderStatus(orderId: number, status: OrderStatusValue) {
-    await this.getOrder(orderId);
+    const validStatuses: OrderStatusValue[] = [
+      'PENDING',
+      'CONFIRMED',
+      'SHIPPED',
+      'DELIVERED',
+      'CANCELLED',
+    ];
+
+    if (!validStatuses.includes(status)) {
+      throw new BadRequestException('Invalid order status');
+    }
+
+    const order = await this.getOrder(orderId);
+
+    // Don't update an order to the same status
+    if (order.status === status) {
+      return order;
+    }
+
+    // Prevent changing a delivered order
+    if (order.status === 'DELIVERED') {
+      throw new BadRequestException('A delivered order cannot be changed');
+    }
+
+    // Prevent changing a cancelled order
+    if (order.status === 'CANCELLED') {
+      throw new BadRequestException('A cancelled order cannot be changed');
+    }
+
+    // ---------------------------------------------------------
+    // ADMIN CANCELS ORDER
+    // Return products to stock
+    // ---------------------------------------------------------
+
+    if (status === 'CANCELLED') {
+      const cancelledOrder = await this.prisma.$transaction(async (tx) => {
+        const updatedOrder = await tx.order.update({
+          where: {
+            id: orderId,
+          },
+
+          data: {
+            status: 'CANCELLED',
+          },
+
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+
+            items: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        });
+
+        // Return cancelled products to stock
+        for (const item of order.items) {
+          await tx.product.update({
+            where: {
+              id: item.productId,
+            },
+
+            data: {
+              stock: {
+                increment: item.quantity,
+              },
+            },
+          });
+        }
+
+        return updatedOrder;
+      });
+
+      return cancelledOrder;
+    }
+
+    // ---------------------------------------------------------
+    // NORMAL STATUS UPDATE
+    // ---------------------------------------------------------
 
     return this.prisma.order.update({
       where: {
         id: orderId,
       },
+
       data: {
         status,
       },
+
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+
         items: {
           include: {
             product: true,
@@ -201,6 +351,10 @@ export class OrdersService {
       },
     });
   }
+
+  // =========================================================
+  // CUSTOMER - CANCEL ORDER
+  // =========================================================
 
   async cancel(userId: number, orderId: number) {
     const order = await this.prisma.order.findFirst({
@@ -208,6 +362,7 @@ export class OrdersService {
         id: orderId,
         userId,
       },
+
       include: {
         items: {
           include: {
@@ -230,9 +385,11 @@ export class OrdersService {
         where: {
           id: orderId,
         },
+
         data: {
           status: 'CANCELLED',
         },
+
         include: {
           items: {
             include: {
@@ -242,11 +399,13 @@ export class OrdersService {
         },
       });
 
+      // Return products to stock
       for (const item of order.items) {
         await tx.product.update({
           where: {
             id: item.productId,
           },
+
           data: {
             stock: {
               increment: item.quantity,
