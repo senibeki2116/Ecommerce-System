@@ -19,10 +19,6 @@ type FormDataType = {
 export default function CheckoutPage() {
   const { cart, cartTotal, cartCount, clearCart } = useCart();
 
-  /* =========================
-     STATE
-  ========================= */
-
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [error, setError] = useState("");
@@ -40,7 +36,7 @@ export default function CheckoutPage() {
   });
 
   /* =========================
-     LOAD SAVED ADDRESS
+     LOAD SAVED INFORMATION
   ========================= */
 
   useEffect(() => {
@@ -58,10 +54,11 @@ export default function CheckoutPage() {
           firstName: nameParts[0] || "",
           lastName: nameParts.slice(1).join(" ") || "",
           address: parsed.address || "",
+          city: parsed.city || "",
+          country: parsed.country || "Ethiopia",
         }));
       }
 
-      /* Try to load logged-in user information */
       const userData =
         localStorage.getItem("user") || localStorage.getItem("currentUser");
 
@@ -80,8 +77,8 @@ export default function CheckoutPage() {
           email: prev.email || user.email || "",
         }));
       }
-    } catch (error) {
-      console.error("Could not load saved checkout data:", error);
+    } catch (err) {
+      console.error("Could not load checkout data:", err);
     }
   }, []);
 
@@ -90,7 +87,6 @@ export default function CheckoutPage() {
   ========================= */
 
   const shipping = cartTotal >= 100 ? 0 : 10;
-
   const tax = cartTotal * 0.08;
 
   const couponDiscount = cartTotal > 0 ? Math.min(40.6, cartTotal) : 0;
@@ -98,7 +94,7 @@ export default function CheckoutPage() {
   const finalTotal = Math.max(0, cartTotal + shipping + tax - couponDiscount);
 
   /* =========================
-     INPUT CHANGE
+     INPUT
   ========================= */
 
   const handleChange = (
@@ -113,7 +109,7 @@ export default function CheckoutPage() {
   };
 
   /* =========================
-     PAYMENT SELECT
+     PAYMENT
   ========================= */
 
   const selectPayment = (payment: string) => {
@@ -200,14 +196,9 @@ export default function CheckoutPage() {
 
       if (!token) {
         setError("Please login before placing an order.");
-
         setPlacingOrder(false);
         return;
       }
-
-      /* =========================
-         CREATE ORDER DATA
-      ========================= */
 
       const orderData = {
         items: cart.map((item: any) => ({
@@ -242,18 +233,12 @@ export default function CheckoutPage() {
 
       console.log("Sending order:", orderData);
 
-      /* =========================
-         BACKEND REQUEST
-      ========================= */
-
       const response = await fetch("http://localhost:3001/orders", {
         method: "POST",
-
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-
         body: JSON.stringify(orderData),
       });
 
@@ -267,10 +252,6 @@ export default function CheckoutPage() {
 
       console.log("Order response:", data);
 
-      /* =========================
-         BACKEND ERROR
-      ========================= */
-
       if (!response.ok) {
         if (response.status === 401) {
           setError("Your login session has expired. Please login again.");
@@ -283,24 +264,15 @@ export default function CheckoutPage() {
         return;
       }
 
-      /* =========================
-         SUCCESS
-      ========================= */
-
       const createdOrderId =
         data?.id || data?._id || data?.order?.id || data?.order?._id || "";
 
       setOrderId(createdOrderId);
-
       setOrderPlaced(true);
 
-      /*
-        Clear cart only after backend confirms
-        the order was successfully created.
-      */
       clearCart();
-    } catch (error) {
-      console.error("Order request failed:", error);
+    } catch (err) {
+      console.error("Order request failed:", err);
 
       setError(
         "Could not connect to the server. Make sure your NestJS backend is running on port 3001.",
@@ -316,34 +288,40 @@ export default function CheckoutPage() {
 
   if (cart.length === 0 && !orderPlaced) {
     return (
-      <div className="min-h-screen bg-[#f6f7f9]">
+      <div className="min-h-screen bg-[#f5f7fb]">
         <Navbar />
 
-        <main className="mx-auto max-w-4xl px-5 py-16 sm:px-6 lg:py-24">
-          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">
-            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 text-4xl">
-              🛒
+        <main className="mx-auto max-w-5xl px-5 py-16 sm:px-6 lg:py-24">
+          <div className="relative overflow-hidden rounded-4xl border border-slate-200 bg-white px-6 py-20 text-center shadow-xl">
+            <div className="absolute -right-20 -top-20 h-52 w-52 rounded-full bg-indigo-100 blur-3xl" />
+            <div className="absolute -bottom-20 -left-20 h-52 w-52 rounded-full bg-blue-100 blur-3xl" />
+
+            <div className="relative">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-slate-100 text-5xl shadow-inner">
+                🛒
+              </div>
+
+              <p className="mt-7 text-xs font-black uppercase tracking-[0.25em] text-indigo-500">
+                Checkout
+              </p>
+
+              <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-900">
+                Your cart is empty
+              </h1>
+
+              <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-slate-500">
+                You need to add some products to your shopping cart before you
+                can continue to checkout.
+              </p>
+
+              <Link
+                href="/products"
+                className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-slate-900 px-8 py-4 text-sm font-black text-white shadow-lg transition hover:-translate-y-1 hover:bg-black hover:shadow-xl"
+              >
+                Browse Products
+                <span className="text-lg">→</span>
+              </Link>
             </div>
-
-            <p className="mt-7 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-              Checkout
-            </p>
-
-            <h1 className="mt-2 text-3xl font-black text-slate-900">
-              Your cart is empty
-            </h1>
-
-            <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
-              Add some products to your cart before proceeding to checkout.
-            </p>
-
-            <Link
-              href="/products"
-              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[#171717] px-7 py-4 text-sm font-bold text-white shadow-lg transition hover:bg-black hover:-translate-y-0.5"
-            >
-              Browse Products
-              <span>→</span>
-            </Link>
           </div>
         </main>
       </div>
@@ -356,36 +334,43 @@ export default function CheckoutPage() {
 
   if (orderPlaced) {
     return (
-      <div className="min-h-screen bg-[#f6f7f9]">
+      <div className="min-h-screen bg-[#f5f7fb]">
         <Navbar />
 
-        <main className="mx-auto max-w-3xl px-5 py-16 sm:px-6 lg:py-24">
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+        <main className="mx-auto max-w-4xl px-5 py-12 sm:px-6 lg:py-20">
+          <div className="overflow-hidden rounded-4xl border border-slate-200 bg-white shadow-2xl">
             {/* SUCCESS HEADER */}
 
-            <div className="bg-[#171717] px-6 py-12 text-center text-white">
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-green-500 text-5xl font-black shadow-lg shadow-green-500/20">
-                ✓
+            <div className="relative overflow-hidden bg-slate-900 px-6 py-16 text-center text-white">
+              <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-indigo-600/30 blur-3xl" />
+              <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
+
+              <div className="relative">
+                <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500 text-5xl font-black shadow-2xl shadow-emerald-500/30">
+                  ✓
+                </div>
+
+                <p className="mt-7 text-xs font-black uppercase tracking-[0.3em] text-emerald-400">
+                  Order Confirmed
+                </p>
+
+                <h1 className="mt-3 text-4xl font-black sm:text-5xl">
+                  Thank You! 🎉
+                </h1>
+
+                <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-slate-300">
+                  Your order has been successfully placed. We'll contact you
+                  shortly to confirm your delivery.
+                </p>
               </div>
-
-              <p className="mt-6 text-xs font-black uppercase tracking-[0.25em] text-green-400">
-                Order Successful
-              </p>
-
-              <h1 className="mt-2 text-4xl font-black">Thank You!</h1>
-
-              <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-300">
-                Your order has been successfully placed. We'll contact you
-                shortly to confirm your delivery.
-              </p>
             </div>
 
-            {/* ORDER DETAILS */}
+            {/* DETAILS */}
 
-            <div className="p-6 sm:p-8">
+            <div className="p-6 sm:p-10">
               {orderId && (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 text-center">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-400">
                     Order ID
                   </p>
 
@@ -395,71 +380,85 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              <div className="mt-5 space-y-4 rounded-2xl border border-slate-200 p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-slate-500">Customer</span>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Customer
+                  </p>
 
-                  <span className="text-right text-sm font-bold text-slate-900">
+                  <p className="mt-2 font-black text-slate-900">
                     {formData.firstName} {formData.lastName}
-                  </span>
-                </div>
+                  </p>
 
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-slate-500">Email</span>
-
-                  <span className="break-all text-right text-sm font-bold text-slate-900">
+                  <p className="mt-1 text-sm text-slate-500">
                     {formData.email}
-                  </span>
+                  </p>
                 </div>
 
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-slate-500">Phone</span>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Payment
+                  </p>
 
-                  <span className="text-sm font-bold text-slate-900">
-                    {formData.phone}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-slate-500">Payment</span>
-
-                  <span className="text-sm font-bold text-slate-900">
+                  <p className="mt-2 font-black text-slate-900">
                     {formData.payment}
-                  </span>
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Payment method selected
+                  </p>
                 </div>
+              </div>
 
-                <div className="flex items-start justify-between gap-4">
-                  <span className="text-sm text-slate-500">Delivery</span>
+              <div className="mt-4 rounded-2xl border border-slate-200 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-xl">
+                    📍
+                  </div>
 
-                  <span className="max-w-[60%] text-right text-sm font-bold text-slate-900">
-                    {formData.address}, {formData.city}, {formData.country}
-                  </span>
-                </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Delivery Address
+                    </p>
 
-                <div className="border-t border-slate-100 pt-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-slate-900">Total</span>
+                    <p className="mt-2 font-black text-slate-900">
+                      {formData.address}
+                    </p>
 
-                    <span className="text-2xl font-black text-green-600">
-                      ${finalTotal.toFixed(2)}
-                    </span>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {formData.city}, {formData.country}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* ACTIONS */}
+              <div className="mt-4 rounded-2xl bg-slate-900 p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-400">Order Total</p>
 
-              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                    <p className="mt-1 text-xs text-slate-500">
+                      Including taxes & shipping
+                    </p>
+                  </div>
+
+                  <p className="text-3xl font-black">
+                    ${finalTotal.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 <Link
                   href="/products"
-                  className="flex items-center justify-center rounded-xl bg-[#171717] px-5 py-4 text-sm font-bold text-white transition hover:bg-black"
+                  className="flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-black"
                 >
                   Continue Shopping →
                 </Link>
 
                 <Link
                   href="/orders"
-                  className="flex items-center justify-center rounded-xl border border-slate-200 px-5 py-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  className="flex items-center justify-center rounded-2xl border border-slate-200 px-5 py-4 text-sm font-black text-slate-700 transition hover:bg-slate-50"
                 >
                   View My Orders
                 </Link>
@@ -476,464 +475,283 @@ export default function CheckoutPage() {
   ========================= */
 
   return (
-    <div className="min-h-screen bg-[#f6f7f9] text-slate-900">
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <Navbar />
 
-      {/* =========================
-          HERO
-      ========================= */}
+      {/* HERO */}
 
-      <section className="bg-[#171717] px-5 py-12 text-white sm:px-6">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+      <section className="relative overflow-hidden bg-slate-900 text-white">
+        <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-indigo-600/25 blur-3xl" />
+        <div className="absolute -bottom-32 right-0 h-80 w-80 rounded-full bg-blue-500/20 blur-3xl" />
+
+        <div className="relative mx-auto max-w-7xl px-5 py-12 sm:px-6 lg:py-16">
+          <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">
-                Secure Checkout
-              </p>
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-slate-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                Secure checkout
+              </div>
 
-              <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">
-                Complete Your Order
+              <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+                Complete your
+                <span className="block text-indigo-400">order</span>
               </h1>
 
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                Enter your delivery information, select a payment method, and
-                place your order securely.
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
+                You're just a few steps away from receiving your products. Enter
+                your delivery details and choose your preferred payment method.
               </p>
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-slate-300">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10">
-                ✓
-              </span>
+            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-xl">
+                🔒
+              </div>
 
-              <span>Secure checkout</span>
+              <div>
+                <p className="text-sm font-black">Safe & Secure</p>
+
+                <p className="text-xs text-slate-400">
+                  Your information is protected
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* =========================
-          MAIN
-      ========================= */}
+      {/* CHECKOUT */}
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
-        <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_390px]">
-          {/* =========================
-              LEFT
-          ========================= */}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
+          {/* LEFT */}
 
           <div>
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* ERROR */}
 
               {error && (
-                <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 font-black text-red-600">
                       !
-                    </span>
+                    </div>
 
                     <div>
-                      <p className="font-black">
-                        Please check your information
+                      <p className="font-black text-red-900">
+                        Something went wrong
                       </p>
 
-                      <p className="mt-1 text-sm leading-5">{error}</p>
+                      <p className="mt-1 text-sm leading-6 text-red-700">
+                        {error}
+                      </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* =========================
-                  PERSONAL INFORMATION
-              ========================= */}
+              {/* PERSONAL INFORMATION */}
 
-              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-                <div className="mb-7 flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black">
-                    01
-                  </div>
+              <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 bg-linear-to-r from-indigo-50 to-white px-6 py-6 sm:px-8">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-sm font-black text-white shadow-lg shadow-indigo-600/20">
+                      01
+                    </div>
 
-                  <div>
-                    <h2 className="text-xl font-black">Personal Information</h2>
+                    <div>
+                      <h2 className="text-xl font-black">
+                        Personal information
+                      </h2>
 
-                    <p className="mt-1 text-sm text-slate-500">
-                      Tell us who will receive this order.
-                    </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Tell us who will receive this order.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* FIRST NAME */}
-
-                  <div>
-                    <label
-                      htmlFor="firstName"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      First Name
-                    </label>
-
-                    <input
-                      id="firstName"
+                <div className="p-6 sm:p-8">
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <InputField
+                      label="First name"
                       name="firstName"
-                      type="text"
-                      required
                       value={formData.firstName}
                       onChange={handleChange}
                       placeholder="Your first name"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
-                  </div>
 
-                  {/* LAST NAME */}
-
-                  <div>
-                    <label
-                      htmlFor="lastName"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Last Name
-                    </label>
-
-                    <input
-                      id="lastName"
+                    <InputField
+                      label="Last name"
                       name="lastName"
-                      type="text"
-                      required
                       value={formData.lastName}
                       onChange={handleChange}
                       placeholder="Your last name"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
-                  </div>
 
-                  {/* EMAIL */}
-
-                  <div>
-                    <label
-                      htmlFor="email"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Email Address
-                    </label>
-
-                    <input
-                      id="email"
+                    <InputField
+                      label="Email address"
                       name="email"
                       type="email"
-                      required
                       value={formData.email}
                       onChange={handleChange}
                       placeholder="you@example.com"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
-                  </div>
 
-                  {/* PHONE */}
-
-                  <div>
-                    <label
-                      htmlFor="phone"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Phone Number
-                    </label>
-
-                    <input
-                      id="phone"
+                    <InputField
+                      label="Phone number"
                       name="phone"
                       type="tel"
-                      required
                       value={formData.phone}
                       onChange={handleChange}
                       placeholder="+251 9XX XXX XXX"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
                   </div>
                 </div>
               </section>
 
-              {/* =========================
-                  DELIVERY
-              ========================= */}
+              {/* DELIVERY */}
 
-              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-                <div className="mb-7 flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black">
-                    02
-                  </div>
+              <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 bg-linear-to-r from-blue-50 to-white px-6 py-6 sm:px-8">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-sm font-black text-white shadow-lg shadow-blue-600/20">
+                      02
+                    </div>
 
-                  <div>
-                    <h2 className="text-xl font-black">Delivery Address</h2>
+                    <div>
+                      <h2 className="text-xl font-black">Delivery address</h2>
 
-                    <p className="mt-1 text-sm text-slate-500">
-                      Where should we deliver your order?
-                    </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Where should we deliver your order?
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* ADDRESS */}
-
-                <div>
-                  <label
-                    htmlFor="address"
-                    className="mb-2 block text-sm font-bold text-slate-700"
-                  >
-                    Street Address
-                  </label>
-
-                  <input
-                    id="address"
+                <div className="p-6 sm:p-8">
+                  <InputField
+                    label="Street address"
                     name="address"
-                    type="text"
-                    required
                     value={formData.address}
                     onChange={handleChange}
                     placeholder="Street, building, house number"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                   />
-                </div>
 
-                <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* CITY */}
-
-                  <div>
-                    <label
-                      htmlFor="city"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      City
-                    </label>
-
-                    <input
-                      id="city"
+                  <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <InputField
+                      label="City"
                       name="city"
-                      type="text"
-                      required
                       value={formData.city}
                       onChange={handleChange}
                       placeholder="Addis Ababa"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
                     />
-                  </div>
-
-                  {/* COUNTRY */}
-
-                  <div>
-                    <label
-                      htmlFor="country"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Country
-                    </label>
-
-                    <select
-                      id="country"
-                      name="country"
-                      value={formData.country}
-                      onChange={handleChange}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100"
-                    >
-                      <option>Ethiopia</option>
-                      <option>Kenya</option>
-                      <option>Uganda</option>
-                      <option>Tanzania</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* SAVED ADDRESS INFO */}
-
-                {formData.address && (
-                  <div className="mt-5 flex items-center gap-3 rounded-xl border border-green-100 bg-green-50 p-4">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600">
-                      ✓
-                    </span>
 
                     <div>
-                      <p className="text-sm font-bold text-green-800">
-                        Saved address loaded
-                      </p>
+                      <label
+                        htmlFor="country"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
+                        Country
+                      </label>
 
-                      <p className="text-xs text-green-700">
-                        Your address from the Cart page has been added
-                        automatically.
+                      <select
+                        id="country"
+                        name="country"
+                        value={formData.country}
+                        onChange={handleChange}
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-medium outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                      >
+                        <option>Ethiopia</option>
+                        <option>Kenya</option>
+                        <option>Uganda</option>
+                        <option>Tanzania</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {formData.address && (
+                    <div className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                        ✓
+                      </span>
+
+                      <div>
+                        <p className="text-sm font-black text-emerald-800">
+                          Saved address loaded
+                        </p>
+
+                        <p className="mt-0.5 text-xs text-emerald-700">
+                          Your saved delivery information was added
+                          automatically.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* PAYMENT */}
+
+              <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 bg-linear-to-r from-violet-50 to-white px-6 py-6 sm:px-8">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600 text-sm font-black text-white shadow-lg shadow-violet-600/20">
+                      03
+                    </div>
+
+                    <div>
+                      <h2 className="text-xl font-black">Payment method</h2>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        Select how you'd like to pay.
                       </p>
                     </div>
                   </div>
-                )}
-              </section>
-
-              {/* =========================
-                  PAYMENT
-              ========================= */}
-
-              <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-                <div className="mb-7 flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black">
-                    03
-                  </div>
-
-                  <div>
-                    <h2 className="text-xl font-black">Payment Method</h2>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      Select your preferred payment method.
-                    </p>
-                  </div>
                 </div>
 
-                <div className="space-y-3">
-                  {/* CASH */}
-
-                  <button
-                    type="button"
+                <div className="space-y-3 p-6 sm:p-8">
+                  <PaymentCard
+                    icon="💵"
+                    title="Cash on Delivery"
+                    description="Pay when your order arrives."
+                    selected={formData.payment === "Cash on Delivery"}
                     onClick={() => selectPayment("Cash on Delivery")}
-                    className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
-                      formData.payment === "Cash on Delivery"
-                        ? "border-slate-900 bg-slate-50 ring-2 ring-slate-100"
-                        : "border-slate-200 hover:border-slate-400"
-                    }`}
-                  >
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl ${
-                        formData.payment === "Cash on Delivery"
-                          ? "bg-green-100"
-                          : "bg-slate-100"
-                      }`}
-                    >
-                      💵
-                    </div>
+                  />
 
-                    <div className="min-w-0 flex-1">
-                      <p className="font-black text-slate-900">
-                        Cash on Delivery
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        Pay when your order arrives.
-                      </p>
-                    </div>
-
-                    <div
-                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        formData.payment === "Cash on Delivery"
-                          ? "border-slate-900 bg-slate-900"
-                          : "border-slate-300"
-                      }`}
-                    >
-                      {formData.payment === "Cash on Delivery" && (
-                        <span className="h-2 w-2 rounded-full bg-white" />
-                      )}
-                    </div>
-                  </button>
-
-                  {/* TELEBIRR */}
-
-                  <button
-                    type="button"
+                  <PaymentCard
+                    icon="📱"
+                    title="Telebirr"
+                    description="Pay securely using Telebirr."
+                    selected={formData.payment === "Telebirr"}
                     onClick={() => selectPayment("Telebirr")}
-                    className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
-                      formData.payment === "Telebirr"
-                        ? "border-slate-900 bg-slate-50 ring-2 ring-slate-100"
-                        : "border-slate-200 hover:border-slate-400"
-                    }`}
-                  >
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl ${
-                        formData.payment === "Telebirr"
-                          ? "bg-blue-100"
-                          : "bg-slate-100"
-                      }`}
-                    >
-                      📱
-                    </div>
+                  />
 
-                    <div className="min-w-0 flex-1">
-                      <p className="font-black text-slate-900">Telebirr</p>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        Pay securely using Telebirr.
-                      </p>
-                    </div>
-
-                    <div
-                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        formData.payment === "Telebirr"
-                          ? "border-slate-900 bg-slate-900"
-                          : "border-slate-300"
-                      }`}
-                    >
-                      {formData.payment === "Telebirr" && (
-                        <span className="h-2 w-2 rounded-full bg-white" />
-                      )}
-                    </div>
-                  </button>
-
-                  {/* CARD */}
-
-                  <button
-                    type="button"
+                  <PaymentCard
+                    icon="💳"
+                    title="Credit / Debit Card"
+                    description="Visa, Mastercard and other cards."
+                    selected={formData.payment === "Credit / Debit Card"}
                     onClick={() => selectPayment("Credit / Debit Card")}
-                    className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
-                      formData.payment === "Credit / Debit Card"
-                        ? "border-slate-900 bg-slate-50 ring-2 ring-slate-100"
-                        : "border-slate-200 hover:border-slate-400"
-                    }`}
-                  >
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl ${
-                        formData.payment === "Credit / Debit Card"
-                          ? "bg-purple-100"
-                          : "bg-slate-100"
-                      }`}
-                    >
-                      💳
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="font-black text-slate-900">
-                        Credit / Debit Card
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        Visa, Mastercard and other cards.
-                      </p>
-                    </div>
-
-                    <div
-                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        formData.payment === "Credit / Debit Card"
-                          ? "border-slate-900 bg-slate-900"
-                          : "border-slate-300"
-                      }`}
-                    >
-                      {formData.payment === "Credit / Debit Card" && (
-                        <span className="h-2 w-2 rounded-full bg-white" />
-                      )}
-                    </div>
-                  </button>
+                  />
                 </div>
               </section>
 
-              {/* =========================
-                  PLACE ORDER
-              ========================= */}
+              {/* PLACE ORDER */}
 
               <button
                 type="submit"
                 disabled={placingOrder}
-                className="group flex w-full items-center justify-center gap-3 rounded-2xl bg-[#171717] px-6 py-5 text-base font-black text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-black hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
+                className="group flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-6 py-5 text-base font-black text-white shadow-xl shadow-indigo-600/20 transition hover:-translate-y-1 hover:bg-indigo-700 hover:shadow-2xl hover:shadow-indigo-600/30 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {placingOrder ? (
                   <>
                     <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Processing Order...
+                    Processing your order...
                   </>
                 ) : (
                   <>
-                    Place Order
+                    Place order
                     <span className="text-xl transition group-hover:translate-x-1">
                       →
                     </span>
@@ -943,62 +761,65 @@ export default function CheckoutPage() {
 
               <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
                 <span>🔒</span>
-
-                <span>Your personal information is secure and protected.</span>
+                <span>Your personal information is securely protected.</span>
               </div>
             </form>
           </div>
 
-          {/* =========================
-              RIGHT ORDER SUMMARY
-          ========================= */}
+          {/* RIGHT */}
 
           <aside>
-            <div className="sticky top-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
-              {/* HEADER */}
+            <div className="sticky top-6 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-xl">
+              {/* SUMMARY HEADER */}
 
-              <div className="bg-[#171717] p-6 text-white">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                  Your Order
-                </p>
+              <div className="relative overflow-hidden bg-slate-900 p-6 text-white">
+                <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-indigo-600/20 blur-2xl" />
 
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <h2 className="text-2xl font-black">Summary</h2>
+                <div className="relative">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                        Your order
+                      </p>
 
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold">
-                    {cartCount} items
-                  </span>
+                      <h2 className="mt-1 text-2xl font-black">Summary</h2>
+                    </div>
+
+                    <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-black">
+                      {cartCount} items
+                    </span>
+                  </div>
                 </div>
               </div>
 
               <div className="p-6">
                 {/* PRODUCTS */}
 
-                <div className="max-h-72 space-y-4 overflow-y-auto pr-1">
+                <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
                   {cart.map((item: any) => {
                     const itemId = item._id || item.id;
 
                     return (
                       <div key={itemId} className="flex gap-3">
-                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
                           <img
                             src={item.image || "/file.svg"}
                             alt={item.name}
                             className="h-full w-full object-cover"
                           />
 
-                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#171717] px-1 text-[10px] font-bold text-white">
+                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-900 px-1 text-[10px] font-black text-white">
                             {item.quantity}
                           </span>
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-bold text-slate-900">
+                          <p className="truncate text-sm font-black text-slate-900">
                             {item.name}
                           </p>
 
                           <p className="mt-1 text-xs text-slate-400">
-                            ${Number(item.price).toFixed(2)} each
+                            ${Number(item.price).toFixed(2)} × {item.quantity}
                           </p>
                         </div>
 
@@ -1015,107 +836,107 @@ export default function CheckoutPage() {
 
                 <div className="my-6 border-t border-dashed border-slate-200" />
 
-                {/* PRICE DETAILS */}
+                {/* PRICES */}
 
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm text-slate-500">
-                    <span>Subtotal</span>
+                <div className="space-y-4">
+                  <SummaryRow
+                    label="Subtotal"
+                    value={`$${cartTotal.toFixed(2)}`}
+                  />
 
-                    <span className="font-bold text-slate-900">
-                      ${cartTotal.toFixed(2)}
-                    </span>
-                  </div>
+                  <SummaryRow
+                    label="Shipping"
+                    value={shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`}
+                    valueClass={
+                      shipping === 0 ? "text-emerald-600" : "text-slate-900"
+                    }
+                  />
 
-                  <div className="flex justify-between text-sm text-slate-500">
-                    <span>Shipping</span>
+                  <SummaryRow label="Tax" value={`$${tax.toFixed(2)}`} />
 
-                    {shipping === 0 ? (
-                      <span className="font-black text-green-600">FREE</span>
-                    ) : (
-                      <span className="font-bold text-slate-900">
-                        ${shipping.toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex justify-between text-sm text-slate-500">
-                    <span>Tax</span>
-
-                    <span className="font-bold text-slate-900">
-                      ${tax.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-green-600">Coupon (DUO10)</span>
-
-                    <span className="font-bold text-green-600">
-                      - ${couponDiscount.toFixed(2)}
-                    </span>
-                  </div>
+                  <SummaryRow
+                    label="Coupon (DUO10)"
+                    value={`- $${couponDiscount.toFixed(2)}`}
+                    valueClass="text-emerald-600"
+                    labelClass="text-emerald-600"
+                  />
                 </div>
 
                 <div className="my-6 border-t border-slate-200" />
 
                 {/* TOTAL */}
 
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-slate-500">Total</p>
+                <div className="rounded-2xl bg-slate-50 p-5">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-500">Total</p>
 
-                    <p className="mt-1 text-xs text-slate-400">
-                      Including taxes & shipping
-                    </p>
-                  </div>
-
-                  <p className="text-3xl font-black text-slate-900">
-                    ${finalTotal.toFixed(2)}
-                  </p>
-                </div>
-
-                {/* ADDRESS PREVIEW */}
-
-                {formData.address && (
-                  <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-center gap-2">
-                      <span>📍</span>
-
-                      <p className="text-sm font-black text-slate-900">
-                        Delivery to
+                      <p className="mt-1 text-xs text-slate-400">
+                        Including taxes & shipping
                       </p>
                     </div>
 
-                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                    <p className="text-3xl font-black text-slate-900">
+                      ${finalTotal.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* ADDRESS */}
+
+                {formData.address && (
+                  <div className="mt-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-lg">
+                        📍
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-black text-slate-900">
+                          Delivery to
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formData.city}, {formData.country}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
                       {formData.address}
-                      {formData.city && `, ${formData.city}`}
-                      {formData.country && `, ${formData.country}`}
                     </p>
                   </div>
                 )}
 
-                {/* SECURITY */}
+                {/* BENEFITS */}
 
-                <div className="mt-5 flex gap-3 rounded-2xl border border-slate-100 bg-white p-4">
-                  <span className="text-xl">🔒</span>
+                <div className="mt-5 space-y-3">
+                  <TrustItem
+                    icon="🔒"
+                    title="Secure checkout"
+                    description="Your information is protected."
+                  />
 
-                  <div>
-                    <p className="text-sm font-black text-slate-900">
-                      Secure Checkout
-                    </p>
+                  <TrustItem
+                    icon="🚚"
+                    title="Reliable delivery"
+                    description="We'll deliver your order safely."
+                  />
 
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Your information is protected during checkout.
-                    </p>
-                  </div>
+                  <TrustItem
+                    icon="✓"
+                    title="Easy ordering"
+                    description="Simple and transparent checkout."
+                  />
                 </div>
 
                 {/* BACK */}
 
                 <Link
                   href="/cart"
-                  className="mt-5 flex items-center justify-center rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                  className="mt-6 flex items-center justify-center rounded-xl border border-slate-200 px-5 py-3.5 text-sm font-black text-slate-600 transition hover:bg-slate-50"
                 >
-                  ← Back to Cart
+                  ← Back to cart
                 </Link>
               </div>
             </div>
@@ -1123,25 +944,177 @@ export default function CheckoutPage() {
         </div>
       </main>
 
-      {/* =========================
-          FOOTER
-      ========================= */}
+      {/* FOOTER */}
 
       <footer className="border-t border-slate-200 bg-white py-10">
         <div className="mx-auto max-w-7xl px-6 text-center">
           <p className="text-2xl font-black text-slate-900">
-            Shop<span className="text-slate-500">Ease</span>
+            Shop<span className="text-indigo-500">Ease</span>
           </p>
 
           <p className="mt-2 text-sm text-slate-500">
             Quality products. Great prices. Easy shopping.
           </p>
 
-          <p className="mt-5 text-xs text-slate-400">
+          <div className="mx-auto mt-6 flex max-w-md items-center justify-center gap-5 text-xs font-bold text-slate-400">
+            <span>🔒 Secure</span>
+            <span>•</span>
+            <span>🚚 Reliable</span>
+            <span>•</span>
+            <span>✓ Trusted</span>
+          </div>
+
+          <p className="mt-6 text-xs text-slate-400">
             © 2026 ShopEase. All rights reserved.
           </p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/* =========================
+   INPUT COMPONENT
+========================= */
+
+function InputField({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder: string;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={name}
+        className="mb-2 block text-sm font-bold text-slate-700"
+      >
+        {label}
+      </label>
+
+      <input
+        id={name}
+        name={name}
+        type={type}
+        required
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+      />
+    </div>
+  );
+}
+
+/* =========================
+   PAYMENT CARD
+========================= */
+
+function PaymentCard({
+  icon,
+  title,
+  description,
+  selected,
+  onClick,
+}: {
+  icon: string;
+  title: string;
+  description: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
+        selected
+          ? "border-indigo-500 bg-indigo-50/60 ring-4 ring-indigo-50"
+          : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50"
+      }`}
+    >
+      <div
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl ${
+          selected ? "bg-white shadow-sm" : "bg-slate-100"
+        }`}
+      >
+        {icon}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="font-black text-slate-900">{title}</p>
+
+        <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+      </div>
+
+      <div
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${
+          selected ? "border-indigo-600 bg-indigo-600" : "border-slate-300"
+        }`}
+      >
+        {selected && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+      </div>
+    </button>
+  );
+}
+
+/* =========================
+   SUMMARY ROW
+========================= */
+
+function SummaryRow({
+  label,
+  value,
+  labelClass = "text-slate-500",
+  valueClass = "text-slate-900",
+}: {
+  label: string;
+  value: string;
+  labelClass?: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm">
+      <span className={labelClass}>{label}</span>
+
+      <span className={`font-black ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+/* =========================
+   TRUST ITEM
+========================= */
+
+function TrustItem({
+  icon,
+  title,
+  description,
+}: {
+  icon: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-sm">
+        {icon}
+      </div>
+
+      <div>
+        <p className="text-xs font-black text-slate-900">{title}</p>
+
+        <p className="mt-0.5 text-[11px] text-slate-400">{description}</p>
+      </div>
     </div>
   );
 }

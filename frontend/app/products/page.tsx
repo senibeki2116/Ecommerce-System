@@ -1,216 +1,98 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import Navbar from "../Components/Navbar";
 import { useCart } from "../Context/CartContext";
 
-type BackendProduct = {
+type Product = {
   id: number;
   name: string;
   description: string;
   price: number;
   stock: number;
-  image: string;
-  createdAt?: string;
-  updatedAt?: string;
+  image?: string | null;
 };
 
-type Product = BackendProduct & {
-  oldPrice?: number;
-  rating: number;
-  reviews: number;
-  category: string;
-};
-
-const catalogInfo: Record<
-  string,
-  {
-    oldPrice: number;
-    rating: number;
-    reviews: number;
-    category: string;
-  }
-> = {
-  "Premium Laptop": {
-    oldPrice: 999,
-    rating: 4.8,
-    reviews: 124,
-    category: "Electronics",
-  },
-
-  "Smartphone Pro": {
-    oldPrice: 799,
-    rating: 4.7,
-    reviews: 98,
-    category: "Electronics",
-  },
-
-  "Wireless Headphones": {
-    oldPrice: 149,
-    rating: 4.6,
-    reviews: 86,
-    category: "Audio",
-  },
-
-  "Smart Watch": {
-    oldPrice: 229,
-    rating: 4.8,
-    reviews: 73,
-    category: "Wearables",
-  },
-
-  "Modern Camera": {
-    oldPrice: 699,
-    rating: 4.7,
-    reviews: 61,
-    category: "Photography",
-  },
-
-  "Gaming Keyboard": {
-    oldPrice: 129,
-    rating: 4.6,
-    reviews: 54,
-    category: "Gaming",
-  },
-
-  "Wireless Speaker": {
-    oldPrice: 119,
-    rating: 4.5,
-    reviews: 45,
-    category: "Audio",
-  },
-
-  "Gaming Mouse": {
-    oldPrice: 89,
-    rating: 4.7,
-    reviews: 39,
-    category: "Gaming",
-  },
-
-  "Dell Laptop": {
-    oldPrice: 949,
-    rating: 4.7,
-    reviews: 82,
-    category: "Electronics",
-  },
-
-  "Samsung Galaxy S25": {
-    oldPrice: 899,
-    rating: 4.9,
-    reviews: 113,
-    category: "Electronics",
-  },
-};
-
-const categories = [
-  "All",
-  "Electronics",
-  "Gaming",
-  "Audio",
-  "Wearables",
-  "Photography",
-];
+const API_URL = "http://localhost:3001";
 
 export default function ProductsPage() {
-  const { addToCart } = useCart();
+  const { addToCart, cartCount } = useCart();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // What the user is typing
   const [search, setSearch] = useState("");
-
-  // Search only becomes active after clicking Search or pressing Enter
-  const [searchSubmitted, setSearchSubmitted] = useState("");
-
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState("featured");
 
-  const [wishlist, setWishlist] = useState<number[]>([]);
-  const [addedProduct, setAddedProduct] = useState<number | null>(null);
+  const [addedProductId, setAddedProductId] = useState<number | null>(null);
 
-  /*
-  ============================================================
-  LOAD PRODUCTS
-  ============================================================
-  */
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await fetch(`${API_URL}/products`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load products");
+      }
+
+      const data = await response.json();
+
+      const productList = Array.isArray(data)
+        ? data
+        : Array.isArray(data.products)
+          ? data.products
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+
+      setProducts(productList);
+    } catch (err) {
+      console.error(err);
+      setError(
+        "Could not load products. Please make sure the backend is running.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadProducts = async () => {
-      try {
-        const response = await fetch("http://localhost:3001/products");
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch products");
-        }
-
-        const data: BackendProduct[] = await response.json();
-
-        const enhancedProducts: Product[] = data.map((product) => ({
-          ...product,
-          oldPrice: catalogInfo[product.name]?.oldPrice,
-          rating: catalogInfo[product.name]?.rating ?? 4.5,
-          reviews: catalogInfo[product.name]?.reviews ?? 20,
-          category: catalogInfo[product.name]?.category ?? "Electronics",
-        }));
-
-        setProducts(enhancedProducts);
-      } catch (error) {
-        console.error("Error loading products:", error);
-      }
-    };
-
-    loadProducts();
+    fetchProducts();
   }, []);
 
-  /*
-  ============================================================
-  SEARCH
-  ============================================================
-  */
+  const categories = useMemo(() => {
+    const values = products.map((product) => {
+      const firstWord = product.name.trim().split(" ")[0];
+      return firstWord;
+    });
 
-  const handleSearch = () => {
-    setSearchSubmitted(search.trim());
-
-    // Scroll to products after searching
-    setTimeout(() => {
-      document.getElementById("product-results")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 100);
-  };
-
-  const clearSearch = () => {
-    setSearch("");
-    setSearchSubmitted("");
-  };
-
-  /*
-  ============================================================
-  FILTER + SORT
-  ============================================================
-  */
+    return ["All", ...Array.from(new Set(values))];
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    // Search
-    if (searchSubmitted.trim()) {
-      const keyword = searchSubmitted.toLowerCase();
+    if (search.trim()) {
+      const query = search.toLowerCase().trim();
 
       result = result.filter(
         (product) =>
-          product.name.toLowerCase().includes(keyword) ||
-          product.description.toLowerCase().includes(keyword) ||
-          product.category.toLowerCase().includes(keyword),
+          product.name.toLowerCase().includes(query) ||
+          product.description.toLowerCase().includes(query),
       );
     }
 
-    // Category
     if (category !== "All") {
-      result = result.filter((product) => product.category === category);
+      result = result.filter((product) =>
+        product.name.toLowerCase().startsWith(category.toLowerCase()),
+      );
     }
 
-    // Sorting
     if (sort === "price-low") {
       result.sort((a, b) => a.price - b.price);
     }
@@ -219,564 +101,354 @@ export default function ProductsPage() {
       result.sort((a, b) => b.price - a.price);
     }
 
-    if (sort === "rating") {
-      result.sort((a, b) => b.rating - a.rating);
-    }
-
-    if (sort === "newest") {
-      result.reverse();
+    if (sort === "name") {
+      result.sort((a, b) => a.name.localeCompare(b.name));
     }
 
     return result;
-  }, [products, searchSubmitted, category, sort]);
-
-  /*
-  ============================================================
-  WISHLIST
-  ============================================================
-  */
-
-  const toggleWishlist = (id: number) => {
-    setWishlist((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
-  };
-
-  /*
-  ============================================================
-  ADD TO CART
-  ============================================================
-  */
+  }, [products, search, category, sort]);
 
   const handleAddToCart = (product: Product) => {
-    addToCart({
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      price: product.price,
-      image: product.image,
-      stock: product.stock,
-    });
+    if (product.stock <= 0) return;
 
-    setAddedProduct(product.id);
+    addToCart(product);
+
+    setAddedProductId(product.id);
 
     setTimeout(() => {
-      setAddedProduct(null);
-    }, 1500);
+      setAddedProductId(null);
+    }, 1200);
   };
 
-  /*
-  ============================================================
-  PAGE
-  ============================================================
-  */
-
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      {/* =====================================================
-          NAVBAR
-      ====================================================== */}
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <Navbar />
 
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Logo */}
-
-          <a href="/" className="group flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br from-blue-600 to-violet-600 text-xl shadow-lg shadow-blue-500/20 transition duration-300 group-hover:scale-105">
-              🛍️
-            </div>
-
-            <div>
-              <div className="text-xl font-extrabold tracking-tight text-slate-900">
-                E-Shop
-              </div>
-
-              <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
-                Smart Shopping
-              </div>
-            </div>
-          </a>
-
-          {/* Navigation */}
-
-          <nav className="hidden items-center gap-1 md:flex">
-            <a
-              href="/"
-              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-blue-600"
-            >
-              Home
-            </a>
-
-            <a
-              href="/products"
-              className="rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-600"
-            >
-              Products
-            </a>
-
-            <a
-              href="/orders"
-              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-blue-600"
-            >
-              Orders
-            </a>
-
-            <a
-              href="/cart"
-              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-blue-600"
-            >
-              Cart
-            </a>
-          </nav>
-
-          {/* Right side */}
-
-          <div className="flex items-center gap-3">
-            {/* Cart icon */}
-
-            <a
-              href="/cart"
-              className="relative hidden h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-600 sm:flex"
-            >
-              🛒
-            </a>
-
-            {/* Login */}
-
-            <a
-              href="/login"
-              className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-blue-600"
-            >
-              Login
-            </a>
-          </div>
-        </div>
-      </header>
-
-      {/* =====================================================
-          HERO
-      ====================================================== */}
-
+      {/* Hero */}
       <section className="relative overflow-hidden bg-white">
-        {/* Background decorations */}
+        <div className="absolute -right-32 -top-32 h-80 w-80 rounded-full bg-blue-100 blur-3xl" />
+        <div className="absolute -bottom-40 -left-20 h-80 w-80 rounded-full bg-indigo-100 blur-3xl" />
 
-        <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-blue-200/40 blur-3xl" />
+        <div className="relative mx-auto max-w-7xl px-5 pb-12 pt-12 md:px-8 md:pb-16 md:pt-16">
+          <div className="max-w-3xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-600">
+              ✨ Discover something you love
+            </div>
 
-        <div className="pointer-events-none absolute -right-32 top-0 h-80 w-80 rounded-full bg-violet-200/40 blur-3xl" />
+            <h1 className="text-4xl font-black tracking-tight text-slate-950 md:text-6xl">
+              Find products that
+              <span className="block text-blue-600">fit your lifestyle.</span>
+            </h1>
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-14 pt-14 sm:px-6 lg:px-8 lg:pb-20 lg:pt-20">
-          <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-            {/* =================================================
-                HERO LEFT
-            ================================================== */}
+            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-500 md:text-lg">
+              Explore our collection of quality products at great prices.
+              Search, compare and add your favorites to your cart.
+            </p>
+          </div>
 
-            <div>
-              {/* Badge */}
+          {/* Search */}
+          <div className="mt-8 max-w-3xl">
+            <div className="relative">
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-xl text-slate-400">
+                🔎
+              </span>
 
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600">
-                <span className="h-2 w-2 rounded-full bg-blue-600" />
-                New collection is here
-              </div>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search products..."
+                className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-14 pr-14 text-base shadow-lg shadow-slate-200/40 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              />
 
-              {/* Heading */}
-
-              <h1 className="max-w-3xl text-4xl font-black leading-[1.08] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-                Discover products
-                <span className="block bg-linear-to-r from-blue-600 via-violet-600 to-purple-600 bg-clip-text text-transparent">
-                  made for you.
-                </span>
-              </h1>
-
-              {/* Description */}
-
-              <p className="mt-6 max-w-2xl text-base leading-7 text-slate-500 sm:text-lg">
-                Explore our latest collection of technology, gaming gear, audio
-                devices and everyday essentials— all in one beautiful shopping
-                experience.
-              </p>
-
-              {/* =================================================
-                  SEARCH BOX
-              ================================================== */}
-
-              <div className="mt-8 flex max-w-2xl items-center rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/60">
-                {/* Search icon */}
-
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl">
-                  🔍
-                </div>
-
-                {/* Input */}
-
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearch();
-                    }
-                  }}
-                  placeholder="Search for products..."
-                  className="min-w-0 flex-1 bg-transparent px-4 text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400 sm:text-base"
-                />
-
-                {/* Clear button */}
-
-                {search && (
-                  <button
-                    type="button"
-                    onClick={clearSearch}
-                    className="mr-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
-                  >
-                    ×
-                  </button>
-                )}
-
-                {/* Search button */}
-
+              {search && (
                 <button
                   type="button"
-                  onClick={handleSearch}
-                  className="rounded-xl bg-linear-to-r from-blue-600 to-violet-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] hover:shadow-xl"
+                  onClick={() => setSearch("")}
+                  className="absolute right-4 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
                 >
-                  Search
+                  ✕
                 </button>
-              </div>
-
-              {/* Search status */}
-
-              {searchSubmitted && (
-                <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
-                  <span>
-                    Showing results for{" "}
-                    <strong className="text-slate-900">
-                      "{searchSubmitted}"
-                    </strong>
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={clearSearch}
-                    className="font-semibold text-blue-600 hover:text-blue-700"
-                  >
-                    Clear
-                  </button>
-                </div>
               )}
-
-              {/* =================================================
-                  STATS
-              ================================================== */}
-
-              <div className="mt-8 flex flex-wrap gap-7">
-                <div>
-                  <div className="text-2xl font-black text-slate-900">100+</div>
-
-                  <div className="text-xs font-medium text-slate-400">
-                    Quality Products
-                  </div>
-                </div>
-
-                <div className="h-10 w-px bg-slate-200" />
-
-                <div>
-                  <div className="text-2xl font-black text-slate-900">
-                    4.8/5
-                  </div>
-
-                  <div className="text-xs font-medium text-slate-400">
-                    Customer Rating
-                  </div>
-                </div>
-
-                <div className="h-10 w-px bg-slate-200" />
-
-                <div>
-                  <div className="text-2xl font-black text-slate-900">Fast</div>
-
-                  <div className="text-xs font-medium text-slate-400">
-                    Secure Delivery
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* =================================================
-                HERO RIGHT
-            ================================================== */}
-
-            <div className="relative hidden min-h-107.5 lg:block">
-              {/* Main product card */}
-
-              <div className="absolute right-5 top-10 w-90 rotate-2 rounded-4xl border border-white bg-white p-5 shadow-2xl shadow-slate-300/50">
-                <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-blue-50 via-indigo-50 to-violet-100 p-8">
-                  {/* Trending badge */}
-
-                  <div className="absolute right-4 top-4 rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-600 shadow-sm">
-                    TRENDING
-                  </div>
-
-                  {/* Product image */}
-
-                  <div className="flex h-64 items-center justify-center">
-                    {products[0]?.image ? (
-                      <img
-                        src={products[0].image}
-                        alt={products[0].name}
-                        className="h-full w-full object-contain drop-shadow-2xl"
-                      />
-                    ) : (
-                      <div className="text-8xl">💻</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Product information */}
-
-                <div className="px-2 pb-1 pt-5">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-                    Featured Product
-                  </div>
-
-                  <div className="mt-1 text-xl font-extrabold text-slate-900">
-                    {products[0]?.name || "Premium Technology"}
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="font-black text-slate-900">
-                      ${products[0]?.price ?? "899"}
-                    </span>
-
-                    <span className="text-sm text-amber-500">★ 4.8</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Floating security card */}
-
-              <div className="absolute bottom-8 left-0 flex items-center gap-3 rounded-2xl border border-white bg-white p-4 shadow-xl shadow-slate-300/40">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-xl">
-                  ✓
-                </div>
-
-                <div>
-                  <div className="text-sm font-bold text-slate-900">
-                    Secure Shopping
-                  </div>
-
-                  <div className="text-xs text-slate-400">
-                    Safe & trusted checkout
-                  </div>
-                </div>
-              </div>
-
-              {/* Floating circle */}
-
-              <div className="absolute right-0 top-0 flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-violet-500 to-blue-600 text-3xl shadow-xl shadow-violet-300/40">
-                ✨
-              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* =====================================================
-          FILTER AREA
-      ====================================================== */}
-
-      <section className="border-y border-slate-200 bg-slate-50">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            {/* Title */}
-
-            <div>
-              <p className="text-sm font-semibold text-blue-600">
-                Our collection
-              </p>
-
-              <h2 className="mt-1 text-2xl font-black text-slate-900">
-                Explore our products
-              </h2>
-            </div>
-
-            {/* Filters */}
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              {/* Categories */}
-
-              <div className="flex flex-wrap gap-2">
-                {categories.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setCategory(item)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      category === item
-                        ? "bg-slate-900 text-white shadow-lg"
-                        : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-
-              {/* Sort */}
-
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 outline-none focus:border-blue-500"
+      {/* Toolbar */}
+      <section className="border-y border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-8">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categories.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setCategory(item)}
+                className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition ${
+                  category === item
+                    ? "bg-slate-950 text-white shadow-lg"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
               >
-                <option value="featured">Featured</option>
+                {item}
+              </button>
+            ))}
+          </div>
 
-                <option value="newest">Newest</option>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm font-medium text-slate-500 sm:block">
+              Sort:
+            </span>
 
-                <option value="rating">Top Rated</option>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="featured">Featured</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="name">Name</option>
+            </select>
 
-                <option value="price-low">Price: Low to High</option>
-
-                <option value="price-high">Price: High to Low</option>
-              </select>
-            </div>
+            <Link
+              href="/cart"
+              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-lg text-white transition hover:bg-blue-600"
+              aria-label="Shopping cart"
+            >
+              🛒
+              {cartCount > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-black text-white ring-2 ring-white">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* =====================================================
-          PRODUCT RESULTS
-      ====================================================== */}
+      {/* Products */}
+      <main className="mx-auto max-w-7xl px-5 py-10 md:px-8 md:py-14">
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-blue-600">OUR COLLECTION</p>
 
-      <section
-        id="product-results"
-        className="scroll-mt-24 mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8"
-      >
-        {/* Result count */}
+            <h2 className="mt-1 text-2xl font-black md:text-3xl">
+              Popular Products
+            </h2>
 
-        <div className="mb-6 flex items-center justify-between">
-          <div className="text-sm text-slate-500">
-            <span className="font-bold text-slate-900">
-              {filteredProducts.length}
-            </span>{" "}
-            products found
+            <p className="mt-2 text-sm text-slate-500">
+              {filteredProducts.length} product
+              {filteredProducts.length !== 1 ? "s" : ""} found
+            </p>
           </div>
 
-          {searchSubmitted && (
+          {(search || category !== "All") && (
             <button
               type="button"
-              onClick={clearSearch}
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+              onClick={() => {
+                setSearch("");
+                setCategory("All");
+              }}
+              className="hidden rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-200 sm:block"
             >
-              Clear search
+              Clear filters
             </button>
           )}
         </div>
 
-        {/* Product grid */}
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+            <p className="font-bold">Unable to load products</p>
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredProducts.map((product) => (
-            <article
-              key={product.id}
-              className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+            <p className="mt-1 text-sm">{error}</p>
+
+            <button
+              onClick={fetchProducts}
+              className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700"
             >
-              {/* Image */}
+              Try Again
+            </button>
+          </div>
+        )}
 
-              <div className="relative h-64 bg-slate-100">
-                {product.image && (
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  />
-                )}
+        {loading ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={index}
+                className="overflow-hidden rounded-3xl border border-slate-100 bg-white"
+              >
+                <div className="h-64 animate-pulse bg-slate-200" />
 
-                {/* Wishlist */}
-
-                <button
-                  type="button"
-                  onClick={() => toggleWishlist(product.id)}
-                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-lg shadow-lg transition hover:scale-110"
-                >
-                  {wishlist.includes(product.id) ? "❤️" : "♡"}
-                </button>
+                <div className="space-y-3 p-5">
+                  <div className="h-4 animate-pulse rounded bg-slate-200" />
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+                  <div className="h-10 animate-pulse rounded-xl bg-slate-200" />
+                </div>
               </div>
+            ))}
+          </div>
+        ) : !error && filteredProducts.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center">
+            <div className="text-6xl">🔍</div>
 
-              {/* Information */}
+            <h3 className="mt-5 text-2xl font-black">No products found</h3>
 
-              <div className="p-5">
-                <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
-                  {product.category}
-                </div>
-
-                <h3 className="mt-2 text-lg font-bold text-slate-900">
-                  {product.name}
-                </h3>
-
-                <div className="mt-2 text-sm text-amber-500">
-                  ★ {product.rating}{" "}
-                  <span className="text-slate-400">({product.reviews})</span>
-                </div>
-
-                {/* Price */}
-
-                <div className="mt-4 flex items-center gap-2">
-                  <span className="text-xl font-black text-slate-900">
-                    ${product.price}
-                  </span>
-
-                  {product.oldPrice && (
-                    <span className="text-sm text-slate-400 line-through">
-                      ${product.oldPrice}
-                    </span>
-                  )}
-                </div>
-
-                {/* Add to cart */}
-
-                <button
-                  type="button"
-                  onClick={() => handleAddToCart(product)}
-                  className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-3 font-bold text-white transition hover:bg-blue-600"
-                >
-                  {addedProduct === product.id
-                    ? "✓ Added to Cart"
-                    : "Add to Cart"}
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-
-        {/* No products */}
-
-        {filteredProducts.length === 0 && (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center">
-            <div className="text-5xl">🔎</div>
-
-            <h3 className="mt-5 text-xl font-bold text-slate-900">
-              No products found
-            </h3>
-
-            <p className="mt-2 text-sm text-slate-500">
-              We couldn't find anything matching your search.
+            <p className="mx-auto mt-2 max-w-md text-slate-500">
+              We couldn't find any products matching your search. Try another
+              search term.
             </p>
 
             <button
               type="button"
               onClick={() => {
-                clearSearch();
+                setSearch("");
                 setCategory("All");
               }}
-              className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
+              className="mt-6 rounded-xl bg-blue-600 px-6 py-3 font-bold text-white transition hover:bg-blue-700"
             >
-              View All Products
+              Show All Products
             </button>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredProducts.map((product) => (
+              <article
+                key={product.id}
+                className="group overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+              >
+                {/* Image */}
+                <div className="relative h-64 overflow-hidden bg-slate-100">
+                  {product.image ? (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+
+                        const parent = e.currentTarget.parentElement;
+
+                        if (parent) {
+                          parent.innerHTML = `
+                            <div class="flex h-full w-full items-center justify-center text-6xl">
+                              📦
+                            </div>
+                          `;
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-6xl">
+                      📦
+                    </div>
+                  )}
+
+                  {/* Stock */}
+                  <div className="absolute left-4 top-4">
+                    {product.stock > 0 ? (
+                      <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-emerald-600 shadow-sm backdrop-blur">
+                        ✓ In Stock
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-red-600 shadow-sm backdrop-blur">
+                        Out of Stock
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Product Link */}
+                  <Link
+                    href={`/products/${product.id}`}
+                    className="absolute bottom-4 right-4 flex h-11 w-11 translate-y-3 items-center justify-center rounded-full bg-white text-lg opacity-0 shadow-lg transition group-hover:translate-y-0 group-hover:opacity-100 hover:bg-blue-600 hover:text-white"
+                    aria-label={`View ${product.name}`}
+                  >
+                    ↗
+                  </Link>
+                </div>
+
+                {/* Details */}
+                <div className="p-5">
+                  <Link href={`/products/${product.id}`}>
+                    <h3 className="line-clamp-1 text-lg font-black transition hover:text-blue-600">
+                      {product.name}
+                    </h3>
+                  </Link>
+
+                  <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
+                    {product.description}
+                  </p>
+
+                  <div className="mt-5 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Price
+                      </p>
+
+                      <p className="mt-1 text-2xl font-black text-slate-950">
+                        ${Number(product.price).toFixed(2)}
+                      </p>
+                    </div>
+
+                    <span className="text-xs font-semibold text-slate-400">
+                      {product.stock > 0
+                        ? `${product.stock} left`
+                        : "Unavailable"}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(product)}
+                    disabled={product.stock === 0}
+                    className={`mt-5 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-black transition ${
+                      product.stock === 0
+                        ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                        : addedProductId === product.id
+                          ? "bg-emerald-500 text-white"
+                          : "bg-slate-950 text-white hover:bg-blue-600"
+                    }`}
+                  >
+                    {product.stock === 0 ? (
+                      "Out of Stock"
+                    ) : addedProductId === product.id ? (
+                      <>✓ Added to Cart</>
+                    ) : (
+                      <>🛒 Add to Cart</>
+                    )}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         )}
+      </main>
+
+      {/* Bottom CTA */}
+      <section className="mx-auto max-w-7xl px-5 pb-12 md:px-8 md:pb-16">
+        <div className="overflow-hidden rounded-3xl bg-slate-950 px-6 py-10 text-center text-white md:px-12 md:py-14">
+          <p className="text-sm font-bold uppercase tracking-widest text-blue-400">
+            ShopEase
+          </p>
+
+          <h2 className="mt-3 text-3xl font-black md:text-4xl">
+            Ready to find your next favorite?
+          </h2>
+
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400 md:text-base">
+            Add your favorite products to your cart and enjoy a simple shopping
+            experience.
+          </p>
+
+          <Link
+            href="/cart"
+            className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-7 py-3.5 font-black text-white transition hover:bg-blue-500"
+          >
+            View Cart 🛒
+          </Link>
+        </div>
       </section>
-    </main>
+    </div>
   );
 }

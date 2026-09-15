@@ -10,7 +10,7 @@ const products = [
     price: 799,
     stock: 10,
     image:
-      'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop',
   },
   {
     name: 'Smartphone Pro',
@@ -18,7 +18,7 @@ const products = [
     price: 499,
     stock: 10,
     image:
-      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&auto=format&fit=crop',
   },
   {
     name: 'Wireless Headphones',
@@ -26,7 +26,7 @@ const products = [
     price: 99,
     stock: 10,
     image:
-      'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop',
   },
   {
     name: 'Smart Watch',
@@ -34,7 +34,7 @@ const products = [
     price: 149,
     stock: 10,
     image:
-      'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop',
   },
   {
     name: 'Modern Camera',
@@ -42,7 +42,7 @@ const products = [
     price: 699,
     stock: 10,
     image:
-      'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&auto=format&fit=crop',
   },
   {
     name: 'Gaming Keyboard',
@@ -50,7 +50,7 @@ const products = [
     price: 79,
     stock: 10,
     image:
-      'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800&auto=format&fit=crop',
   },
   {
     name: 'Wireless Speaker',
@@ -58,7 +58,7 @@ const products = [
     price: 129,
     stock: 10,
     image:
-      'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&auto=format&fit=crop',
   },
   {
     name: 'Gaming Mouse',
@@ -66,7 +66,7 @@ const products = [
     price: 49,
     stock: 10,
     image:
-      'https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1527814050087-3793815479db?w=800&auto=format&fit=crop',
   },
 ];
 
@@ -78,11 +78,15 @@ const prisma = new PrismaClient({
 
 async function main() {
   const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@shopease.local';
+
   const adminPassword = process.env.ADMIN_PASSWORD ?? 'Admin123!';
+
   const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
   await prisma.user.upsert({
-    where: { email: adminEmail },
+    where: {
+      email: adminEmail,
+    },
     update: {
       name: 'ShopEase Admin',
       password: adminPasswordHash,
