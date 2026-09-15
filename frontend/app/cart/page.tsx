@@ -1,239 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Navbar from "../Components/Navbar";
 import { useCart } from "../Context/CartContext";
 
-/* =========================
-   ICONS
-========================= */
-
-function ShoppingBagIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 8h12l1 13H5L6 8Z" />
-      <path d="M9 8a3 3 0 0 1 6 0" />
-    </svg>
-  );
-}
-
-function TrashIcon({ size = 17 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M4 7h16" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-      <path d="M6 7l1 14h10l1-14" />
-      <path d="M9 7V4h6v3" />
-    </svg>
-  );
-}
-
-function BookmarkIcon({ size = 17 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3-6 3V4.5Z" />
-    </svg>
-  );
-}
-
-function MinusIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function PackageIcon() {
-  return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
-      <path d="m4 7.5 8 4.5 8-4.5" />
-      <path d="M12 12v9" />
-    </svg>
-  );
-}
-
-function TruckIcon() {
-  return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 6h11v11H3z" />
-      <path d="M14 10h4l3 3v4h-7z" />
-      <circle cx="7" cy="19" r="2" />
-      <circle cx="18" cy="19" r="2" />
-    </svg>
-  );
-}
-
-function CardIcon() {
-  return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="M3 10h18" />
-    </svg>
-  );
-}
-
-function TagIcon() {
-  return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m20 13-7 7-9-9V4h7l9 9Z" />
-      <circle cx="7.5" cy="7.5" r="1" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m3 11 9-8 9 8" />
-      <path d="M5 10v10h14V10" />
-      <path d="M9 20v-6h6v6" />
-    </svg>
-  );
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 12h14" />
-      <path d="m13 6 6 6-6 6" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m5 12 4 4L19 6" />
-    </svg>
-  );
-}
-
-/* =========================
-   PAGE
-========================= */
-
 export default function CartPage() {
-  const router = useRouter();
-
   const {
     cart,
     cartCount,
@@ -244,628 +16,443 @@ export default function CartPage() {
     clearCart,
   } = useCart();
 
-  /* =========================
-     ADDRESS STATE
-  ========================= */
+  const [coupon, setCoupon] = useState("");
+  const [couponApplied, setCouponApplied] = useState(false);
 
-  const [fullName, setFullName] = useState("");
-  const [address, setAddress] = useState("");
-  const [addressSaved, setAddressSaved] = useState(false);
-  const [addressMessage, setAddressMessage] = useState("");
+  // Shipping
+  const shipping = cartTotal >= 100 || cartTotal === 0 ? 0 : 10;
 
-  /* =========================
-     LOAD SAVED ADDRESS
-  ========================= */
-
-  useEffect(() => {
-    const savedAddress = localStorage.getItem("shippingAddress");
-
-    if (savedAddress) {
-      try {
-        const parsed = JSON.parse(savedAddress);
-
-        setFullName(parsed.fullName || "");
-        setAddress(parsed.address || "");
-        setAddressSaved(true);
-      } catch {
-        localStorage.removeItem("shippingAddress");
-      }
-    }
-  }, []);
-
-  /* =========================
-     ADDRESS CHANGE
-  ========================= */
-
-  const handleNameChange = (value: string) => {
-    setFullName(value);
-    setAddressSaved(false);
-    setAddressMessage("");
-  };
-
-  const handleAddressChange = (value: string) => {
-    setAddress(value);
-    setAddressSaved(false);
-    setAddressMessage("");
-  };
-
-  /* =========================
-     SAVE ADDRESS
-  ========================= */
-
-  const handleSaveAddress = () => {
-    const cleanName = fullName.trim();
-    const cleanAddress = address.trim();
-
-    if (!cleanName || !cleanAddress) {
-      setAddressMessage("Please enter your full name and shipping address.");
-      setAddressSaved(false);
-      return;
-    }
-
-    const shippingAddress = {
-      fullName: cleanName,
-      address: cleanAddress,
-    };
-
-    localStorage.setItem("shippingAddress", JSON.stringify(shippingAddress));
-
-    setFullName(cleanName);
-    setAddress(cleanAddress);
-    setAddressSaved(true);
-    setAddressMessage("Address saved successfully.");
-  };
-
-  /* =========================
-     CHECKOUT
-  ========================= */
-
-  const handleCheckout = () => {
-    if (cart.length === 0) {
-      return;
-    }
-
-    if (!fullName.trim() || !address.trim()) {
-      setAddressMessage(
-        "Please enter and save your shipping address before checkout.",
-      );
-      return;
-    }
-
-    if (!addressSaved) {
-      setAddressMessage(
-        "Please click Save address before continuing to checkout.",
-      );
-      return;
-    }
-
-    router.push("/checkout");
-  };
-
-  const shipping = cartTotal >= 100 ? 0 : 10;
+  // Tax
   const tax = cartTotal * 0.08;
 
-  /*
-    Coupon discount is $40.60.
-    Prevent total from becoming negative.
-  */
-  const couponDiscount = cartTotal > 40.6 ? 40.6 : cartTotal;
+  // Coupon discount
+  const discount = couponApplied ? cartTotal * 0.1 : 0;
 
-  const finalTotal = Math.max(0, cartTotal + shipping + tax - couponDiscount);
+  // Final total
+  const grandTotal = cartTotal + shipping + tax - discount;
 
-  const canCheckout =
-    cart.length > 0 &&
-    fullName.trim().length > 0 &&
-    address.trim().length > 0 &&
-    addressSaved;
+  const applyCoupon = () => {
+    if (coupon.trim().toUpperCase() === "DUO10") {
+      setCouponApplied(true);
+    } else {
+      setCouponApplied(false);
+    }
+  };
 
-  return (
-    <div className="min-h-screen bg-[#f6f7f9] text-[#171717]">
-      {/* NAVBAR */}
-      <Navbar />
+  // Empty cart
+  if (cart.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navbar />
 
-      {/* PAGE */}
-      <main className="mx-auto max-w-350 px-5 py-8 lg:px-8">
-        {/* BREADCRUMB */}
-        <div className="mb-4 flex items-center gap-2 text-xs text-gray-500">
-          <Link href="/" className="transition hover:text-black">
-            Home
-          </Link>
-
-          <span>›</span>
-
-          <span className="text-gray-800">Shopping Cart</span>
-        </div>
-
-        {/* MAIN GRID */}
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-          {/* =========================
-              LEFT CART SECTION
-          ========================= */}
-
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_3px_15px_rgba(0,0,0,0.04)] sm:p-6">
-            {/* HEADER */}
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-              <div>
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-800">
-                    <ShoppingBagIcon size={19} />
-                  </div>
-
-                  <h1 className="text-2xl font-bold tracking-tight">
-                    Your Shopping Cart
-                  </h1>
-                </div>
-
-                <p className="text-sm text-gray-500">
-                  Make sure everything looks right before checkout.
-                </p>
-              </div>
-
-              <Link
-                href="/products"
-                className="inline-flex w-fit items-center justify-center rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200"
-              >
-                Continue shopping
-              </Link>
+        <main className="mx-auto flex min-h-[75vh] max-w-5xl items-center justify-center px-4 py-12">
+          <div className="w-full rounded-[2rem] bg-white px-6 py-14 text-center shadow-xl shadow-slate-200/60 sm:px-10">
+            {/* Icon */}
+            <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-blue-50">
+              <span className="text-6xl">🛒</span>
             </div>
 
-            {/* ITEM COUNT */}
-            {cart.length > 0 && (
-              <div className="mt-6 flex items-center justify-between border-b border-gray-100 pb-4">
-                <p className="text-sm font-medium text-gray-700">
-                  {cartCount} {cartCount === 1 ? "item" : "items"}
-                </p>
+            <h1 className="mt-7 text-3xl font-black text-slate-900 sm:text-4xl">
+              Your Cart is Empty
+            </h1>
 
-                <button
-                  onClick={clearCart}
-                  className="text-sm font-medium text-gray-500 transition hover:text-black"
-                >
-                  Clear cart
-                </button>
+            <p className="mx-auto mt-3 max-w-md text-slate-500">
+              Looks like you haven't added anything to your cart yet. Explore
+              our products and find something you love.
+            </p>
+
+            <Link
+              href="/products"
+              className="mt-8 inline-flex items-center justify-center rounded-xl bg-blue-600 px-8 py-4 font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
+            >
+              Start Shopping →
+            </Link>
+
+            <div className="mt-10 flex flex-wrap justify-center gap-6 text-sm text-slate-400">
+              <span>🚚 Fast Delivery</span>
+              <span>🔒 Secure Payment</span>
+              <span>↩️ Easy Returns</span>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <Navbar />
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-blue-600">
+                🛍️ Shopping Cart
               </div>
-            )}
 
-            {/* EMPTY CART */}
-            {cart.length === 0 ? (
-              <div className="flex min-h-107.5 flex-col items-center justify-center text-center">
-                <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gray-100 text-gray-500">
-                  <ShoppingBagIcon size={34} />
+              <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+                Your Cart
+              </h1>
+
+              <p className="mt-2 text-slate-500">
+                You have{" "}
+                <span className="font-black text-slate-800">{cartCount}</span>{" "}
+                {cartCount === 1 ? "item" : "items"} in your cart.
+              </p>
+            </div>
+
+            <button
+              onClick={clearCart}
+              className="w-fit rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-500 transition hover:bg-red-50"
+            >
+              🗑️ Clear Cart
+            </button>
+          </div>
+        </div>
+
+        {/* Main grid */}
+        <div className="grid gap-8 lg:grid-cols-[1fr_390px]">
+          {/* LEFT SIDE */}
+          <div className="space-y-5">
+            {/* Free shipping banner */}
+            <div className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-xl shadow-sm">
+                  🚚
                 </div>
 
-                <h2 className="text-xl font-bold">Your cart is empty</h2>
+                <div>
+                  {cartTotal >= 100 ? (
+                    <>
+                      <p className="font-black text-emerald-700">
+                        🎉 You unlocked FREE shipping!
+                      </p>
 
-                <p className="mt-2 max-w-sm text-sm leading-6 text-gray-500">
-                  You haven't added anything to your cart yet. Explore our
-                  products and find something you love.
-                </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Your order qualifies for free delivery.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-black text-slate-800">
+                        Free shipping on orders over $100
+                      </p>
 
-                <Link
-                  href="/products"
-                  className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#171717] px-6 py-3 text-sm font-semibold text-white transition hover:bg-black"
-                >
-                  Start shopping
-                  <ArrowRightIcon />
-                </Link>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Add ${(100 - cartTotal).toFixed(2)} more to unlock free
+                        shipping.
+                      </p>
+
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                        <div
+                          className="h-full rounded-full bg-blue-600 transition-all"
+                          style={{
+                            width: `${Math.min((cartTotal / 100) * 100, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            ) : (
-              <>
-                {/* PRODUCTS */}
-                <div className="mt-5 space-y-3">
-                  {cart.map((item: any) => (
+            </div>
+
+            {/* Cart products */}
+            <div className="overflow-hidden rounded-3xl bg-white shadow-lg shadow-slate-200/50">
+              <div className="border-b border-slate-100 px-5 py-5 sm:px-7">
+                <h2 className="text-xl font-black text-slate-900">
+                  Cart Items
+                </h2>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {cart.map((item: any) => {
+                  const itemPrice = Number(item.price) || 0;
+                  const itemQuantity = Number(item.quantity) || 1;
+                  const itemTotal = itemPrice * itemQuantity;
+
+                  return (
                     <div
-                      key={item._id || item.id}
-                      className="group rounded-xl border border-gray-200 bg-white p-3 transition hover:border-gray-300 hover:shadow-sm sm:p-4"
+                      key={item.id}
+                      className="p-5 transition hover:bg-slate-50/70 sm:p-7"
                     >
-                      <div className="flex gap-4">
-                        {/* PRODUCT IMAGE */}
-                        <div className="h-26.25 w-26.25 shrink-0 overflow-hidden rounded-xl bg-[#f1f4f6] sm:h-30 sm:w-30">
+                      <div className="flex flex-col gap-5 sm:flex-row">
+                        {/* Product image */}
+                        <Link
+                          href={`/products/${item.id}`}
+                          className="group relative flex h-28 w-full shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 sm:h-32 sm:w-32"
+                        >
                           <img
-                            src={item.image}
+                            src={
+                              item.image ||
+                              "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80"
+                            }
                             alt={item.name}
-                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                            onError={(event) => {
+                              event.currentTarget.src =
+                                "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80";
+                            }}
                           />
-                        </div>
+                        </Link>
 
-                        {/* PRODUCT INFORMATION */}
-                        <div className="min-w-0 flex-1">
-                          {/* TOP */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <h3 className="truncate text-sm font-bold text-gray-900 sm:text-base">
-                                {item.name}
-                              </h3>
+                        {/* Product details */}
+                        <div className="flex min-w-0 flex-1 flex-col justify-between">
+                          <div>
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <Link
+                                  href={`/products/${item.id}`}
+                                  className="line-clamp-2 text-lg font-black text-slate-900 transition hover:text-blue-600"
+                                >
+                                  {item.name}
+                                </Link>
 
-                              <p className="mt-1 text-xs text-gray-500">
-                                Premium quality product
-                              </p>
+                                <p className="mt-1 text-sm text-slate-400">
+                                  Premium quality product
+                                </p>
+                              </div>
+
+                              {/* Remove */}
+                              <button
+                                onClick={() => removeFromCart(item.id)}
+                                className="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                                title="Remove item"
+                              >
+                                🗑️
+                              </button>
                             </div>
 
-                            <p className="whitespace-nowrap text-sm font-bold text-gray-900 sm:text-base">
-                              ${Number(item.price).toFixed(2)}
-                            </p>
-                          </div>
-
-                          {/* BOTTOM */}
-                          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                            {/* QUANTITY */}
-                            <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50">
-                              <button
-                                onClick={() =>
-                                  decreaseQuantity(item._id || item.id)
-                                }
-                                className="flex h-8 w-8 items-center justify-center text-gray-600 transition hover:bg-gray-200 hover:text-black"
-                                aria-label="Decrease quantity"
-                              >
-                                <MinusIcon />
-                              </button>
-
-                              <span className="flex h-8 min-w-8 items-center justify-center border-x border-gray-200 bg-white text-sm font-semibold">
-                                {item.quantity}
+                            <div className="mt-4 flex items-center gap-2">
+                              <span className="text-xl font-black text-blue-600">
+                                ${itemPrice.toFixed(2)}
                               </span>
 
+                              <span className="text-xs text-slate-400">
+                                each
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Bottom controls */}
+                          <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                            {/* Quantity */}
+                            <div className="flex items-center overflow-hidden rounded-xl border border-slate-200">
                               <button
-                                onClick={() =>
-                                  increaseQuantity(item._id || item.id)
-                                }
-                                className="flex h-8 w-8 items-center justify-center text-gray-600 transition hover:bg-gray-200 hover:text-black"
-                                aria-label="Increase quantity"
+                                onClick={() => decreaseQuantity(item.id)}
+                                className="flex h-10 w-10 items-center justify-center bg-slate-50 text-lg font-black text-slate-700 transition hover:bg-slate-100"
                               >
-                                <PlusIcon />
+                                −
+                              </button>
+
+                              <div className="flex h-10 w-12 items-center justify-center border-x border-slate-200 bg-white text-sm font-black text-slate-900">
+                                {itemQuantity}
+                              </div>
+
+                              <button
+                                onClick={() => increaseQuantity(item.id)}
+                                className="flex h-10 w-10 items-center justify-center bg-slate-50 text-lg font-black text-slate-700 transition hover:bg-slate-100"
+                              >
+                                +
                               </button>
                             </div>
 
-                            {/* ACTIONS */}
-                            <div className="flex items-center gap-4">
-                              <button
-                                onClick={() =>
-                                  removeFromCart(item._id || item.id)
-                                }
-                                className="flex items-center gap-1.5 text-xs font-medium text-gray-500 transition hover:text-red-500"
-                              >
-                                <TrashIcon size={16} />
-                                Remove
-                              </button>
+                            {/* Total */}
+                            <div className="text-right">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                Total
+                              </p>
 
-                              <button
-                                className="text-gray-400 transition hover:text-black"
-                                aria-label="Save product"
-                              >
-                                <BookmarkIcon size={17} />
-                              </button>
+                              <p className="mt-1 text-lg font-black text-slate-900">
+                                ${itemTotal.toFixed(2)}
+                              </p>
                             </div>
-
-                            {/* ITEM TOTAL */}
-                            <p className="text-sm font-bold text-gray-800">
-                              ${(Number(item.price) * item.quantity).toFixed(2)}
-                            </p>
                           </div>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                {/* CART FOOTER */}
-                <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-5">
-                  <Link
-                    href="/products"
-                    className="flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-black"
-                  >
-                    ← Continue shopping
-                  </Link>
-
-                  <button
-                    onClick={clearCart}
-                    className="rounded-lg px-3 py-2 text-sm font-medium text-gray-500 transition hover:bg-gray-100 hover:text-black"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </>
-            )}
-          </section>
-
-          {/* =========================
-              ORDER SUMMARY
-          ========================= */}
-
-          <aside className="h-fit rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_3px_15px_rgba(0,0,0,0.04)] sm:p-6">
-            {/* SUMMARY HEADER */}
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold">Order summary</h2>
-
-              <span className="text-xs font-medium text-gray-500">
-                {cartCount} items
-              </span>
-            </div>
-
-            {/* SUMMARY ROWS */}
-            <div className="mt-5 space-y-4">
-              {/* SUBTOTAL */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-                    <PackageIcon />
-                  </div>
-
-                  <span className="text-sm text-gray-600">Subtotal</span>
-                </div>
-
-                <span className="text-sm font-medium">
-                  ${cartTotal.toFixed(2)}
-                </span>
-              </div>
-
-              {/* SHIPPING */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-                    <TruckIcon />
-                  </div>
-
-                  <span className="text-sm text-gray-600">Shipping</span>
-                </div>
-
-                <span className="text-sm font-medium">
-                  {shipping === 0 ? "Free" : `$${shipping.toFixed(2)}`}
-                </span>
-              </div>
-
-              {/* TAX */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-                    <CardIcon />
-                  </div>
-
-                  <span className="text-sm text-gray-600">Tax</span>
-                </div>
-
-                <span className="text-sm font-medium">${tax.toFixed(2)}</span>
-              </div>
-
-              {/* COUPON */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-600">
-                    <TagIcon />
-                  </div>
-
-                  <span className="text-sm font-medium text-green-600">
-                    Coupon (DUO10)
-                  </span>
-                </div>
-
-                <span className="text-sm font-semibold text-green-600">
-                  - ${couponDiscount.toFixed(2)}
-                </span>
+                  );
+                })}
               </div>
             </div>
 
-            {/* DIVIDER */}
-            <div className="my-5 border-t border-gray-200" />
-
-            {/* TOTAL */}
-            <div className="flex items-center justify-between">
-              <span className="text-base font-bold">Total</span>
-
-              <span className="text-xl font-bold">
-                ${finalTotal.toFixed(2)}
-              </span>
-            </div>
-
-            {/* COUPON INPUT */}
-            <div className="mt-5 flex gap-2">
-              <input
-                type="text"
-                placeholder="Coupon code"
-                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-[#f8fafb] px-3 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-gray-400"
-              />
-
-              <button
-                type="button"
-                className="rounded-lg bg-[#171717] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black"
-              >
-                Apply
-              </button>
-            </div>
-
-            <div className="mt-2 flex items-center gap-1 text-xs font-medium text-green-600">
-              <CheckIcon />
-              Applied DUO10
-            </div>
-
-            {/* =========================
-                SHIPPING ADDRESS
-            ========================= */}
-
-            <div className="mt-5 rounded-xl bg-[#f8fbfc] p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <HomeIcon />
-
-                  <span className="text-sm font-medium">Shipping address</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddressSaved(false);
-                    setAddressMessage("");
-                  }}
-                  className="text-xs font-medium text-gray-500 transition hover:text-black"
-                >
-                  Edit
-                </button>
-              </div>
-
-              {/* FULL NAME */}
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Full name"
-                className={`mt-3 w-full rounded-lg border bg-white px-3 py-2.5 text-sm outline-none placeholder:text-gray-400 transition ${
-                  addressSaved
-                    ? "border-green-200"
-                    : "border-transparent focus:border-gray-200"
-                }`}
-              />
-
-              {/* ADDRESS */}
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => handleAddressChange(e.target.value)}
-                placeholder="Street, city, ZIP"
-                className={`mt-2 w-full rounded-lg border bg-white px-3 py-2.5 text-sm outline-none placeholder:text-gray-400 transition ${
-                  addressSaved
-                    ? "border-green-200"
-                    : "border-transparent focus:border-gray-200"
-                }`}
-              />
-
-              {/* SAVE ADDRESS BUTTON */}
-              <button
-                type="button"
-                onClick={handleSaveAddress}
-                className={`mt-3 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white transition ${
-                  addressSaved
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-[#171717] hover:bg-black"
-                }`}
-              >
-                {addressSaved ? (
-                  <>
-                    <CheckIcon />
-                    Address saved
-                  </>
-                ) : (
-                  <>
-                    <BookmarkIcon size={16} />
-                    Save address
-                  </>
-                )}
-              </button>
-
-              {/* ADDRESS MESSAGE */}
-              {addressMessage && (
-                <p
-                  className={`mt-2 text-center text-xs font-medium ${
-                    addressSaved ? "text-green-600" : "text-red-500"
-                  }`}
-                >
-                  {addressMessage}
-                </p>
-              )}
-            </div>
-
-            {/* PAYMENT */}
-            <div className="mt-5">
-              <p className="mb-2 text-sm font-semibold">Payment</p>
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  className="flex items-center justify-center gap-1.5 rounded-lg bg-[#171717] px-2 py-2.5 text-xs font-medium text-white"
-                >
-                  <CardIcon />
-                  Card
-                </button>
-
-                <button
-                  type="button"
-                  className="rounded-lg bg-[#f5fafc] px-2 py-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100"
-                >
-                  UPI
-                </button>
-
-                <button
-                  type="button"
-                  className="rounded-lg bg-[#f5fafc] px-2 py-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100"
-                >
-                  Wallet
-                </button>
-              </div>
-            </div>
-
-            {/* =========================
-                CHECKOUT BUTTON
-            ========================= */}
-
-            <button
-              type="button"
-              onClick={handleCheckout}
-              disabled={!canCheckout}
-              className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-sm transition ${
-                canCheckout
-                  ? "bg-[#171717] hover:bg-black hover:shadow-md active:scale-[0.99]"
-                  : "cursor-not-allowed bg-gray-300 text-gray-500"
-              }`}
-            >
-              {canCheckout ? "Checkout" : "Complete address first"}
-
-              <ArrowRightIcon />
-            </button>
-
-            {/* CHECKOUT INFORMATION */}
-            {!canCheckout && cart.length > 0 && (
-              <p className="mt-2 text-center text-xs text-gray-400">
-                Enter your shipping address and save it to continue.
-              </p>
-            )}
-
-            {/* CONTINUE */}
+            {/* Continue shopping */}
             <Link
               href="/products"
-              className="mt-4 block text-center text-sm font-medium text-gray-600 transition hover:text-black"
+              className="inline-flex items-center gap-2 rounded-xl font-bold text-blue-600 transition hover:text-blue-700"
             >
-              Continue shopping
+              ← Continue Shopping
             </Link>
+          </div>
 
-            {/* TRUST */}
-            <div className="mt-5 grid grid-cols-3 gap-2 border-t border-gray-100 pt-5">
-              <div className="text-center">
-                <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-full bg-gray-100">
-                  ✓
-                </div>
+          {/* RIGHT SIDE */}
+          <aside className="h-fit lg:sticky lg:top-6">
+            <div className="overflow-hidden rounded-3xl bg-white shadow-xl shadow-slate-200/60">
+              {/* Summary header */}
+              <div className="bg-slate-900 px-6 py-6 text-white">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                  Order Summary
+                </p>
 
-                <p className="text-[10px] text-gray-500">Secure</p>
+                <h2 className="mt-2 text-2xl font-black">Checkout Summary</h2>
               </div>
 
-              <div className="text-center">
-                <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-full bg-gray-100">
-                  ✓
+              <div className="p-6">
+                {/* Prices */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">
+                      Subtotal ({cartCount} items)
+                    </span>
+
+                    <span className="font-bold text-slate-900">
+                      ${cartTotal.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Shipping</span>
+
+                    {shipping === 0 ? (
+                      <span className="font-bold text-emerald-600">FREE</span>
+                    ) : (
+                      <span className="font-bold text-slate-900">
+                        ${shipping.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Tax</span>
+
+                    <span className="font-bold text-slate-900">
+                      ${tax.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {couponApplied && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-emerald-600">Coupon discount</span>
+
+                      <span className="font-bold text-emerald-600">
+                        -${discount.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <p className="text-[10px] text-gray-500">Fast delivery</p>
+                <div className="my-6 h-px bg-slate-100" />
+
+                {/* Coupon */}
+                <div>
+                  <label className="mb-2 block text-sm font-black text-slate-800">
+                    Have a coupon?
+                  </label>
+
+                  <div className="flex overflow-hidden rounded-xl border border-slate-200">
+                    <input
+                      type="text"
+                      value={coupon}
+                      onChange={(event) => setCoupon(event.target.value)}
+                      placeholder="Enter code"
+                      className="min-w-0 flex-1 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400"
+                    />
+
+                    <button
+                      onClick={applyCoupon}
+                      className="bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800"
+                    >
+                      Apply
+                    </button>
+                  </div>
+
+                  {couponApplied && (
+                    <p className="mt-2 text-xs font-bold text-emerald-600">
+                      ✓ DUO10 applied — 10% discount
+                    </p>
+                  )}
+
+                  {!couponApplied && coupon.length > 0 && (
+                    <p className="mt-2 text-xs font-semibold text-slate-400">
+                      Try code: <strong>DUO10</strong>
+                    </p>
+                  )}
+                </div>
+
+                <div className="my-6 h-px bg-slate-100" />
+
+                {/* Grand total */}
+                <div className="rounded-2xl bg-blue-50 p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-600">Total</span>
+
+                    <span className="text-3xl font-black text-blue-600">
+                      ${grandTotal.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs text-slate-500">
+                    Including taxes and shipping
+                  </p>
+                </div>
+
+                {/* Checkout */}
+                <Link
+                  href="/checkout"
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 hover:shadow-blue-600/30"
+                >
+                  Proceed to Checkout
+                  <span>→</span>
+                </Link>
+
+                {/* Payment methods */}
+                <div className="mt-5">
+                  <p className="text-center text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Secure payment
+                  </p>
+
+                  <div className="mt-3 flex justify-center gap-2">
+                    <div className="flex h-9 w-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-black text-blue-600">
+                      VISA
+                    </div>
+
+                    <div className="flex h-9 w-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-black text-red-500">
+                      MC
+                    </div>
+
+                    <div className="flex h-9 w-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-700">
+                      UPI
+                    </div>
+
+                    <div className="flex h-9 w-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-black text-emerald-600">
+                      COD
+                    </div>
+                  </div>
+                </div>
               </div>
+            </div>
 
-              <div className="text-center">
-                <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-full bg-gray-100">
-                  ✓
+            {/* Trust card */}
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="flex gap-3">
+                <div className="text-xl">🔒</div>
+
+                <div>
+                  <h3 className="text-sm font-black text-slate-800">
+                    Safe & Secure Shopping
+                  </h3>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Your personal and payment information is protected with
+                    secure checkout.
+                  </p>
                 </div>
-
-                <p className="text-[10px] text-gray-500">Easy returns</p>
               </div>
             </div>
           </aside>
         </div>
-
-        {/* FREE SHIPPING MESSAGE */}
-        {cart.length > 0 && shipping > 0 && (
-          <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-5 py-4 text-sm text-blue-800">
-            Add <strong>${(100 - cartTotal).toFixed(2)}</strong> more to your
-            cart to get <strong>free shipping</strong>.
-          </div>
-        )}
-
-        {cart.length > 0 && shipping === 0 && (
-          <div className="mt-6 rounded-xl border border-green-100 bg-green-50 px-5 py-4 text-sm text-green-700">
-            ✓ Congratulations! You qualify for <strong>free shipping</strong>.
-          </div>
-        )}
       </main>
     </div>
   );

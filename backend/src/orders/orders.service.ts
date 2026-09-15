@@ -1,54 +1,63 @@
 import {
-  BadRequestException,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
-
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateOrderDto } from './dto/create-order.dto';
 
 export type OrderStatusValue =
   'PENDING' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
-  // Create an order from the user's cart
-  async createOrder(userId: number) {
-    const cart = await this.prisma.cart.findUnique({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
+  async create(userId: number, createOrderDto: CreateOrderDto) {
+    const { items } = createOrderDto;
+
+    if (!items || items.length === 0) {
+      throw new BadRequestException('Order must contain at least one item');
+    }
+
+    const productIds = items.map((item) => item.productId);
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        id: {
+          in: productIds,
         },
       },
     });
 
-    if (!cart) {
-      throw new NotFoundException('Cart not found');
+    if (products.length !== productIds.length) {
+      throw new BadRequestException('One or more products do not exist');
     }
 
-    if (cart.items.length === 0) {
-      throw new BadRequestException('Cart is empty');
-    }
+    for (const item of items) {
+      const product = products.find((product) => product.id === item.productId);
 
-    // Check stock
-    for (const item of cart.items) {
-      if (item.quantity > item.product.stock) {
+      if (!product) {
         throw new BadRequestException(
-          `Not enough stock for ${item.product.name}`,
+          `Product ${item.productId} does not exist`,
         );
+      }
+
+      if (product.stock < item.quantity) {
+        throw new BadRequestException(`Not enough stock for ${product.name}`);
       }
     }
 
-    // Calculate total
-    const total = cart.items.reduce((sum, item) => {
-      return sum + item.product.price * item.quantity;
-    }, 0);
+    let total = 0;
 
-    // Create order, reduce stock, and clear cart
+    for (const item of items) {
+      const product = products.find((product) => product.id === item.productId);
+
+      if (product) {
+        total += product.price * item.quantity;
+      }
+    }
+
     const order = await this.prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: {
@@ -56,11 +65,17 @@ export class OrdersService {
           total,
           status: 'PENDING',
           items: {
-            create: cart.items.map((item) => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              price: item.product.price,
-            })),
+            create: items.map((item) => {
+              const product = products.find(
+                (product) => product.id === item.productId,
+              );
+
+              return {
+                productId: item.productId,
+                quantity: item.quantity,
+                price: product?.price || 0,
+              };
+            }),
           },
         },
         include: {
@@ -72,10 +87,11 @@ export class OrdersService {
         },
       });
 
-      // Reduce product stock
-      for (const item of cart.items) {
+      for (const item of items) {
         await tx.product.update({
-          where: { id: item.productId },
+          where: {
+            id: item.productId,
+          },
           data: {
             stock: {
               decrement: item.quantity,
@@ -84,43 +100,20 @@ export class OrdersService {
         });
       }
 
-      // Clear cart
-      await tx.cartItem.deleteMany({
-        where: {
-          cartId: cart.id,
-        },
-      });
-
       return newOrder;
     });
 
     return order;
   }
 
-  // Customer: get my orders
-  async getMyOrders(userId: number) {
+  async findAll(userId: number) {
     return this.prisma.order.findMany({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
+      where: {
+        userId,
       },
       orderBy: {
         createdAt: 'desc',
       },
-    });
-  }
-
-  // Customer: get one of my orders
-  async getMyOrder(userId: number, orderId: number) {
-    const order = await this.prisma.order.findFirst({
-      where: {
-        id: orderId,
-        userId,
-      },
       include: {
         items: {
           include: {
@@ -129,55 +122,30 @@ export class OrdersService {
         },
       },
     });
-
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-
-    return order;
   }
 
-  // Admin: get all orders
   async getAllOrders() {
     return this.prisma.order.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
         items: {
           include: {
             product: true,
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
     });
   }
 
-  // Admin: get one order
-  async getOrder(orderId: number) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+  async findOne(userId: number, orderId: number) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        userId,
+      },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
         items: {
           include: {
             product: true,
@@ -193,42 +161,38 @@ export class OrdersService {
     return order;
   }
 
-  // Admin: update order status
-  async updateOrderStatus(orderId: number, status: OrderStatusValue) {
-    const validStatuses: OrderStatusValue[] = [
-      'PENDING',
-      'CONFIRMED',
-      'SHIPPED',
-      'DELIVERED',
-      'CANCELLED',
-    ];
-
-    if (!validStatuses.includes(status)) {
-      throw new BadRequestException('Invalid order status');
-    }
-
+  async getOrder(orderId: number) {
     const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+      where: {
+        id: orderId,
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
     });
 
     if (!order) {
       throw new NotFoundException('Order not found');
     }
 
+    return order;
+  }
+
+  async updateOrderStatus(orderId: number, status: OrderStatusValue) {
+    await this.getOrder(orderId);
+
     return this.prisma.order.update({
-      where: { id: orderId },
-      data: { status },
+      where: {
+        id: orderId,
+      },
+      data: {
+        status,
+      },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
         items: {
           include: {
             product: true,
@@ -238,12 +202,18 @@ export class OrdersService {
     });
   }
 
-  // Customer: cancel an order
-  async cancelOrder(userId: number, orderId: number) {
+  async cancel(userId: number, orderId: number) {
     const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
         userId,
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
       },
     });
 
@@ -251,15 +221,43 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.status !== 'PENDING') {
-      throw new BadRequestException('Only pending orders can be cancelled');
+    if (order.status !== 'PENDING' && order.status !== 'CONFIRMED') {
+      throw new BadRequestException('This order cannot be cancelled');
     }
 
-    return this.prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: 'CANCELLED',
-      },
+    const cancelledOrder = await this.prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: {
+          id: orderId,
+        },
+        data: {
+          status: 'CANCELLED',
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      for (const item of order.items) {
+        await tx.product.update({
+          where: {
+            id: item.productId,
+          },
+          data: {
+            stock: {
+              increment: item.quantity,
+            },
+          },
+        });
+      }
+
+      return updatedOrder;
     });
+
+    return cancelledOrder;
   }
 }

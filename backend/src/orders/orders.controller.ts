@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -10,6 +11,7 @@ import {
 } from '@nestjs/common';
 
 import { OrdersService } from './orders.service';
+import { CreateOrderDto } from './dto/create-order.dto';
 
 import { JwtAuthGuard } from '../auth/jwt-auth/jwt-auth.guard';
 
@@ -20,25 +22,25 @@ export class OrdersController {
 
   // Create an order from the current user's cart
   @Post()
-  createOrder(@Req() req: any) {
-    return this.ordersService.createOrder(req.user.id);
+  createOrder(@Req() req: any, @Body() createOrderDto: CreateOrderDto) {
+    return this.ordersService.create(req.user.id, createOrderDto);
   }
 
   // Get current user's orders
   @Get()
   getMyOrders(@Req() req: any) {
-    return this.ordersService.getMyOrders(req.user.id);
+    return this.ordersService.findAll(req.user.id);
   }
 
   // Get one order belonging to the current user
   @Get(':id')
   getMyOrder(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.ordersService.getMyOrder(req.user.id, id);
+    return this.ordersService.findOne(req.user.id, id);
   }
 
   // Cancel a pending order
   @Patch(':id/cancel')
   cancelOrder(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.ordersService.cancelOrder(req.user.id, id);
+    return this.ordersService.cancel(req.user.id, id);
   }
 }
