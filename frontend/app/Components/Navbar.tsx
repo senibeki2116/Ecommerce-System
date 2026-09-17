@@ -18,7 +18,7 @@ export default function Navbar() {
   useEffect(() => {
     const checkLogin = () => {
       const token = localStorage.getItem("accessToken");
-      setIsLoggedIn(!!token);
+      setIsLoggedIn(Boolean(token));
     };
 
     checkLogin();
@@ -30,6 +30,16 @@ export default function Navbar() {
     };
   }, [pathname]);
 
+  // Keep Navbar search synchronized with URL
+  useEffect(() => {
+    if (pathname === "/products") {
+      const params = new URLSearchParams(window.location.search);
+      setSearch(params.get("search") || "");
+    } else {
+      setSearch("");
+    }
+  }, [pathname]);
+
   // Logout
   const handleLogout = () => {
     localStorage.removeItem("accessToken");
@@ -38,21 +48,37 @@ export default function Navbar() {
   };
 
   // Search
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!search.trim()) return;
+    const query = search.trim();
 
-    router.push(`/products?search=${encodeURIComponent(search.trim())}`);
+    if (!query) {
+      router.push("/products");
+      return;
+    }
+
+    router.push(`/products?search=${encodeURIComponent(query)}`);
   };
+
+  // ============================================================
+  // CART PAGE
+  // Hide the large navigation/search sections on cart
+  // ============================================================
+
+  const isCartPage = pathname === "/cart";
 
   return (
     <header className="w-full bg-white">
-      {/* ================= TOP HEADER ================= */}
+      {/* ========================================================
+          TOP HEADER
+          This stays visible on every page
+      ======================================================== */}
+
       <div className="border-b border-gray-100">
-        <div className="mx-auto flex max-w-350 items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-350 items-center justify-between gap-6 px-6 py-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/" className="flex shrink-0 items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-linear-to-br from-orange-500 to-red-500 text-xl font-black text-white shadow-md">
               E
             </div>
@@ -94,12 +120,15 @@ export default function Navbar() {
           </div>
 
           {/* Right menu */}
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4">
+            {/* Delivery */}
             <div className="hidden text-sm text-gray-600 xl:block">
               <span className="text-xs text-gray-400">Deliver to:</span>
+
               <div className="font-medium">🇪🇹 ET</div>
             </div>
 
+            {/* Language */}
             <button
               type="button"
               className="hidden text-sm font-medium text-gray-600 transition hover:text-orange-600 md:block"
@@ -110,7 +139,7 @@ export default function Navbar() {
             {/* Cart */}
             <Link
               href="/cart"
-              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-xl transition hover:border-orange-400 hover:text-orange-600"
+              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-200 text-xl transition hover:border-orange-400 hover:text-orange-600"
               aria-label="Shopping cart"
             >
               🛒
@@ -124,8 +153,9 @@ export default function Navbar() {
             {/* Login / Logout */}
             {isLoggedIn ? (
               <button
+                type="button"
                 onClick={handleLogout}
-                className="rounded-full bg-red-500 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-600"
+                className="rounded-full bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-600"
               >
                 Logout
               </button>
@@ -135,14 +165,16 @@ export default function Navbar() {
                 className="flex items-center gap-2 text-sm font-medium text-gray-700 transition hover:text-orange-600"
               >
                 <span className="text-xl">👤</span>
-                Sign in
+
+                <span className="hidden sm:inline">Sign in</span>
               </Link>
             )}
 
+            {/* Create account */}
             {!isLoggedIn && (
               <Link
                 href="/register"
-                className="hidden rounded-full bg-orange-500 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 md:block"
+                className="hidden rounded-full bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 md:block"
               >
                 Create account
               </Link>
@@ -151,109 +183,149 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* ================= MAIN NAVIGATION ================= */}
-      <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto flex max-w-350 items-center justify-center gap-8 px-6 py-5">
-          <button
-            type="button"
-            className="text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
-          >
-            AI Mode
-          </button>
+      {/* ========================================================
+          EVERYTHING BELOW IS HIDDEN ON CART PAGE
+      ======================================================== */}
 
-          <span className="h-7 w-px bg-gray-300"></span>
+      {!isCartPage && (
+        <>
+          {/* ====================================================
+              MAIN NAVIGATION
+          ==================================================== */}
 
-          <Link
-            href="/products"
-            className="border-b-[3px] border-orange-500 pb-2 text-2xl font-extrabold text-orange-600"
-          >
-            Products
-          </Link>
-
-          <Link
-            href="/products"
-            className="text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
-          >
-            Manufacturers
-          </Link>
-
-          <Link
-            href="/products"
-            className="text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
-          >
-            Worldwide
-          </Link>
-        </div>
-      </div>
-
-      {/* ================= SEARCH AREA ================= */}
-      <div className="bg-linear-to-b from-white to-orange-50/30 px-6 pb-8 pt-5">
-        <div className="mx-auto max-w-240">
-          <form
-            onSubmit={handleSearch}
-            className="overflow-hidden rounded-2xl border-2 border-orange-500 bg-white shadow-lg"
-          >
-            {/* Search input */}
-            <div className="flex items-center px-5 pt-4">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search products, suppliers, categories..."
-                className="w-full bg-transparent text-base text-gray-800 outline-none placeholder:text-gray-400"
-              />
-            </div>
-
-            {/* Search bottom */}
-            <div className="flex items-center justify-between px-5 pb-4 pt-4">
+          <div className="border-b border-gray-100 bg-white">
+            <div className="mx-auto flex max-w-350 items-center justify-center gap-8 overflow-x-auto px-6 py-5">
               <button
                 type="button"
-                className="flex items-center gap-2 text-sm font-semibold text-gray-700 transition hover:text-orange-600"
+                className="whitespace-nowrap text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
               >
-                <span className="text-xl">🖼️</span>
-                Image Search
+                AI Mode
               </button>
 
-              <button
-                type="submit"
-                className="rounded-full bg-linear-to-r from-orange-400 to-orange-600 px-8 py-3 font-bold text-white shadow-md transition hover:scale-[1.02] hover:shadow-lg"
+              <span className="h-7 w-px shrink-0 bg-gray-300" />
+
+              <Link
+                href="/products"
+                className={`whitespace-nowrap pb-2 text-2xl font-extrabold transition ${
+                  pathname.startsWith("/products")
+                    ? "border-b-[3px] border-orange-500 text-orange-600"
+                    : "text-gray-900 hover:text-orange-600"
+                }`}
               >
-                🔍 Search
-              </button>
+                Products
+              </Link>
+
+              <Link
+                href="/products"
+                className="whitespace-nowrap text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
+              >
+                Manufacturers
+              </Link>
+
+              <Link
+                href="/products"
+                className="whitespace-nowrap text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
+              >
+                Worldwide
+              </Link>
             </div>
-          </form>
-        </div>
-      </div>
+          </div>
 
-      {/* ================= QUICK LINKS ================= */}
-      <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto flex max-w-350 items-center justify-center gap-8 px-6 py-4 text-sm font-semibold text-gray-700">
-          <Link
-            href="/products"
-            className="flex items-center gap-2 transition hover:text-orange-600"
-          >
-            📋 Request for Quotation
-          </Link>
+          {/* ====================================================
+              SEARCH AREA
+          ==================================================== */}
 
-          <span className="h-5 w-px bg-gray-300"></span>
+          <div className="bg-linear-to-b from-white to-orange-50/30 px-6 pb-8 pt-5">
+            <div className="mx-auto max-w-240">
+              <form
+                onSubmit={handleSearch}
+                className="overflow-hidden rounded-2xl border-2 border-orange-500 bg-white shadow-lg"
+              >
+                {/* Search input */}
+                <div className="flex items-center px-5 pt-4">
+                  <span className="mr-3 text-xl text-gray-400">🔍</span>
 
-          <Link
-            href="/products"
-            className="flex items-center gap-2 transition hover:text-orange-600"
-          >
-            🏆 Top Ranking
-          </Link>
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search products, suppliers, categories..."
+                    className="w-full bg-transparent text-base text-gray-800 outline-none placeholder:text-gray-400"
+                  />
 
-          <span className="h-5 w-px bg-gray-300"></span>
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch("");
 
-          <Link
-            href="/products"
-            className="flex items-center gap-2 transition hover:text-orange-600"
-          >
-            🛠️ Fast customization
-          </Link>
-        </div>
-      </div>
+                        if (pathname === "/products") {
+                          router.push("/products");
+                        }
+                      }}
+                      className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm text-gray-500 transition hover:bg-gray-200"
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Search bottom */}
+                <div className="flex items-center justify-between px-5 pb-4 pt-4">
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 text-sm font-semibold text-gray-700 transition hover:text-orange-600"
+                  >
+                    <span className="text-xl">🖼️</span>
+                    Image Search
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="rounded-full bg-linear-to-r from-orange-400 to-orange-600 px-8 py-3 font-bold text-white shadow-md transition hover:scale-[1.02] hover:shadow-lg"
+                  >
+                    🔍 Search
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* ====================================================
+              QUICK LINKS
+          ==================================================== */}
+
+          <div className="border-b border-gray-100 bg-white">
+            <div className="mx-auto flex max-w-350 items-center justify-center gap-8 overflow-x-auto px-6 py-4 text-sm font-semibold text-gray-700">
+              <Link
+                href="/products"
+                className="flex shrink-0 items-center gap-2 transition hover:text-orange-600"
+              >
+                📋 Request for Quotation
+              </Link>
+
+              <span className="h-5 w-px shrink-0 bg-gray-300" />
+
+              <Link
+                href="/products"
+                className="flex shrink-0 items-center gap-2 transition hover:text-orange-600"
+              >
+                🏆 Top Ranking
+              </Link>
+
+              <span className="h-5 w-px shrink-0 bg-gray-300" />
+
+              <Link
+                href="/products"
+                className="flex shrink-0 items-center gap-2 transition hover:text-orange-600"
+              >
+                🛠️ Fast customization
+              </Link>
+            </div>
+          </div>
+        </>
+      )}
     </header>
   );
 }

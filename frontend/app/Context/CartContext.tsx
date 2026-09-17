@@ -18,6 +18,8 @@ type Product = {
   reviews?: number;
   category?: string;
   image?: string | null;
+  images?: string[];
+  imageUrl?: string | null;
   stock?: number;
 };
 

@@ -189,16 +189,16 @@ export default function ProductDetailsPage() {
 
           <span className="text-slate-300">/</span>
 
-          <span className="max-w-[220px] truncate font-semibold text-slate-800">
+          <span className="max-w-55 truncate font-semibold text-slate-800">
             {product.name}
           </span>
         </div>
 
         {/* Main Product Section */}
-        <section className="overflow-hidden rounded-[2rem] bg-white shadow-xl shadow-slate-200/60">
+        <section className="overflow-hidden rounded-4xl bg-white shadow-xl shadow-slate-200/60">
           <div className="grid lg:grid-cols-2">
             {/* IMAGE SIDE */}
-            <div className="relative min-h-[420px] bg-gradient-to-br from-slate-100 via-white to-blue-50 p-6 sm:p-10 lg:min-h-[650px]">
+            <div className="relative min-h-105 bg-linear-to-br from-slate-100 via-white to-blue-50 p-6 sm:p-10 lg:min-h-162.5">
               {/* Decorative circles */}
               <div className="absolute -left-20 -top-20 h-56 w-56 rounded-full bg-blue-100/50 blur-3xl" />
               <div className="absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-purple-100/50 blur-3xl" />
@@ -212,7 +212,7 @@ export default function ProductDetailsPage() {
               </Link>
 
               {/* Product image */}
-              <div className="relative z-10 flex h-[390px] items-center justify-center sm:h-[480px] lg:h-[540px]">
+              <div className="relative z-10 flex h-97.5 items-center justify-center sm:h-120 lg:h-135">
                 <img
                   src={getImage()}
                   alt={product.name}
@@ -389,7 +389,7 @@ export default function ProductDetailsPage() {
                 <button
                   onClick={addProductToCart}
                   disabled={isOutOfStock}
-                  className={`flex min-h-[54px] items-center justify-center gap-2 rounded-xl px-5 font-black transition ${
+                  className={`flex min-h-13.5 items-center justify-center gap-2 rounded-xl px-5 font-black transition ${
                     isOutOfStock
                       ? "cursor-not-allowed bg-slate-200 text-slate-400"
                       : added
@@ -409,7 +409,7 @@ export default function ProductDetailsPage() {
                 <button
                   onClick={buyNow}
                   disabled={isOutOfStock || buying}
-                  className={`flex min-h-[54px] items-center justify-center rounded-xl px-5 font-black text-white shadow-lg transition ${
+                  className={`flex min-h-13.5 items-center justify-center rounded-xl px-5 font-black text-white shadow-lg transition ${
                     isOutOfStock
                       ? "cursor-not-allowed bg-slate-300 shadow-none"
                       : "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/30"
