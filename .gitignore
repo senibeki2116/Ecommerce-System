@@ -30,4 +30,9 @@ Thumbs.db
 # Tool/AI folders
 **/.agents/
 **/.claude/
-**/.windsurf/
+**/.windsurf/*.zip
+node_modules/
+.next/
+*.zip
+dist/
+.windsurf/
