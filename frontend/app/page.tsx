@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCart } from "./Context/CartContext";
 
 type Product = {
@@ -21,12 +22,48 @@ const fallbackImages = [
 ];
 
 export default function HomePage() {
+  const router = useRouter();
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const { addToCart } = useCart();
 
+  // =====================================================
+  // CHECK LOGIN STATUS
+  // =====================================================
+  useEffect(() => {
+    const checkLogin = () => {
+      const token = localStorage.getItem("accessToken");
+      setIsLoggedIn(Boolean(token));
+    };
+
+    checkLogin();
+
+    // Detect authentication changes
+    window.addEventListener("storage", checkLogin);
+
+    return () => {
+      window.removeEventListener("storage", checkLogin);
+    };
+  }, []);
+
+  // =====================================================
+  // LOGOUT
+  // =====================================================
+  const handleLogout = () => {
+    localStorage.removeItem("accessToken");
+
+    setIsLoggedIn(false);
+
+    router.push("/login");
+  };
+
+  // =====================================================
+  // LOAD PRODUCTS
+  // =====================================================
   useEffect(() => {
     async function loadProducts() {
       try {
@@ -115,7 +152,9 @@ export default function HomePage() {
             </Link>
           </nav>
 
+          {/* RIGHT SIDE */}
           <div className="flex items-center gap-3">
+            {/* Cart */}
             <Link
               href="/cart"
               className="hidden h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-lg transition hover:border-blue-300 hover:bg-blue-50 sm:flex"
@@ -123,12 +162,22 @@ export default function HomePage() {
               🛒
             </Link>
 
-            <Link
-              href="/login"
-              className="rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-slate-200 transition hover:-translate-y-0.5 hover:bg-blue-600"
-            >
-              Login
-            </Link>
+            {/* LOGIN / LOGOUT */}
+            {isLoggedIn ? (
+              <button
+                onClick={handleLogout}
+                className="rounded-full bg-red-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-100 transition hover:-translate-y-0.5 hover:bg-red-600"
+              >
+                Logout
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-slate-200 transition hover:-translate-y-0.5 hover:bg-blue-600"
+              >
+                Login
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -137,12 +186,10 @@ export default function HomePage() {
           HERO
       ===================================================== */}
       <section className="relative overflow-hidden bg-linear-to-br from-blue-50 via-white to-violet-50">
-        {/* Decorative circles */}
         <div className="absolute -left-32 top-20 h-72 w-72 rounded-full bg-blue-200/40 blur-3xl" />
         <div className="absolute right-0 top-10 h-96 w-96 rounded-full bg-violet-200/40 blur-3xl" />
 
         <div className="relative mx-auto grid min-h-162.5 max-w-7xl items-center gap-12 px-5 py-16 lg:grid-cols-2 lg:px-8">
-          {/* LEFT */}
           <div className="relative z-10">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 shadow-sm">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs text-white">
@@ -184,7 +231,6 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* TRUST */}
             <div className="mt-12 flex flex-wrap items-center gap-8">
               <div>
                 <div className="text-2xl font-black">10K+</div>
@@ -219,9 +265,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* RIGHT HERO */}
           <div className="relative mx-auto w-full max-w-xl">
-            {/* Main card */}
             <div className="relative overflow-hidden rounded-[3rem] border border-white bg-white p-4 shadow-2xl shadow-blue-100">
               <div className="relative overflow-hidden rounded-[2.4rem] bg-linear-to-br from-blue-100 to-violet-100">
                 <img
@@ -234,7 +278,6 @@ export default function HomePage() {
                   className="h-117.5 w-full object-cover transition duration-700 hover:scale-105"
                 />
 
-                {/* Image overlay */}
                 <div className="absolute inset-x-5 bottom-5 rounded-2xl border border-white/50 bg-white/85 p-5 shadow-xl backdrop-blur-xl">
                   <div className="flex items-center justify-between">
                     <div>
@@ -258,7 +301,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Discount badge */}
             <div className="absolute -right-4 top-8 flex h-24 w-24 rotate-12 flex-col items-center justify-center rounded-full bg-linear-to-br from-fuchsia-500 to-violet-600 text-white shadow-2xl">
               <span className="text-xl font-black">30%</span>
 
@@ -267,7 +309,6 @@ export default function HomePage() {
               </span>
             </div>
 
-            {/* Floating card */}
             <div className="absolute -bottom-6 -left-6 rounded-2xl border border-slate-100 bg-white p-4 shadow-2xl">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100 text-xl">
@@ -299,7 +340,6 @@ export default function HomePage() {
 
             <div>
               <h3 className="text-sm font-black">Fast delivery</h3>
-
               <p className="mt-1 text-xs text-slate-400">Quick & reliable</p>
             </div>
           </div>
@@ -311,7 +351,6 @@ export default function HomePage() {
 
             <div>
               <h3 className="text-sm font-black">Secure payment</h3>
-
               <p className="mt-1 text-xs text-slate-400">100% protected</p>
             </div>
           </div>
@@ -323,7 +362,6 @@ export default function HomePage() {
 
             <div>
               <h3 className="text-sm font-black">Easy returns</h3>
-
               <p className="mt-1 text-xs text-slate-400">Simple process</p>
             </div>
           </div>
@@ -335,7 +373,6 @@ export default function HomePage() {
 
             <div>
               <h3 className="text-sm font-black">24/7 support</h3>
-
               <p className="mt-1 text-xs text-slate-400">We're here to help</p>
             </div>
           </div>
@@ -396,7 +433,6 @@ export default function HomePage() {
                 key={product.id}
                 className="group overflow-hidden rounded-3xl border border-slate-200 bg-white transition duration-500 hover:-translate-y-2 hover:border-blue-100 hover:shadow-2xl hover:shadow-blue-100/50"
               >
-                {/* IMAGE */}
                 <div className="relative h-72 overflow-hidden bg-slate-100">
                   <img
                     src={getImage(product, index)}
@@ -418,7 +454,6 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* INFO */}
                 <div className="p-6">
                   <div className="flex items-center gap-2">
                     <span className="text-sm tracking-widest text-yellow-400">
@@ -472,7 +507,6 @@ export default function HomePage() {
       ===================================================== */}
       <section className="mx-auto max-w-7xl px-5 pb-24 lg:px-8">
         <div className="relative overflow-hidden rounded-[2.5rem] bg-linear-to-r from-blue-600 via-indigo-600 to-violet-600 text-white">
-          {/* Decorative shapes */}
           <div className="absolute -right-20 -top-20 h-80 w-80 rounded-full bg-white/10" />
           <div className="absolute -bottom-32 right-40 h-80 w-80 rounded-full bg-white/10" />
 
@@ -525,15 +559,13 @@ export default function HomePage() {
       </section>
 
       {/* =====================================================
-    WHY SHOP WITH US - ACTIVE UI
-===================================================== */}
+          WHY SHOP WITH US
+      ===================================================== */}
       <section className="relative overflow-hidden bg-slate-50 py-28">
-        {/* Background decorations */}
         <div className="absolute -left-32 top-20 h-72 w-72 rounded-full bg-blue-200/40 blur-3xl" />
         <div className="absolute -right-32 bottom-10 h-72 w-72 rounded-full bg-violet-200/40 blur-3xl" />
 
         <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
-          {/* Section heading */}
           <div className="mx-auto max-w-2xl text-center">
             <div className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-blue-100 bg-white px-4 py-2 shadow-sm">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs text-white">
@@ -558,20 +590,16 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Cards */}
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {/* CARD 1 */}
             <div className="group relative overflow-hidden rounded-4xl border border-blue-100 bg-white p-8 shadow-sm transition-all duration-500 hover:-translate-y-3 hover:border-blue-200 hover:shadow-2xl hover:shadow-blue-200/40">
-              {/* Decorative circle */}
               <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-50 transition-all duration-500 group-hover:scale-150 group-hover:bg-blue-100" />
 
               <div className="relative">
-                {/* Icon */}
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-700 text-3xl shadow-lg shadow-blue-200 transition duration-500 group-hover:rotate-6 group-hover:scale-110">
                   ⚡
                 </div>
 
-                {/* Number */}
                 <span className="absolute right-0 top-0 text-5xl font-black text-slate-100 transition group-hover:text-blue-50">
                   01
                 </span>
@@ -594,22 +622,18 @@ export default function HomePage() {
                 </Link>
               </div>
 
-              {/* Bottom line */}
               <div className="absolute bottom-0 left-0 h-1 w-0 bg-blue-600 transition-all duration-500 group-hover:w-full" />
             </div>
 
             {/* CARD 2 */}
             <div className="group relative overflow-hidden rounded-4xl border border-violet-100 bg-white p-8 shadow-sm transition-all duration-500 hover:-translate-y-3 hover:border-violet-200 hover:shadow-2xl hover:shadow-violet-200/40">
-              {/* Decorative circle */}
               <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-violet-50 transition-all duration-500 group-hover:scale-150 group-hover:bg-violet-100" />
 
               <div className="relative">
-                {/* Icon */}
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-violet-500 to-purple-700 text-3xl shadow-lg shadow-violet-200 transition duration-500 group-hover:-rotate-6 group-hover:scale-110">
                   💎
                 </div>
 
-                {/* Number */}
                 <span className="absolute right-0 top-0 text-5xl font-black text-slate-100 transition group-hover:text-violet-50">
                   02
                 </span>
@@ -632,22 +656,18 @@ export default function HomePage() {
                 </Link>
               </div>
 
-              {/* Bottom line */}
               <div className="absolute bottom-0 left-0 h-1 w-0 bg-violet-600 transition-all duration-500 group-hover:w-full" />
             </div>
 
             {/* CARD 3 */}
             <div className="group relative overflow-hidden rounded-4xl border border-emerald-100 bg-white p-8 shadow-sm transition-all duration-500 hover:-translate-y-3 hover:border-emerald-200 hover:shadow-2xl hover:shadow-emerald-200/40">
-              {/* Decorative circle */}
               <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-50 transition-all duration-500 group-hover:scale-150 group-hover:bg-emerald-100" />
 
               <div className="relative">
-                {/* Icon */}
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-400 to-green-600 text-3xl shadow-lg shadow-emerald-200 transition duration-500 group-hover:rotate-6 group-hover:scale-110">
                   ❤️
                 </div>
 
-                {/* Number */}
                 <span className="absolute right-0 top-0 text-5xl font-black text-slate-100 transition group-hover:text-emerald-50">
                   03
                 </span>
@@ -670,12 +690,10 @@ export default function HomePage() {
                 </Link>
               </div>
 
-              {/* Bottom line */}
               <div className="absolute bottom-0 left-0 h-1 w-0 bg-emerald-500 transition-all duration-500 group-hover:w-full" />
             </div>
           </div>
 
-          {/* Bottom statistics */}
           <div className="mt-12 grid grid-cols-2 gap-4 rounded-4xl border border-slate-200 bg-white p-6 shadow-sm sm:grid-cols-4">
             <div className="text-center">
               <div className="text-2xl font-black text-slate-900">10K+</div>
@@ -696,6 +714,7 @@ export default function HomePage() {
                 4.9
                 <span className="ml-1 text-yellow-400">★</span>
               </div>
+
               <div className="mt-1 text-xs font-medium text-slate-400">
                 Average rating
               </div>
@@ -703,6 +722,7 @@ export default function HomePage() {
 
             <div className="border-l border-slate-100 text-center">
               <div className="text-2xl font-black text-slate-900">24/7</div>
+
               <div className="mt-1 text-xs font-medium text-slate-400">
                 Support
               </div>
