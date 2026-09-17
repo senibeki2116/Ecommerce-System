@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "../Context/CartContext";
 
-export cdefault function Navbar() {
+export default function Navbar() {
   const { cartCount } = useCart();
 
   const router = useRouter();
