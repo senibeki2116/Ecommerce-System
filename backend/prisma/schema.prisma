@@ -28,6 +28,7 @@ model User {
   password  String
   role      Role     @default(CUSTOMER)
   cart      Cart?
+  wishlist  Wishlist?
   orders    Order[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -42,6 +43,7 @@ model Product {
   image       String?
   cartItems   CartItem[]
   orderItems  OrderItem[]
+  wishlistItems WishlistItem[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 }
@@ -89,4 +91,25 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id])
 
   @@unique([orderId, productId])
+}
+model Wishlist {
+  id        Int            @id @default(autoincrement())
+  userId    Int            @unique
+  user      User           @relation(fields: [userId], references: [id])
+  items     WishlistItem[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model WishlistItem {
+  id         Int      @id @default(autoincrement())
+  wishlistId Int
+  productId  Int
+
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
+
+  createdAt  DateTime @default(now())
+
+  @@unique([wishlistId, productId])
 }

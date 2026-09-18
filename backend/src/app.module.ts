@@ -1,3 +1,5 @@
+import { WishlistModule } from './wishlist/wishlist.module';
+
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -9,7 +11,15 @@ import { ProductsModule } from './products/products.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 @Module({
-  imports: [PrismaModule, UsersModule, AuthModule, ProductsModule, CartModule, OrdersModule],
+  imports: [
+    PrismaModule,
+    UsersModule,
+    AuthModule,
+    ProductsModule,
+    CartModule,
+    OrdersModule,
+    WishlistModule,
+  ],
   controllers: [AppController, AdminController],
   providers: [AppService],
 })
