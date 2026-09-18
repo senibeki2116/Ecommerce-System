@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useCart } from "../Context/CartContext";
 
 type Product = {
@@ -19,6 +19,7 @@ const API_URL = "http://localhost:3001";
 export default function ProductsPage() {
   const { addToCart, cartCount } = useCart();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,9 +30,15 @@ export default function ProductsPage() {
   const [sort, setSort] = useState("featured");
 
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
-  const [wishlist, setWishlist] = useState<number[]>([]);
 
-  // ================= FETCH PRODUCTS =================
+  // Real wishlist state
+  const [wishlist, setWishlist] = useState<number[]>([]);
+  const [wishlistLoading, setWishlistLoading] = useState<number | null>(null);
+
+  // =====================================================
+  // FETCH PRODUCTS
+  // =====================================================
+
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -67,17 +74,73 @@ export default function ProductsPage() {
     }
   };
 
+  // =====================================================
+  // FETCH MY WISHLIST
+  // =====================================================
+
+  const fetchWishlist = async () => {
+    const token = localStorage.getItem("accessToken");
+
+    // User is not logged in.
+    // We don't redirect here because visitors should still
+    // be able to browse products.
+    if (!token) {
+      setWishlist([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/wishlist`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("accessToken");
+        setWishlist([]);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to load wishlist");
+      }
+
+      const data = await response.json();
+
+      const ids =
+        data?.items?.map((item: { productId: number }) => item.productId) || [];
+
+      setWishlist(ids);
+    } catch (err) {
+      console.error("Wishlist loading error:", err);
+    }
+  };
+
+  // =====================================================
+  // INITIAL LOAD
+  // =====================================================
+
   useEffect(() => {
     fetchProducts();
+    fetchWishlist();
   }, []);
 
-  // ================= URL SEARCH =================
+  // =====================================================
+  // URL SEARCH
+  // =====================================================
+
   useEffect(() => {
     const searchFromUrl = searchParams.get("search") || "";
     setSearch(searchFromUrl);
   }, [searchParams]);
 
-  // ================= CATEGORIES =================
+  // =====================================================
+  // CATEGORIES
+  // =====================================================
+
   const categories = useMemo(() => {
     const values = products
       .map((product) => product.name?.trim().split(" ")[0])
@@ -86,7 +149,10 @@ export default function ProductsPage() {
     return ["All", ...Array.from(new Set(values))];
   }, [products]);
 
-  // ================= FILTER + SORT =================
+  // =====================================================
+  // FILTER + SORT
+  // =====================================================
+
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
@@ -122,11 +188,15 @@ export default function ProductsPage() {
     return result;
   }, [products, search, category, sort]);
 
-  // ================= ADD TO CART =================
+  // =====================================================
+  // ADD TO CART
+  // =====================================================
+
   const handleAddToCart = (product: Product) => {
     if (product.stock <= 0) return;
 
     addToCart(product);
+
     setAddedProductId(product.id);
 
     setTimeout(() => {
@@ -134,16 +204,68 @@ export default function ProductsPage() {
     }, 1200);
   };
 
-  // ================= WISHLIST =================
-  const toggleWishlist = (id: number) => {
-    setWishlist((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
+  // =====================================================
+  // TOGGLE REAL WISHLIST
+  // =====================================================
+
+  const toggleWishlist = async (productId: number) => {
+    const token = localStorage.getItem("accessToken");
+
+    // Not logged in
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    if (wishlistLoading === productId) {
+      return;
+    }
+
+    const isCurrentlyWishlisted = wishlist.includes(productId);
+
+    try {
+      setWishlistLoading(productId);
+
+      const response = await fetch(`${API_URL}/wishlist/${productId}`, {
+        method: isCurrentlyWishlisted ? "DELETE" : "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("accessToken");
+        setWishlist([]);
+        router.push("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+
+        throw new Error(data?.message || "Wishlist operation failed");
+      }
+
+      // Update UI only after backend succeeds
+      setWishlist((current) => {
+        if (isCurrentlyWishlisted) {
+          return current.filter((id) => id !== productId);
+        }
+
+        return [...current, productId];
+      });
+    } catch (err) {
+      console.error("Wishlist error:", err);
+      alert(err instanceof Error ? err.message : "Could not update wishlist");
+    } finally {
+      setWishlistLoading(null);
+    }
   };
 
-  // ================= CLEAR FILTERS =================
+  // =====================================================
+  // CLEAR FILTERS
+  // =====================================================
+
   const clearFilters = () => {
     setSearch("");
     setCategory("All");
@@ -155,11 +277,11 @@ export default function ProductsPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
-      {/* =====================================================
-          PAGE TOP
-      ===================================================== */}
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-        {/* Breadcrumb */}
+        {/* =====================================================
+            BREADCRUMB
+        ===================================================== */}
+
         <div className="mb-7 flex items-center gap-2 text-sm text-slate-400">
           <Link href="/" className="transition hover:text-blue-600">
             Home
@@ -173,6 +295,7 @@ export default function ProductsPage() {
         {/* =====================================================
             TITLE
         ===================================================== */}
+
         <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
             <span className="text-sm font-bold uppercase tracking-widest text-blue-600">
@@ -189,29 +312,53 @@ export default function ProductsPage() {
             </p>
           </div>
 
-          {/* Cart */}
-          <Link
-            href="/cart"
-            className="group relative flex w-fit items-center gap-3 rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-slate-200 transition hover:-translate-y-0.5 hover:bg-blue-600"
-          >
-            <span className="text-lg transition group-hover:scale-110">🛒</span>
+          {/* RIGHT ACTIONS */}
 
-            <span>Cart</span>
+          <div className="flex flex-wrap gap-3">
+            {/* Wishlist */}
 
-            {cartCount > 0 && (
-              <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-black">
-                {cartCount}
+            <Link
+              href="/wishlist"
+              className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-red-200 hover:text-red-500"
+            >
+              <span className="text-lg">♥</span>
+              Wishlist
+              {wishlist.length > 0 && (
+                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-black text-white">
+                  {wishlist.length}
+                </span>
+              )}
+            </Link>
+
+            {/* Cart */}
+
+            <Link
+              href="/cart"
+              className="group relative flex w-fit items-center gap-3 rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-slate-200 transition hover:-translate-y-0.5 hover:bg-blue-600"
+            >
+              <span className="text-lg transition group-hover:scale-110">
+                🛒
               </span>
-            )}
-          </Link>
+
+              <span>Cart</span>
+
+              {cartCount > 0 && (
+                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-black">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          </div>
         </div>
 
         {/* =====================================================
             SEARCH + SORT
         ===================================================== */}
+
         <div className="mb-7 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row">
             {/* Search */}
+
             <div className="relative flex-1">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-slate-400">
                 🔍
@@ -237,14 +384,18 @@ export default function ProductsPage() {
             </div>
 
             {/* Sort */}
+
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value)}
               className="h-12 rounded-2xl border-0 bg-slate-50 px-5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 lg:w-56"
             >
               <option value="featured">Featured</option>
+
               <option value="price-low">Price: Low to High</option>
+
               <option value="price-high">Price: High to Low</option>
+
               <option value="name">Name: A-Z</option>
             </select>
           </div>
@@ -253,6 +404,7 @@ export default function ProductsPage() {
         {/* =====================================================
             CATEGORY FILTER
         ===================================================== */}
+
         <div className="mb-9 flex gap-2 overflow-x-auto pb-2">
           {categories.map((item) => (
             <button
@@ -273,6 +425,7 @@ export default function ProductsPage() {
         {/* =====================================================
             PRODUCTS HEADER
         ===================================================== */}
+
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-black text-slate-950">All Products</h2>
@@ -297,6 +450,7 @@ export default function ProductsPage() {
         {/* =====================================================
             ERROR
         ===================================================== */}
+
         {error && (
           <div className="mb-8 rounded-3xl border border-red-200 bg-red-50 p-7">
             <div className="text-3xl">⚠️</div>
@@ -320,6 +474,7 @@ export default function ProductsPage() {
         {/* =====================================================
             LOADING
         ===================================================== */}
+
         {loading ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, index) => (
@@ -331,8 +486,11 @@ export default function ProductsPage() {
 
                 <div className="space-y-3 p-5">
                   <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
+
                   <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
+
                   <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+
                   <div className="h-11 animate-pulse rounded-2xl bg-slate-200" />
                 </div>
               </div>
@@ -342,6 +500,7 @@ export default function ProductsPage() {
           /* =====================================================
               EMPTY
           ===================================================== */
+
           <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-4xl">
               🔍
@@ -365,10 +524,12 @@ export default function ProductsPage() {
           /* =====================================================
               PRODUCT GRID
           ===================================================== */
+
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => {
               const isWishlisted = wishlist.includes(product.id);
               const isAdded = addedProductId === product.id;
+              const isWishlistLoading = wishlistLoading === product.id;
 
               return (
                 <article
@@ -376,6 +537,7 @@ export default function ProductsPage() {
                   className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/70"
                 >
                   {/* ================= IMAGE ================= */}
+
                   <div className="relative h-72 overflow-hidden bg-slate-100">
                     {product.image ? (
                       <img
@@ -393,9 +555,11 @@ export default function ProductsPage() {
                     )}
 
                     {/* Image Gradient */}
+
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
 
                     {/* Stock */}
+
                     <div className="absolute left-4 top-4">
                       {product.stock > 0 ? (
                         <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-emerald-600 shadow-md backdrop-blur">
@@ -408,21 +572,40 @@ export default function ProductsPage() {
                       )}
                     </div>
 
-                    {/* Wishlist */}
+                    {/* =================================================
+                        REAL WISHLIST BUTTON
+                    ================================================= */}
+
                     <button
                       type="button"
                       onClick={() => toggleWishlist(product.id)}
-                      aria-label="Add to wishlist"
-                      className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-lg shadow-md backdrop-blur transition hover:scale-110 ${
+                      disabled={isWishlistLoading}
+                      aria-label={
+                        isWishlisted
+                          ? "Remove from wishlist"
+                          : "Add to wishlist"
+                      }
+                      className={`absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-xl shadow-md backdrop-blur transition duration-200 ${
+                        isWishlistLoading
+                          ? "cursor-wait opacity-60"
+                          : "hover:scale-110"
+                      } ${
                         isWishlisted
                           ? "text-red-500"
                           : "text-slate-400 hover:text-red-500"
                       }`}
                     >
-                      {isWishlisted ? "♥" : "♡"}
+                      {isWishlistLoading ? (
+                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-red-500" />
+                      ) : isWishlisted ? (
+                        "♥"
+                      ) : (
+                        "♡"
+                      )}
                     </button>
 
                     {/* View Product */}
+
                     <Link
                       href={`/products/${product.id}`}
                       className="absolute bottom-4 right-4 flex h-11 w-11 translate-y-4 items-center justify-center rounded-full bg-white text-lg text-slate-900 opacity-0 shadow-lg transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 hover:bg-blue-600 hover:text-white"
@@ -432,8 +615,10 @@ export default function ProductsPage() {
                   </div>
 
                   {/* ================= CONTENT ================= */}
+
                   <div className="p-5">
                     {/* Rating */}
+
                     <div className="flex items-center gap-1">
                       <span className="text-sm tracking-wide text-amber-400">
                         ★★★★★
@@ -445,6 +630,7 @@ export default function ProductsPage() {
                     </div>
 
                     {/* Name */}
+
                     <Link href={`/products/${product.id}`}>
                       <h3 className="mt-2 line-clamp-1 text-lg font-black text-slate-950 transition hover:text-blue-600">
                         {product.name}
@@ -452,12 +638,14 @@ export default function ProductsPage() {
                     </Link>
 
                     {/* Description */}
+
                     <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
                       {product.description ||
                         "Quality product with great value."}
                     </p>
 
                     {/* Price */}
+
                     <div className="mt-4 flex items-end justify-between">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -477,6 +665,7 @@ export default function ProductsPage() {
                     </div>
 
                     {/* Add Cart */}
+
                     <button
                       type="button"
                       onClick={() => handleAddToCart(product)}
