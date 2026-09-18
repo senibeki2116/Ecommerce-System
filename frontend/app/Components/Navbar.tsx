@@ -1,24 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "../Context/CartContext";
 
 export default function Navbar() {
+  const pathname = usePathname();
   const { cartCount } = useCart();
 
-  const router = useRouter();
-  const pathname = usePathname();
-
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [search, setSearch] = useState("");
 
-  // Check login status
   useEffect(() => {
     const checkLogin = () => {
       const token = localStorage.getItem("accessToken");
-      setIsLoggedIn(Boolean(token));
+      setIsLoggedIn(!!token);
     };
 
     checkLogin();
@@ -28,304 +24,156 @@ export default function Navbar() {
     return () => {
       window.removeEventListener("storage", checkLogin);
     };
-  }, [pathname]);
+  }, []);
 
-  // Keep Navbar search synchronized with URL
-  useEffect(() => {
-    if (pathname === "/products") {
-      const params = new URLSearchParams(window.location.search);
-      setSearch(params.get("search") || "");
-    } else {
-      setSearch("");
-    }
-  }, [pathname]);
-
-  // Logout
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    setIsLoggedIn(false);
-    router.push("/login");
-  };
-
-  // Search
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const query = search.trim();
-
-    if (!query) {
-      router.push("/products");
-      return;
-    }
-
-    router.push(`/products?search=${encodeURIComponent(query)}`);
-  };
-
-  // ============================================================
-  // CART PAGE
-  // Hide the large navigation/search sections on cart
-  // ============================================================
-
-  const isCartPage = pathname === "/cart";
+  const navItems = [
+    {
+      name: "Products",
+      href: "/products",
+      icon: "🛍️",
+    },
+    {
+      name: "Orders",
+      href: "/orders",
+      icon: "📦",
+    },
+    {
+      name: "Wishlist",
+      href: "/wishlist",
+      icon: "♥",
+    },
+    {
+      name: "Cart",
+      href: "/cart",
+      icon: "🛒",
+    },
+  ];
 
   return (
-    <header className="w-full bg-white">
-      {/* ========================================================
-          TOP HEADER
-          This stays visible on every page
-      ======================================================== */}
-
-      <div className="border-b border-gray-100">
-        <div className="mx-auto flex max-w-350 items-center justify-between gap-6 px-6 py-4">
-          {/* Logo */}
-          <Link href="/" className="flex shrink-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-linear-to-br from-orange-500 to-red-500 text-xl font-black text-white shadow-md">
-              E
-            </div>
-
-            <div>
-              <div className="text-2xl font-extrabold tracking-tight text-orange-600">
-                E-Shop
-              </div>
-
-              <div className="text-[10px] font-semibold tracking-[0.25em] text-gray-400">
-                SMART SHOPPING
-              </div>
-            </div>
-          </Link>
-
-          {/* Left menu */}
-          <div className="hidden items-center gap-7 lg:flex">
-            <button
-              type="button"
-              className="flex items-center gap-2 text-sm font-medium text-gray-700 transition hover:text-orange-600"
-            >
-              <span className="text-lg">☰</span>
-              All categories
-            </button>
-
-            <Link
-              href="/products"
-              className="text-sm font-medium text-gray-700 transition hover:text-orange-600"
-            >
-              Verified sellers
-            </Link>
-
-            <Link
-              href="/products"
-              className="text-sm font-medium text-gray-700 transition hover:text-orange-600"
-            >
-              Dropshipping
-            </Link>
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 md:px-8">
+        {/* LOGO */}
+        <Link href="/" className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl text-white shadow-lg shadow-blue-200">
+            🛍️
           </div>
 
-          {/* Right menu */}
-          <div className="flex items-center gap-4">
-            {/* Delivery */}
-            <div className="hidden text-sm text-gray-600 xl:block">
-              <span className="text-xs text-gray-400">Deliver to:</span>
+          <div>
+            <p className="text-lg font-black tracking-tight text-slate-950">
+              E-Shop
+            </p>
 
-              <div className="font-medium">🇪🇹 ET</div>
-            </div>
+            <p className="hidden text-[10px] font-bold uppercase tracking-widest text-slate-400 sm:block">
+              Shop smarter
+            </p>
+          </div>
+        </Link>
 
-            {/* Language */}
-            <button
-              type="button"
-              className="hidden text-sm font-medium text-gray-600 transition hover:text-orange-600 md:block"
-            >
-              🌐 English-ETB
-            </button>
+        {/* DESKTOP NAVIGATION */}
+        <nav className="hidden items-center gap-2 md:flex">
+          {navItems.map((item) => {
+            const active = pathname === item.href;
 
-            {/* Cart */}
-            <Link
-              href="/cart"
-              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-200 text-xl transition hover:border-orange-400 hover:text-orange-600"
-              aria-label="Shopping cart"
-            >
-              🛒
-              {cartCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                  active
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"
+                }`}
+              >
+                <span className="text-base">{item.icon}</span>
 
-            {/* Login / Logout */}
-            {isLoggedIn ? (
+                {item.name}
+
+                {item.name === "Cart" && cartCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* LOGIN / ACCOUNT */}
+        <div className="flex items-center gap-2">
+          {isLoggedIn ? (
+            <>
+              <Link
+                href="/profile"
+                className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:text-blue-600 sm:flex"
+              >
+                <span>👤</span>
+                Account
+              </Link>
+
               <button
                 type="button"
-                onClick={handleLogout}
-                className="rounded-full bg-red-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-600"
+                onClick={() => {
+                  localStorage.removeItem("accessToken");
+                  setIsLoggedIn(false);
+                  window.location.href = "/";
+                }}
+                className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-600"
               >
                 Logout
               </button>
-            ) : (
-              <Link
-                href="/login"
-                className="flex items-center gap-2 text-sm font-medium text-gray-700 transition hover:text-orange-600"
-              >
-                <span className="text-xl">👤</span>
-
-                <span className="hidden sm:inline">Sign in</span>
-              </Link>
-            )}
-
-            {/* Create account */}
-            {!isLoggedIn && (
-              <Link
-                href="/register"
-                className="hidden rounded-full bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 md:block"
-              >
-                Create account
-              </Link>
-            )}
-          </div>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+            >
+              <span>🔐</span>
+              Login
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* ========================================================
-          EVERYTHING BELOW IS HIDDEN ON CART PAGE
-      ======================================================== */}
+      {/* MOBILE NAVIGATION */}
+      <div className="border-t border-slate-100 md:hidden">
+        <div className="mx-auto flex max-w-7xl items-center justify-between overflow-x-auto px-4 py-2">
+          {navItems.map((item) => {
+            const active = pathname === item.href;
 
-      {!isCartPage && (
-        <>
-          {/* ====================================================
-              MAIN NAVIGATION
-          ==================================================== */}
-
-          <div className="border-b border-gray-100 bg-white">
-            <div className="mx-auto flex max-w-350 items-center justify-center gap-8 overflow-x-auto px-6 py-5">
-              <button
-                type="button"
-                className="whitespace-nowrap text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
-              >
-                AI Mode
-              </button>
-
-              <span className="h-7 w-px shrink-0 bg-gray-300" />
-
+            return (
               <Link
-                href="/products"
-                className={`whitespace-nowrap pb-2 text-2xl font-extrabold transition ${
-                  pathname.startsWith("/products")
-                    ? "border-b-[3px] border-orange-500 text-orange-600"
-                    : "text-gray-900 hover:text-orange-600"
+                key={item.href}
+                href={item.href}
+                className={`relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[11px] font-bold transition ${
+                  active
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-slate-500 hover:text-blue-600"
                 }`}
               >
-                Products
+                <span className="text-lg">{item.icon}</span>
+
+                {item.name}
+
+                {item.name === "Cart" && cartCount > 0 && (
+                  <span className="absolute right-1 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white">
+                    {cartCount}
+                  </span>
+                )}
               </Link>
+            );
+          })}
 
-              <Link
-                href="/products"
-                className="whitespace-nowrap text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
-              >
-                Manufacturers
-              </Link>
-
-              <Link
-                href="/products"
-                className="whitespace-nowrap text-2xl font-extrabold text-gray-900 transition hover:text-orange-600"
-              >
-                Worldwide
-              </Link>
-            </div>
-          </div>
-
-          {/* ====================================================
-              SEARCH AREA
-          ==================================================== */}
-
-          <div className="bg-linear-to-b from-white to-orange-50/30 px-6 pb-8 pt-5">
-            <div className="mx-auto max-w-240">
-              <form
-                onSubmit={handleSearch}
-                className="overflow-hidden rounded-2xl border-2 border-orange-500 bg-white shadow-lg"
-              >
-                {/* Search input */}
-                <div className="flex items-center px-5 pt-4">
-                  <span className="mr-3 text-xl text-gray-400">🔍</span>
-
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search products, suppliers, categories..."
-                    className="w-full bg-transparent text-base text-gray-800 outline-none placeholder:text-gray-400"
-                  />
-
-                  {search && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearch("");
-
-                        if (pathname === "/products") {
-                          router.push("/products");
-                        }
-                      }}
-                      className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm text-gray-500 transition hover:bg-gray-200"
-                      aria-label="Clear search"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
-                {/* Search bottom */}
-                <div className="flex items-center justify-between px-5 pb-4 pt-4">
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 text-sm font-semibold text-gray-700 transition hover:text-orange-600"
-                  >
-                    <span className="text-xl">🖼️</span>
-                    Image Search
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="rounded-full bg-linear-to-r from-orange-400 to-orange-600 px-8 py-3 font-bold text-white shadow-md transition hover:scale-[1.02] hover:shadow-lg"
-                  >
-                    🔍 Search
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-
-          {/* ====================================================
-              QUICK LINKS
-          ==================================================== */}
-
-          <div className="border-b border-gray-100 bg-white">
-            <div className="mx-auto flex max-w-350 items-center justify-center gap-8 overflow-x-auto px-6 py-4 text-sm font-semibold text-gray-700">
-              <Link
-                href="/products"
-                className="flex shrink-0 items-center gap-2 transition hover:text-orange-600"
-              >
-                📋 Request for Quotation
-              </Link>
-
-              <span className="h-5 w-px shrink-0 bg-gray-300" />
-
-              <Link
-                href="/products"
-                className="flex shrink-0 items-center gap-2 transition hover:text-orange-600"
-              >
-                🏆 Top Ranking
-              </Link>
-
-              <span className="h-5 w-px shrink-0 bg-gray-300" />
-
-              <Link
-                href="/products"
-                className="flex shrink-0 items-center gap-2 transition hover:text-orange-600"
-              >
-                🛠️ Fast customization
-              </Link>
-            </div>
-          </div>
-        </>
-      )}
+          {!isLoggedIn && (
+            <Link
+              href="/login"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-500 hover:text-blue-600"
+            >
+              <span className="text-lg">🔐</span>
+              Login
+            </Link>
+          )}
+        </div>
+      </div>
     </header>
   );
 }

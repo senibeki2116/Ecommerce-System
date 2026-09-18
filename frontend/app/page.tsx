@@ -40,6 +40,16 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
 
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // =========================================================
+  // CHECK LOGIN
+  // =========================================================
+
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    setIsLoggedIn(!!token);
+  }, []);
 
   // =========================================================
   // GET TOKEN
@@ -139,6 +149,16 @@ export default function HomePage() {
   }, []);
 
   // =========================================================
+  // LOGOUT
+  // =========================================================
+
+  const handleLogout = () => {
+    localStorage.removeItem("accessToken");
+    setIsLoggedIn(false);
+    window.location.href = "/";
+  };
+
+  // =========================================================
   // ADD TO CART
   // =========================================================
 
@@ -172,10 +192,7 @@ export default function HomePage() {
 
       const isCurrentlyWishlisted = wishlist.includes(productId);
 
-      // =====================================================
-      // REMOVE FROM WISHLIST
-      // =====================================================
-
+      // REMOVE
       if (isCurrentlyWishlisted) {
         const response = await fetch(`${API_URL}/wishlist/${productId}`, {
           method: "DELETE",
@@ -193,10 +210,7 @@ export default function HomePage() {
         return;
       }
 
-      // =====================================================
-      // ADD TO WISHLIST
-      // =====================================================
-
+      // ADD
       const response = await fetch(`${API_URL}/wishlist/${productId}`, {
         method: "POST",
         headers: {
@@ -283,20 +297,199 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* =====================================================
+          HEADER / NAVBAR
+      ===================================================== */}
+
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 md:px-8">
+          {/* LOGO */}
+
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl text-white shadow-lg shadow-blue-200">
+              🛍️
+            </div>
+
+            <div>
+              <p className="text-lg font-black tracking-tight text-slate-950">
+                E-Shop
+              </p>
+
+              <p className="hidden text-[10px] font-bold uppercase tracking-widest text-slate-400 sm:block">
+                Shop smarter
+              </p>
+            </div>
+          </Link>
+
+          {/* DESKTOP NAVIGATION */}
+
+          <nav className="hidden items-center gap-1 lg:flex">
+            {/* HOME */}
+
+            <Link
+              href="/"
+              className="rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-600 transition hover:bg-blue-100"
+            >
+              🏠 Home
+            </Link>
+
+            {/* PRODUCTS */}
+
+            <Link
+              href="/products"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
+            >
+              🛍️ Products
+            </Link>
+
+            {/* ORDERS */}
+
+            <Link
+              href="/orders"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
+            >
+              📦 Orders
+            </Link>
+
+            {/* WISHLIST */}
+
+            <Link
+              href="/wishlist"
+              className="relative rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-red-500"
+            >
+              ♥ Wishlist
+              {wishlist.length > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
+                  {wishlist.length}
+                </span>
+              )}
+            </Link>
+
+            {/* CART */}
+
+            <Link
+              href="/cart"
+              className="relative rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
+            >
+              🛒 Cart
+              {cartCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          </nav>
+
+          {/* LOGIN / ACCOUNT */}
+
+          <div className="flex items-center gap-2">
+            {isLoggedIn ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="hidden rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:text-blue-600 sm:block"
+                >
+                  👤 Account
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-600"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+              >
+                🔐 Login
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* =================================================
+            MOBILE NAVIGATION
+        ================================================= */}
+
+        <div className="border-t border-slate-100 lg:hidden">
+          <div className="mx-auto flex max-w-7xl items-center justify-between overflow-x-auto px-3 py-2">
+            <Link
+              href="/"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl bg-blue-50 px-4 py-2 text-[10px] font-bold text-blue-600"
+            >
+              <span className="text-lg">🏠</span>
+              Home
+            </Link>
+
+            <Link
+              href="/products"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+            >
+              <span className="text-lg">🛍️</span>
+              Products
+            </Link>
+
+            <Link
+              href="/orders"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+            >
+              <span className="text-lg">📦</span>
+              Orders
+            </Link>
+
+            <Link
+              href="/wishlist"
+              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-red-500"
+            >
+              <span className="text-lg">♥</span>
+              Wishlist
+              {wishlist.length > 0 && (
+                <span className="absolute right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] text-white">
+                  {wishlist.length}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              href="/cart"
+              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+            >
+              <span className="text-lg">🛒</span>
+              Cart
+              {cartCount > 0 && (
+                <span className="absolute right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] text-white">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+
+            {!isLoggedIn && (
+              <Link
+                href="/login"
+                className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+              >
+                <span className="text-lg">🔐</span>
+                Login
+              </Link>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* =====================================================
           HERO
       ===================================================== */}
 
       <section className="relative overflow-hidden bg-white">
-        {/* Background Decorations */}
-
         <div className="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-blue-100 blur-3xl" />
 
         <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-violet-100 blur-3xl" />
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 py-14 md:px-8 md:py-20 lg:grid-cols-2">
-          {/* =================================================
-              HERO LEFT
-          ================================================= */}
+          {/* HERO LEFT */}
 
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-600">
@@ -363,9 +556,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* =================================================
-              HERO RIGHT
-          ================================================= */}
+          {/* HERO RIGHT */}
 
           <div className="relative">
             <div className="overflow-hidden rounded-4xl border border-white bg-white p-3 shadow-2xl shadow-blue-100">
@@ -521,8 +712,6 @@ export default function HomePage() {
       ===================================================== */}
 
       <main className="mx-auto max-w-7xl px-5 py-12 md:px-8 md:py-16">
-        {/* PRODUCTS HEADER */}
-
         <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-black uppercase tracking-widest text-blue-600">
@@ -586,8 +775,6 @@ export default function HomePage() {
             ))}
           </div>
         ) : featuredProducts.length === 0 ? (
-          /* EMPTY */
-
           <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-4xl">
               🔍
@@ -608,8 +795,6 @@ export default function HomePage() {
             </button>
           </div>
         ) : (
-          /* PRODUCT GRID */
-
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {featuredProducts.map((product) => {
               const isWishlisted = wishlist.includes(product.id);
@@ -783,8 +968,6 @@ export default function HomePage() {
 
       <section className="border-t border-slate-200 bg-white">
         <div className="mx-auto grid max-w-7xl gap-5 px-5 py-12 md:grid-cols-3 md:px-8">
-          {/* DELIVERY */}
-
           <div className="rounded-3xl bg-blue-50 p-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-xl text-white">
               🚚
@@ -797,8 +980,6 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* QUALITY */}
-
           <div className="rounded-3xl bg-emerald-50 p-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 text-xl text-white">
               ✓
@@ -810,8 +991,6 @@ export default function HomePage() {
               Carefully selected products with quality and value in mind.
             </p>
           </div>
-
-          {/* SECURITY */}
 
           <div className="rounded-3xl bg-violet-50 p-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600 text-xl text-white">
