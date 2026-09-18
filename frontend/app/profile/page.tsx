@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useCart } from "../Context/CartContext";
 
 const API_URL = "http://localhost:3001";
 
@@ -12,26 +13,28 @@ type User = {
   role?: string;
 };
 
-type Order = {
-  id: string | number;
-  status: string;
-  total?: number;
-  createdAt?: string;
-};
-
 export default function ProfilePage() {
+  const { cartCount } = useCart();
+
   const [user, setUser] = useState<User | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
   const [wishlistCount, setWishlistCount] = useState(0);
-  const [cartCount, setCartCount] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [showSettings, setShowSettings] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
+  const [notifications, setNotifications] = useState(true);
+  const [emailUpdates, setEmailUpdates] = useState(true);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   useEffect(() => {
     loadProfile();
     loadWishlist();
-    loadCart();
   }, []);
 
   const loadProfile = async () => {
@@ -93,38 +96,11 @@ export default function ProfilePage() {
         setWishlistCount(data.length);
       } else if (Array.isArray(data?.items)) {
         setWishlistCount(data.items.length);
-      } else if (data?.items) {
-        setWishlistCount(Object.keys(data.items).length);
+      } else {
+        setWishlistCount(0);
       }
     } catch (err) {
       console.error("Wishlist error:", err);
-    }
-  };
-
-  const loadCart = () => {
-    try {
-      const savedCart = localStorage.getItem("cart");
-
-      if (!savedCart) {
-        setCartCount(0);
-        return;
-      }
-
-      const cart = JSON.parse(savedCart);
-
-      if (Array.isArray(cart)) {
-        setCartCount(cart.length);
-      } else if (typeof cart === "object") {
-        setCartCount(
-          Object.values(cart).reduce(
-            (total: number, quantity: unknown) => total + Number(quantity || 0),
-            0,
-          ),
-        );
-      }
-    } catch (err) {
-      console.error("Cart error:", err);
-      setCartCount(0);
     }
   };
 
@@ -133,17 +109,42 @@ export default function ProfilePage() {
     window.location.href = "/";
   };
 
+  const handleChangePassword = () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      alert("Please fill in all password fields.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      alert("New password must be at least 6 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert("New password and confirmation password do not match.");
+      return;
+    }
+
+    alert("Password validation successful.");
+
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+
+    setShowChangePassword(false);
+  };
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f5f9ff] px-4 py-10">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-8 h-10 w-64 animate-pulse rounded-xl bg-slate-200" />
-
-          <div className="h-72 animate-pulse rounded-4xl bg-white shadow-sm" />
-
-          <div className="mt-6 grid gap-6 lg:grid-cols-[260px_1fr]">
-            <div className="h-96 animate-pulse rounded-3xl bg-white" />
-            <div className="h-96 animate-pulse rounded-3xl bg-white" />
+      <main className="min-h-screen bg-slate-50 px-6 py-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex min-h-100 items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
+              <p className="font-semibold text-slate-500">
+                Loading your profile...
+              </p>
+            </div>
           </div>
         </div>
       </main>
@@ -152,26 +153,26 @@ export default function ProfilePage() {
 
   if (error || !user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f9ff] px-4">
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl shadow-blue-100/50">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-3xl">
+      <main className="min-h-screen bg-slate-50 px-6 py-20">
+        <div className="mx-auto max-w-2xl rounded-3xl bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-2xl">
             ⚠️
           </div>
 
           <h1 className="text-2xl font-black text-slate-900">
-            Profile unavailable
+            Unable to load profile
           </h1>
 
-          <p className="mt-2 text-sm text-slate-500">
-            {error || "We could not find your account information."}
+          <p className="mt-2 text-slate-500">
+            {error || "Your profile could not be found."}
           </p>
 
-          <Link
-            href="/login"
-            className="mt-6 inline-flex rounded-xl bg-blue-600 px-6 py-3 text-sm font-black text-white transition hover:bg-blue-700"
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-6 rounded-xl bg-blue-600 px-6 py-3 font-bold text-white transition hover:bg-blue-700"
           >
-            Go to Login
-          </Link>
+            Try Again
+          </button>
         </div>
       </main>
     );
@@ -185,415 +186,649 @@ export default function ProfilePage() {
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
-    <main className="min-h-screen bg-[#f5f9ff] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        {/* Top Heading */}
-        <div className="mb-7">
-          <p className="text-sm font-bold text-blue-600">ACCOUNT CENTER</p>
-
-          <div className="mt-1 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+    <>
+      <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          {/* ================= HEADER ================= */}
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                My Profile
+              <p className="text-sm font-bold uppercase tracking-wider text-blue-600">
+                My Account
+              </p>
+
+              <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+                Profile
               </h1>
 
-              <p className="mt-1 text-sm text-slate-500 sm:text-base">
-                Manage your account, orders and shopping preferences.
+              <p className="mt-2 text-slate-500">
+                Manage your account, orders and preferences.
               </p>
             </div>
 
-            <Link
-              href="/"
-              className="inline-flex w-fit items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
-            >
-              ← Back to Shop
-            </Link>
-          </div>
-        </div>
-
-        {/* Profile Hero */}
-        <section className="relative overflow-hidden rounded-4xl bg-white shadow-xl shadow-blue-100/50">
-          {/* Blue Cover */}
-          <div className="relative h-48 overflow-hidden bg-linear-to-br from-blue-700 via-blue-600 to-cyan-500 sm:h-56">
-            {/* Decorative circles */}
-            <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10" />
-            <div className="absolute right-24 top-12 h-32 w-32 rounded-full bg-white/10" />
-            <div className="absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-cyan-300/10" />
-
-            <div className="absolute inset-0 opacity-20">
-              <div className="h-full w-full bg-[radial-gradient(circle_at_20%_20%,white_1px,transparent_1px)] bg-size-[24px_24px]" />
-            </div>
-
-            <div className="absolute left-6 top-6 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold text-white backdrop-blur-md sm:left-8">
-              ✦ Premium Account
-            </div>
-          </div>
-
-          {/* Profile Content */}
-          <div className="relative px-6 pb-7 sm:px-8">
-            <div className="-mt-16 flex flex-col gap-6 sm:-mt-20 sm:flex-row sm:items-end sm:justify-between">
-              {/* Avatar + User */}
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-4xl border-[6px] border-white bg-linear-to-br from-blue-500 to-cyan-400 text-5xl font-black text-white shadow-2xl shadow-blue-200">
-                  {initial}
-                </div>
-
-                <div className="pb-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-black text-slate-950 sm:text-3xl">
-                      {displayName}
-                    </h2>
-
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-600">
-                      ✓ Active
-                    </span>
-                  </div>
-
-                  <p className="mt-1 text-sm text-slate-500">{displayEmail}</p>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-lg bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-blue-600">
-                      {displayRole}
-                    </span>
-
-                    <span className="text-xs font-semibold text-slate-400">
-                      ID: {String(displayId)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Edit Button */}
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700"
+            <div className="flex items-center gap-3">
+              <Link
+                href="/"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50"
               >
-                ✎ Edit Profile
+                ← Continue Shopping
+              </Link>
+
+              <button
+                onClick={() => setShowSettings(true)}
+                className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800"
+              >
+                ⚙ Settings
               </button>
             </div>
           </div>
-        </section>
 
-        {/* Main Dashboard */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-[250px_1fr]">
-          {/* Sidebar */}
-          <aside className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="px-3 pb-3 pt-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
-              My Account
-            </p>
-
-            <div className="space-y-1">
-              <Link
-                href="/profile"
-                className="flex items-center gap-3 rounded-2xl bg-blue-50 px-4 py-3.5 text-sm font-black text-blue-600"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white">
-                  👤
-                </span>
-                Profile
-              </Link>
-
-              <Link
-                href="/orders"
-                className="flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
-              >
-                <span className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100">
-                    📦
-                  </span>
-                  Orders
-                </span>
-
-                <span className="text-xs text-slate-400">→</span>
-              </Link>
-
-              <Link
-                href="/wishlist"
-                className="flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
-              >
-                <span className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-500">
-                    ♥
-                  </span>
-                  Wishlist
-                </span>
-
-                <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">
-                  {wishlistCount}
-                </span>
-              </Link>
-
-              <Link
-                href="/cart"
-                className="flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
-              >
-                <span className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    🛒
-                  </span>
-                  Cart
-                </span>
-
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-600">
-                  {cartCount}
-                </span>
-              </Link>
-            </div>
-
-            <div className="my-4 h-px bg-slate-100" />
-
-            <p className="px-3 pb-3 text-[11px] font-black uppercase tracking-widest text-slate-400">
-              Account
-            </p>
-
-            <button
-              type="button"
-              className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100">
-                ⚙️
-              </span>
-              Settings
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="mt-1 flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-bold text-red-500 transition hover:bg-red-50"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50">
-                ↪
-              </span>
-              Logout
-            </button>
-          </aside>
-
-          {/* Right Content */}
-          <section className="space-y-6">
-            {/* Welcome */}
-            <div className="relative overflow-hidden rounded-3xl bg-linear-to-r from-blue-600 to-cyan-500 p-6 text-white shadow-lg shadow-blue-100 sm:p-7">
-              <div className="relative z-10 max-w-xl">
-                <p className="text-sm font-bold text-blue-100">
-                  YOUR SHOPPING SPACE
-                </p>
-
-                <h2 className="mt-1 text-2xl font-black sm:text-3xl">
-                  Welcome back, {displayName.split(" ")[0]} 👋
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-blue-50">
-                  Everything you need for your shopping account is available
-                  here. Check your orders, wishlist and cart anytime.
-                </p>
-              </div>
-
-              <div className="absolute -right-10 -top-20 h-64 w-64 rounded-full border-40 border-white/10" />
-              <div className="absolute -bottom-24 right-20 h-48 w-48 rounded-full border-30 border-white/10" />
-            </div>
-
-            {/* Statistics */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Link
-                href="/orders"
-                className="group rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-100/50"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-xl">
-                    📦
+          {/* ================= PROFILE HERO ================= */}
+          <section className="mb-6 overflow-hidden rounded-3xl bg-linear-to-r from-blue-600 via-blue-500 to-cyan-500 shadow-lg">
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-5">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white text-3xl font-black text-blue-600 shadow-lg">
+                    {initial}
                   </div>
 
-                  <span className="text-slate-300 transition group-hover:text-blue-500">
-                    →
-                  </span>
-                </div>
-
-                <p className="mt-5 text-3xl font-black text-slate-950">
-                  {orders.length || 0}
-                </p>
-
-                <p className="mt-1 text-sm font-bold text-slate-500">
-                  Total Orders
-                </p>
-              </Link>
-
-              <Link
-                href="/wishlist"
-                className="group rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-pink-100/50"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pink-50 text-xl text-pink-500">
-                    ♥
-                  </div>
-
-                  <span className="text-slate-300 transition group-hover:text-pink-500">
-                    →
-                  </span>
-                </div>
-
-                <p className="mt-5 text-3xl font-black text-slate-950">
-                  {wishlistCount}
-                </p>
-
-                <p className="mt-1 text-sm font-bold text-slate-500">
-                  Wishlist Items
-                </p>
-              </Link>
-
-              <Link
-                href="/cart"
-                className="group rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-cyan-100/50"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-xl">
-                    🛒
-                  </div>
-
-                  <span className="text-slate-300 transition group-hover:text-cyan-500">
-                    →
-                  </span>
-                </div>
-
-                <p className="mt-5 text-3xl font-black text-slate-950">
-                  {cartCount}
-                </p>
-
-                <p className="mt-1 text-sm font-bold text-slate-500">
-                  Cart Items
-                </p>
-              </Link>
-            </div>
-
-            {/* Personal Information */}
-            <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm sm:p-7">
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-                    Account Details
-                  </p>
-
-                  <h2 className="mt-1 text-xl font-black text-slate-950">
-                    Personal Information
-                  </h2>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Your basic account information.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm font-black text-blue-600 transition hover:bg-blue-100"
-                >
-                  Edit
-                </button>
-              </div>
-
-              <div className="mt-7 grid gap-4 sm:grid-cols-2">
-                <InfoCard icon="👤" label="Full Name" value={displayName} />
-
-                <InfoCard
-                  icon="✉️"
-                  label="Email Address"
-                  value={displayEmail}
-                />
-
-                <InfoCard icon="🛡️" label="Account Role" value={displayRole} />
-
-                <InfoCard
-                  icon="#"
-                  label="Account ID"
-                  value={String(displayId)}
-                />
-              </div>
-            </div>
-
-            {/* Account Security */}
-            <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm sm:p-7">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                  🔐
-                </div>
-
-                <div>
-                  <h2 className="font-black text-slate-950">
-                    Account Security
-                  </h2>
-
-                  <p className="text-sm text-slate-500">
-                    Your account is protected with secure authentication.
-                  </p>
-                </div>
-
-                <div className="ml-auto hidden rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-600 sm:block">
-                  Protected
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-black text-slate-800">
-                      Password & Login
+                  <div className="text-white">
+                    <p className="mb-1 text-sm font-semibold text-blue-100">
+                      Welcome back
                     </p>
 
-                    <p className="mt-1 text-xs text-slate-500">
-                      Manage your login credentials and account access.
-                    </p>
-                  </div>
+                    <h2 className="text-2xl font-black sm:text-3xl">
+                      {displayName}
+                    </h2>
 
-                  <Link
-                    href="/login"
-                    className="rounded-xl bg-white px-4 py-2.5 text-xs font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:text-blue-600"
-                  >
-                    Manage
-                  </Link>
+                    <p className="mt-1 text-sm text-blue-100">{displayEmail}</p>
+
+                    <div className="mt-3 inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                      {displayRole}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white/10 p-5 backdrop-blur-sm">
+                  <p className="text-xs font-bold uppercase tracking-wide text-blue-100">
+                    Customer ID
+                  </p>
+
+                  <p className="mt-1 font-mono text-sm font-bold text-white">
+                    #{displayId}
+                  </p>
                 </div>
               </div>
             </div>
           </section>
-        </div>
 
-        {/* Footer */}
-        <div className="py-8 text-center">
-          <p className="text-xs font-semibold text-slate-400">
-            © 2026 E-Shop • Your shopping account
-          </p>
+          {/* ================= QUICK STATS ================= */}
+          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <InfoCard
+              icon="🛒"
+              title="Cart Items"
+              value={cartCount}
+              href="/cart"
+              description="Items waiting in your cart"
+            />
+
+            <InfoCard
+              icon="❤️"
+              title="Wishlist"
+              value={wishlistCount}
+              href="/wishlist"
+              description="Products you saved"
+            />
+
+            <InfoCard
+              icon="📦"
+              title="Orders"
+              value="View"
+              href="/orders"
+              description="Track your recent orders"
+            />
+          </section>
+
+          {/* ================= MAIN CONTENT ================= */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {/* LEFT SIDE */}
+            <aside className="space-y-6">
+              <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+                <h3 className="mb-4 text-sm font-black uppercase tracking-wide text-slate-400">
+                  Account Menu
+                </h3>
+
+                <div className="space-y-2">
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 font-bold text-blue-700"
+                  >
+                    <span>👤</span>
+                    <span>My Profile</span>
+                  </Link>
+
+                  <Link
+                    href="/orders"
+                    className="flex items-center gap-3 rounded-xl px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <span>📦</span>
+                    <span>My Orders</span>
+                  </Link>
+
+                  <Link
+                    href="/wishlist"
+                    className="flex items-center gap-3 rounded-xl px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <span>❤️</span>
+                    <span>Wishlist</span>
+
+                    {wishlistCount > 0 && (
+                      <span className="ml-auto rounded-full bg-pink-100 px-2 py-0.5 text-xs font-black text-pink-600">
+                        {wishlistCount}
+                      </span>
+                    )}
+                  </Link>
+
+                  <Link
+                    href="/cart"
+                    className="flex items-center gap-3 rounded-xl px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <span>🛒</span>
+                    <span>Shopping Cart</span>
+
+                    {cartCount > 0 && (
+                      <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-xs font-black text-blue-600">
+                        {cartCount}
+                      </span>
+                    )}
+                  </Link>
+                </div>
+              </div>
+
+              <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+                <h3 className="text-sm font-black uppercase tracking-wide text-slate-400">
+                  Security
+                </h3>
+
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Keep your account secure by using a strong password and
+                  protecting your login information.
+                </p>
+
+                <button
+                  onClick={() => {
+                    setShowSettings(true);
+                    setShowChangePassword(true);
+                  }}
+                  className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50"
+                >
+                  🔒 Change Password
+                </button>
+              </div>
+            </aside>
+
+            {/* RIGHT SIDE */}
+            <section className="space-y-6 lg:col-span-2">
+              {/* PERSONAL INFORMATION */}
+              <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-blue-600">
+                      Account Information
+                    </p>
+
+                    <h2 className="mt-1 text-2xl font-black text-slate-900">
+                      Personal Information
+                    </h2>
+                  </div>
+
+                  <div className="hidden h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-xl sm:flex">
+                    👤
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Full Name
+                    </p>
+
+                    <p className="mt-2 font-bold text-slate-900">
+                      {displayName}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Email Address
+                    </p>
+
+                    <p className="mt-2 break-all font-bold text-slate-900">
+                      {displayEmail}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Account Role
+                    </p>
+
+                    <p className="mt-2 font-bold uppercase text-slate-900">
+                      {displayRole}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                      User ID
+                    </p>
+
+                    <p className="mt-2 font-mono font-bold text-slate-900">
+                      {displayId}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ACCOUNT STATUS */}
+              <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-emerald-600">
+                      Account Status
+                    </p>
+
+                    <h2 className="mt-1 text-xl font-black text-slate-900">
+                      Your account is active
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      You can shop, manage your cart and place orders.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-600">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    Active
+                  </div>
+                </div>
+              </div>
+
+              {/* LOGOUT */}
+              <div className="rounded-3xl border border-red-100 bg-red-50 p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="font-black text-red-700">
+                      Sign out of your account
+                    </h3>
+
+                    <p className="mt-1 text-sm text-red-600/70">
+                      You can sign back in anytime using your email and
+                      password.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleLogout}
+                    className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+
+      {/* ========================================================= */}
+      {/* SMALL SETTINGS MODAL */}
+      {/* ========================================================= */}
+
+      {showSettings && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+          onClick={() => {
+            setShowSettings(false);
+            setShowChangePassword(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* SETTINGS HEADER */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-blue-600">
+                  Preferences
+                </p>
+
+                <h2 className="mt-0.5 text-xl font-black text-slate-900">
+                  Settings
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSettings(false);
+                  setShowChangePassword(false);
+                }}
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* SETTINGS CONTENT */}
+            {!showChangePassword ? (
+              <div className="space-y-3 p-4">
+                {/* ACCOUNT */}
+                <div className="rounded-xl border border-slate-100 p-3 transition hover:border-blue-100 hover:bg-blue-50/40">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-lg">
+                      👤
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-800">
+                        Account
+                      </p>
+
+                      <p className="truncate text-xs text-slate-400">
+                        {displayEmail}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* NOTIFICATIONS */}
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-lg">
+                      🔔
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-black text-slate-800">
+                        Notifications
+                      </p>
+
+                      <p className="text-xs text-slate-400">
+                        Receive app notifications
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setNotifications(!notifications)}
+                    className={`relative h-6 w-11 rounded-full transition ${
+                      notifications ? "bg-blue-600" : "bg-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${
+                        notifications ? "left-6" : "left-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* EMAIL */}
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-50 text-lg">
+                      ✉️
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-black text-slate-800">
+                        Email Updates
+                      </p>
+
+                      <p className="text-xs text-slate-400">
+                        Receive account emails
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setEmailUpdates(!emailUpdates)}
+                    className={`relative h-6 w-11 rounded-full transition ${
+                      emailUpdates ? "bg-blue-600" : "bg-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${
+                        emailUpdates ? "left-6" : "left-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* CHANGE PASSWORD */}
+                <button
+                  type="button"
+                  onClick={() => setShowChangePassword(true)}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-100 p-3 text-left transition hover:border-blue-200 hover:bg-blue-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 text-lg">
+                      🔒
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-black text-slate-800">
+                        Change Password
+                      </p>
+
+                      <p className="text-xs text-slate-400">
+                        Update your account password
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-lg text-slate-400">→</span>
+                </button>
+              </div>
+            ) : (
+              /* ========================================================= */
+              /* CHANGE PASSWORD */
+              /* ========================================================= */
+
+              <div className="p-4">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePassword(false)}
+                  className="mb-3 text-xs font-bold text-blue-600 hover:text-blue-700"
+                >
+                  ← Back to Settings
+                </button>
+
+                <div className="mb-4 rounded-xl bg-blue-50 p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
+                      🔒
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">
+                        Change Password
+                      </h3>
+
+                      <p className="text-xs text-slate-500">
+                        Keep your account secure
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {/* CURRENT PASSWORD */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                      Current Password
+                    </label>
+
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter current password"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  {/* NEW PASSWORD */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                      New Password
+                    </label>
+
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  {/* CONFIRM PASSWORD */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                      Confirm New Password
+                    </label>
+
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  {/* PASSWORD REQUIREMENTS */}
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="mb-1.5 text-xs font-black text-slate-700">
+                      Password requirements
+                    </p>
+
+                    <div className="space-y-1 text-xs">
+                      <p
+                        className={
+                          newPassword.length >= 6
+                            ? "font-semibold text-emerald-600"
+                            : "text-slate-400"
+                        }
+                      >
+                        {newPassword.length >= 6 ? "✓" : "○"} At least 6
+                        characters
+                      </p>
+
+                      <p
+                        className={
+                          newPassword &&
+                          confirmPassword &&
+                          newPassword === confirmPassword
+                            ? "font-semibold text-emerald-600"
+                            : "text-slate-400"
+                        }
+                      >
+                        {newPassword &&
+                        confirmPassword &&
+                        newPassword === confirmPassword
+                          ? "✓"
+                          : "○"}{" "}
+                        Passwords match
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* PASSWORD BUTTONS */}
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentPassword("");
+                      setNewPassword("");
+                      setConfirmPassword("");
+                      setShowChangePassword(false);
+                    }}
+                    className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleChangePassword}
+                    className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-blue-700"
+                  >
+                    Update Password
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* SETTINGS FOOTER */}
+            {!showChangePassword && (
+              <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(false)}
+                  className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-black text-white transition hover:bg-slate-800"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
-/* --------------------------------
-   Information Card
--------------------------------- */
-
 function InfoCard({
   icon,
-  label,
+  title,
   value,
+  href,
+  description,
 }: {
   icon: string;
-  label: string;
-  value: string;
+  title: string;
+  value: string | number;
+  href: string;
+  description: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 transition hover:border-blue-100 hover:bg-blue-50/40">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-sm shadow-sm">
+    <Link
+      href={href}
+      className="group rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-1 hover:shadow-md"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-xl">
           {icon}
         </div>
 
-        <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
-            {label}
-          </p>
-
-          <p className="mt-1 truncate text-sm font-black text-slate-800">
-            {value}
-          </p>
-        </div>
+        <span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-500">
+          →
+        </span>
       </div>
-    </div>
+
+      <p className="mt-4 text-xs font-black uppercase tracking-wide text-slate-400">
+        {title}
+      </p>
+
+      <p className="mt-1 text-2xl font-black text-slate-900">{value}</p>
+
+      <p className="mt-1 text-sm text-slate-500">{description}</p>
+    </Link>
   );
 }
