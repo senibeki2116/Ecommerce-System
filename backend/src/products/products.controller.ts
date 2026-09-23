@@ -12,7 +12,7 @@ import {
 
 import { ProductsService } from './products.service';
 
-import { CreateProductDto } from '../auth/dto/create-product.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 
 import { JwtAuthGuard } from '../auth/jwt-auth/jwt-auth.guard';
 

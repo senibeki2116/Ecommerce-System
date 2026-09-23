@@ -11,6 +11,7 @@ import { ProductsModule } from './products/products.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 import { ReviewModule } from './review/review.module';
+import { CategoryModule } from './category/category.module';
 @Module({
   imports: [
     PrismaModule,
@@ -21,6 +22,7 @@ import { ReviewModule } from './review/review.module';
     OrdersModule,
     WishlistModule,
     ReviewModule,
+    CategoryModule,
   ],
   controllers: [AppController, AdminController],
   providers: [AppService],

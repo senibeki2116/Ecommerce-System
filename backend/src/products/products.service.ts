@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
-import { CreateProductDto } from '../auth/dto/create-product.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -9,8 +9,24 @@ export class ProductsService {
 
   // CREATE PRODUCT
   async create(createProductDto: CreateProductDto) {
+    // Check category if one was provided
+    if (createProductDto.categoryId) {
+      const category = await this.prisma.category.findUnique({
+        where: {
+          id: createProductDto.categoryId,
+        },
+      });
+
+      if (!category) {
+        throw new NotFoundException('Category not found');
+      }
+    }
+
     return this.prisma.product.create({
       data: createProductDto,
+      include: {
+        category: true,
+      },
     });
   }
 
@@ -20,6 +36,9 @@ export class ProductsService {
       orderBy: {
         createdAt: 'desc',
       },
+      include: {
+        category: true,
+      },
     });
   }
 
@@ -27,6 +46,9 @@ export class ProductsService {
   async findOne(id: number) {
     const product = await this.prisma.product.findUnique({
       where: { id },
+      include: {
+        category: true,
+      },
     });
 
     if (!product) {
@@ -46,9 +68,25 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
+    // Check category if one was provided
+    if (updateProductDto.categoryId) {
+      const category = await this.prisma.category.findUnique({
+        where: {
+          id: updateProductDto.categoryId,
+        },
+      });
+
+      if (!category) {
+        throw new NotFoundException('Category not found');
+      }
+    }
+
     return this.prisma.product.update({
       where: { id },
       data: updateProductDto,
+      include: {
+        category: true,
+      },
     });
   }
 
