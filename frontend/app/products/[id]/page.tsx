@@ -65,6 +65,13 @@ export default function ProductDetailsPage() {
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewError, setReviewError] = useState("");
 
+  // Edit/Delete review state
+  const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
+  const [editRating, setEditRating] = useState(0);
+  const [editComment, setEditComment] = useState("");
+  const [reviewActionLoading, setReviewActionLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
   const id = params.id as string;
 
   // =========================
@@ -183,6 +190,171 @@ export default function ProductDetailsPage() {
   };
 
   // =========================
+  // CURRENT USER
+  // =========================
+
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      setCurrentUserId(null);
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const userId = Number(payload.sub ?? payload.userId ?? payload.id);
+      setCurrentUserId(Number.isFinite(userId) ? userId : null);
+    } catch (error) {
+      console.error("Unable to read logged-in user:", error);
+      setCurrentUserId(null);
+    }
+  }, []);
+
+  // =========================
+  // REFRESH REVIEWS
+  // =========================
+
+  const refreshReviews = async () => {
+    try {
+      const response = await fetch(`${API_URL}/reviews/product/${id}`);
+      if (!response.ok) throw new Error("Unable to refresh reviews");
+
+      const data: ReviewResponse = await response.json();
+      setReviews(data.reviews || []);
+      setAverageRating(data.averageRating || 0);
+      setTotalReviews(data.totalReviews || 0);
+    } catch (error) {
+      console.error("Review refresh error:", error);
+    }
+  };
+
+  // =========================
+  // EDIT REVIEW
+  // =========================
+
+  const startEditingReview = (review: Review) => {
+    setEditingReviewId(review.id);
+    setEditRating(review.rating);
+    setEditComment(review.comment);
+    setReviewError("");
+    setReviewMessage("");
+  };
+
+  const cancelEditingReview = () => {
+    setEditingReviewId(null);
+    setEditRating(0);
+    setEditComment("");
+  };
+
+  const saveEditedReview = async (reviewId: number) => {
+    setReviewError("");
+    setReviewMessage("");
+
+    const token = localStorage.getItem("accessToken");
+
+    if (!token) {
+      setReviewError("Please login to edit your review.");
+      return;
+    }
+
+    if (editRating === 0) {
+      setReviewError("Please select a rating.");
+      return;
+    }
+
+    if (!editComment.trim()) {
+      setReviewError("Please write a review.");
+      return;
+    }
+
+    try {
+      setReviewActionLoading(true);
+
+      const response = await fetch(`${API_URL}/reviews/${reviewId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          rating: editRating,
+          comment: editComment.trim(),
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Unable to update review.");
+      }
+
+      await refreshReviews();
+      cancelEditingReview();
+      setReviewMessage("Your review was updated successfully! ⭐");
+    } catch (error) {
+      console.error("Update review error:", error);
+      setReviewError(
+        error instanceof Error ? error.message : "Unable to update review.",
+      );
+    } finally {
+      setReviewActionLoading(false);
+    }
+  };
+
+  // =========================
+  // DELETE REVIEW
+  // =========================
+
+  const deleteReview = async (reviewId: number) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete your review? This action cannot be undone.",
+    );
+
+    if (!confirmed) return;
+
+    setReviewError("");
+    setReviewMessage("");
+
+    const token = localStorage.getItem("accessToken");
+
+    if (!token) {
+      setReviewError("Please login to delete your review.");
+      return;
+    }
+
+    try {
+      setReviewActionLoading(true);
+
+      const response = await fetch(`${API_URL}/reviews/${reviewId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Unable to delete review.");
+      }
+
+      if (editingReviewId === reviewId) {
+        cancelEditingReview();
+      }
+
+      await refreshReviews();
+      setReviewMessage("Your review was deleted successfully.");
+    } catch (error) {
+      console.error("Delete review error:", error);
+      setReviewError(
+        error instanceof Error ? error.message : "Unable to delete review.",
+      );
+    } finally {
+      setReviewActionLoading(false);
+    }
+  };
+
+  // =========================
   // SUBMIT REVIEW
   // =========================
 
@@ -233,16 +405,7 @@ export default function ProductDetailsPage() {
       setSelectedRating(0);
       setReviewComment("");
 
-      // Refresh reviews
-      const reviewsResponse = await fetch(`${API_URL}/reviews/product/${id}`);
-
-      if (reviewsResponse.ok) {
-        const reviewsData: ReviewResponse = await reviewsResponse.json();
-
-        setReviews(reviewsData.reviews || []);
-        setAverageRating(reviewsData.averageRating || 0);
-        setTotalReviews(reviewsData.totalReviews || 0);
-      }
+      await refreshReviews();
     } catch (error) {
       console.error(error);
 
@@ -833,31 +996,135 @@ export default function ProductDetailsPage() {
                         key={review.id}
                         className="rounded-3xl border border-slate-100 bg-white p-5 transition hover:border-blue-100 hover:shadow-md"
                       >
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-indigo-600 font-black text-white">
-                              {review.user.name.charAt(0).toUpperCase()}
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-indigo-600 font-black text-white">
+                              {(review.user?.name || "U")
+                                .charAt(0)
+                                .toUpperCase()}
                             </div>
 
                             <div>
-                              <h3 className="font-black text-slate-900">
-                                {review.user.name}
-                              </h3>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="font-black text-slate-900">
+                                  {review.user?.name || "Customer"}
+                                </h3>
+
+                                {currentUserId === review.userId && (
+                                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-blue-600">
+                                    Your review
+                                  </span>
+                                )}
+                              </div>
 
                               <p className="text-xs text-slate-400">
                                 {new Date(
                                   review.createdAt,
                                 ).toLocaleDateString()}
+                                {review.updatedAt !== review.createdAt &&
+                                  " • Edited"}
                               </p>
                             </div>
                           </div>
 
-                          {renderStars(review.rating)}
+                          {!editingReviewId || editingReviewId !== review.id ? (
+                            <div className="shrink-0">
+                              {renderStars(review.rating)}
+                            </div>
+                          ) : null}
                         </div>
 
-                        <p className="mt-4 leading-7 text-slate-600">
-                          {review.comment}
-                        </p>
+                        {editingReviewId === review.id ? (
+                          <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                            <p className="mb-3 text-sm font-black text-slate-700">
+                              Edit your rating
+                            </p>
+
+                            <div className="flex gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={() => setEditRating(star)}
+                                  disabled={reviewActionLoading}
+                                  className="text-3xl transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                                  aria-label={`${star} star`}
+                                >
+                                  <span
+                                    className={
+                                      star <= editRating
+                                        ? "text-yellow-400"
+                                        : "text-slate-300"
+                                    }
+                                  >
+                                    ★
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+
+                            <textarea
+                              value={editComment}
+                              onChange={(event) =>
+                                setEditComment(event.target.value)
+                              }
+                              rows={4}
+                              disabled={reviewActionLoading}
+                              className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:opacity-60"
+                              placeholder="Update your review..."
+                            />
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => saveEditedReview(review.id)}
+                                disabled={reviewActionLoading}
+                                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {reviewActionLoading
+                                  ? "Saving..."
+                                  : "✓ Save Changes"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={cancelEditingReview}
+                                disabled={reviewActionLoading}
+                                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="mt-4 leading-7 text-slate-600">
+                              {review.comment}
+                            </p>
+
+                            {currentUserId === review.userId && (
+                              <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingReview(review)}
+                                  disabled={reviewActionLoading}
+                                  className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-black text-blue-600 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  ✏️ Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => deleteReview(review.id)}
+                                  disabled={reviewActionLoading}
+                                  className="rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-xs font-black text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>

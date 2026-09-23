@@ -14,6 +14,11 @@ type Product = {
   image?: string | null;
 };
 
+type Rating = {
+  totalReviews: number;
+  averageRating: number;
+};
+
 const API_URL = "http://localhost:3001";
 
 export default function ProductsPage() {
@@ -34,6 +39,67 @@ export default function ProductsPage() {
   // Real wishlist state
   const [wishlist, setWishlist] = useState<number[]>([]);
   const [wishlistLoading, setWishlistLoading] = useState<number | null>(null);
+
+  // Real product ratings
+  const [ratings, setRatings] = useState<Record<number, Rating>>({});
+
+  // =====================================================
+  // FETCH RATINGS
+  // =====================================================
+
+  const fetchRatings = async (productList: Product[]) => {
+    try {
+      const ratingEntries = await Promise.all(
+        productList.map(async (product) => {
+          try {
+            const response = await fetch(
+              `${API_URL}/reviews/product/${product.id}`,
+              {
+                cache: "no-store",
+              },
+            );
+
+            if (!response.ok) {
+              return [
+                product.id,
+                {
+                  totalReviews: 0,
+                  averageRating: 0,
+                },
+              ] as const;
+            }
+
+            const data = await response.json();
+
+            return [
+              product.id,
+              {
+                totalReviews: Number(data?.totalReviews || 0),
+                averageRating: Number(data?.averageRating || 0),
+              },
+            ] as const;
+          } catch (error) {
+            console.error(
+              `Failed to load rating for product ${product.id}:`,
+              error,
+            );
+
+            return [
+              product.id,
+              {
+                totalReviews: 0,
+                averageRating: 0,
+              },
+            ] as const;
+          }
+        }),
+      );
+
+      setRatings(Object.fromEntries(ratingEntries));
+    } catch (error) {
+      console.error("Rating loading error:", error);
+    }
+  };
 
   // =====================================================
   // FETCH PRODUCTS
@@ -63,6 +129,9 @@ export default function ProductsPage() {
             : [];
 
       setProducts(productList);
+
+      // Fetch real ratings after products load
+      fetchRatings(productList);
     } catch (err) {
       console.error(err);
 
@@ -256,6 +325,7 @@ export default function ProductsPage() {
       });
     } catch (err) {
       console.error("Wishlist error:", err);
+
       alert(err instanceof Error ? err.message : "Could not update wishlist");
     } finally {
       setWishlistLoading(null);
@@ -274,6 +344,10 @@ export default function ProductsPage() {
       window.history.replaceState({}, "", "/products");
     }
   };
+
+  // =====================================================
+  // RENDER
+  // =====================================================
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
@@ -531,6 +605,10 @@ export default function ProductsPage() {
               const isAdded = addedProductId === product.id;
               const isWishlistLoading = wishlistLoading === product.id;
 
+              const rating = ratings[product.id];
+              const averageRating = rating?.averageRating || 0;
+              const totalReviews = rating?.totalReviews || 0;
+
               return (
                 <article
                   key={product.id}
@@ -617,16 +695,32 @@ export default function ProductsPage() {
                   {/* ================= CONTENT ================= */}
 
                   <div className="p-5">
-                    {/* Rating */}
+                    {/* REAL RATING */}
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       <span className="text-sm tracking-wide text-amber-400">
-                        ★★★★★
+                        {Array.from({ length: 5 }).map((_, index) => (
+                          <span key={index}>
+                            {index < Math.round(averageRating) ? "★" : "☆"}
+                          </span>
+                        ))}
                       </span>
 
-                      <span className="ml-1 text-xs font-semibold text-slate-400">
-                        4.8
-                      </span>
+                      {totalReviews > 0 ? (
+                        <>
+                          <span className="text-xs font-bold text-slate-600">
+                            {averageRating.toFixed(1)}
+                          </span>
+
+                          <span className="text-xs text-slate-400">
+                            ({totalReviews})
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-400">
+                          No reviews
+                        </span>
+                      )}
                     </div>
 
                     {/* Name */}

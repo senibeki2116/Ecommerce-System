@@ -28,6 +28,25 @@ export class ReviewService {
       throw new NotFoundException('Product not found');
     }
 
+    // Check if the user purchased this product
+    const purchasedProduct = await this.prisma.orderItem.findFirst({
+      where: {
+        productId,
+        order: {
+          userId,
+          status: {
+            not: 'CANCELLED',
+          },
+        },
+      },
+    });
+
+    if (!purchasedProduct) {
+      throw new ForbiddenException(
+        'You can only review products you have purchased',
+      );
+    }
+
     // Check if user already reviewed this product
     const existingReview = await this.prisma.review.findUnique({
       where: {
@@ -42,6 +61,7 @@ export class ReviewService {
       throw new ConflictException('You have already reviewed this product');
     }
 
+    // Create review
     return this.prisma.review.create({
       data: {
         rating: createReviewDto.rating,
