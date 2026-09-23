@@ -2,6 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+type Category = {
+  id: number;
+  name: string;
+  image?: string | null;
+  _count?: {
+    products: number;
+  };
+};
 
 type Product = {
   id: number;
@@ -10,13 +20,20 @@ type Product = {
   price: number;
   stock: number;
   image?: string | null;
+  categoryId?: number | null;
+  category?: Category | null;
 };
 
 const API_URL = "http://localhost:3001";
 
 export default function AdminProductsPage() {
+  const router = useRouter();
+
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
@@ -29,14 +46,36 @@ export default function AdminProductsPage() {
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
   const [image, setImage] = useState("");
+  const [categoryId, setCategoryId] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const getCurrentUser = () => {
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (!storedUser) return null;
+      return JSON.parse(storedUser) as { role?: string } | null;
+    } catch {
+      return null;
+    }
+  };
+
+  // =========================================================
+  // FETCH PRODUCTS
+  // =========================================================
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       setError("");
+
+      const currentUser = getCurrentUser();
+      if (!currentUser || currentUser.role !== "ADMIN") {
+        setError("Access denied. Please login with an ADMIN account.");
+        setLoading(false);
+        return;
+      }
 
       const response = await fetch(`${API_URL}/products`);
 
@@ -63,9 +102,57 @@ export default function AdminProductsPage() {
     }
   };
 
+  // =========================================================
+  // FETCH CATEGORIES
+  // =========================================================
+
+  const fetchCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+
+      const response = await fetch(`${API_URL}/categories`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load categories");
+      }
+
+      const data = await response.json();
+
+      const categoryList = Array.isArray(data)
+        ? data
+        : Array.isArray(data.categories)
+          ? data.categories
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+
+      setCategories(categoryList);
+    } catch (err) {
+      console.error(err);
+      setError("Could not load categories.");
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
   useEffect(() => {
+    const currentUser = getCurrentUser();
+
+    if (!currentUser || currentUser.role !== "ADMIN") {
+      setError("Access denied. Please login with an ADMIN account.");
+      setLoading(false);
+      setCategoriesLoading(false);
+      router.push("/login");
+      return;
+    }
+
     fetchProducts();
-  }, []);
+    fetchCategories();
+  }, [router]);
+
+  // =========================================================
+  // SEARCH
+  // =========================================================
 
   const filteredProducts = useMemo(() => {
     const value = search.toLowerCase().trim();
@@ -75,9 +162,14 @@ export default function AdminProductsPage() {
     return products.filter(
       (product) =>
         product.name.toLowerCase().includes(value) ||
-        product.description.toLowerCase().includes(value),
+        product.description.toLowerCase().includes(value) ||
+        product.category?.name?.toLowerCase().includes(value),
     );
   }, [products, search]);
+
+  // =========================================================
+  // STATISTICS
+  // =========================================================
 
   const totalProducts = products.length;
 
@@ -90,18 +182,34 @@ export default function AdminProductsPage() {
     0,
   );
 
+  // =========================================================
+  // RESET FORM
+  // =========================================================
+
   const resetForm = () => {
     setName("");
     setDescription("");
     setPrice("");
     setStock("");
     setImage("");
+    setCategoryId("");
     setEditingProduct(null);
     setShowForm(false);
   };
 
+  // =========================================================
+  // OPEN ADD FORM
+  // =========================================================
+
   const openAddForm = () => {
-    resetForm();
+    setEditingProduct(null);
+    setName("");
+    setDescription("");
+    setPrice("");
+    setStock("");
+    setImage("");
+    setCategoryId("");
+    setError("");
     setShowForm(true);
 
     setTimeout(() => {
@@ -112,13 +220,28 @@ export default function AdminProductsPage() {
     }, 100);
   };
 
+  // =========================================================
+  // OPEN EDIT FORM
+  // =========================================================
+
   const openEditForm = (product: Product) => {
     setEditingProduct(product);
+
     setName(product.name);
     setDescription(product.description);
     setPrice(String(product.price));
     setStock(String(product.stock));
     setImage(product.image || "");
+
+    setCategoryId(
+      product.categoryId
+        ? String(product.categoryId)
+        : product.category?.id
+          ? String(product.category.id)
+          : "",
+    );
+
+    setError("");
     setShowForm(true);
 
     setTimeout(() => {
@@ -129,18 +252,35 @@ export default function AdminProductsPage() {
     }, 100);
   };
 
+  // =========================================================
+  // SAVE PRODUCT
+  // =========================================================
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const currentUser = getCurrentUser();
+    if (!currentUser || currentUser.role !== "ADMIN") {
+      setError("Access denied. Please login with an ADMIN account.");
+      router.push("/login");
+      return;
+    }
 
     const token = localStorage.getItem("accessToken");
 
     if (!token) {
       setError("Please login as an admin first.");
+      router.push("/login");
       return;
     }
 
     if (Number(price) < 0 || Number(stock) < 0) {
       setError("Price and stock cannot be negative.");
+      return;
+    }
+
+    if (!categoryId) {
+      setError("Please select a category.");
       return;
     }
 
@@ -154,6 +294,7 @@ export default function AdminProductsPage() {
         price: Number(price),
         stock: Number(stock),
         image: image.trim() || null,
+        categoryId: Number(categoryId),
       };
 
       const url = editingProduct
@@ -186,6 +327,10 @@ export default function AdminProductsPage() {
     }
   };
 
+  // =========================================================
+  // DELETE PRODUCT
+  // =========================================================
+
   const handleDelete = async (id: number) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this product?",
@@ -193,10 +338,18 @@ export default function AdminProductsPage() {
 
     if (!confirmed) return;
 
+    const currentUser = getCurrentUser();
+    if (!currentUser || currentUser.role !== "ADMIN") {
+      setError("Access denied. Please login with an ADMIN account.");
+      router.push("/login");
+      return;
+    }
+
     const token = localStorage.getItem("accessToken");
 
     if (!token) {
       setError("Please login as an admin first.");
+      router.push("/login");
       return;
     }
 
@@ -227,7 +380,10 @@ export default function AdminProductsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* Desktop Sidebar */}
+      {/* =====================================================
+          DESKTOP SIDEBAR
+      ====================================================== */}
+
       <aside className="fixed left-0 top-0 hidden h-screen w-64 bg-slate-950 text-white lg:block">
         <div className="border-b border-slate-800 px-6 py-7">
           <div className="flex items-center gap-3">
@@ -287,7 +443,10 @@ export default function AdminProductsPage() {
         </nav>
       </aside>
 
-      {/* Main */}
+      {/* =====================================================
+          MAIN
+      ====================================================== */}
+
       <main className="lg:ml-64">
         {/* Header */}
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-5 py-5 backdrop-blur md:px-8">
@@ -304,7 +463,7 @@ export default function AdminProductsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Manage your store inventory and products.
+                Manage your store inventory, products and categories.
               </p>
             </div>
 
@@ -318,12 +477,15 @@ export default function AdminProductsPage() {
         </header>
 
         <div className="p-5 md:p-8">
-          {/* Error */}
+          {/* =====================================================
+              ERROR
+          ====================================================== */}
+
           {error && (
             <div className="mb-6 flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
               <div>
                 <p className="font-bold">Something went wrong</p>
-                <p className="mt-1">{error}</p>
+                <p className="mt-1 wrap-break-word">{error}</p>
               </div>
 
               <button
@@ -335,7 +497,10 @@ export default function AdminProductsPage() {
             </div>
           )}
 
-          {/* Stats */}
+          {/* =====================================================
+              STATS
+          ====================================================== */}
+
           <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
@@ -356,6 +521,7 @@ export default function AdminProductsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-500">In Stock</p>
+
                   <p className="mt-2 text-3xl font-black text-emerald-600">
                     {inStock}
                   </p>
@@ -373,6 +539,7 @@ export default function AdminProductsPage() {
                   <p className="text-sm font-medium text-slate-500">
                     Out of Stock
                   </p>
+
                   <p className="mt-2 text-3xl font-black text-red-600">
                     {outOfStock}
                   </p>
@@ -390,6 +557,7 @@ export default function AdminProductsPage() {
                   <p className="text-sm font-medium text-slate-500">
                     Inventory Value
                   </p>
+
                   <p className="mt-2 text-2xl font-black text-slate-900">
                     ${totalInventoryValue.toFixed(0)}
                   </p>
@@ -402,7 +570,10 @@ export default function AdminProductsPage() {
             </div>
           </div>
 
-          {/* Form */}
+          {/* =====================================================
+              FORM
+          ====================================================== */}
+
           {showForm && (
             <div
               id="product-form"
@@ -433,6 +604,7 @@ export default function AdminProductsPage() {
                 onSubmit={handleSubmit}
                 className="grid grid-cols-1 gap-5 p-6 md:grid-cols-2 md:p-8"
               >
+                {/* Product Name */}
                 <div>
                   <label className="mb-2 block text-sm font-bold">
                     Product Name
@@ -447,6 +619,40 @@ export default function AdminProductsPage() {
                   />
                 </div>
 
+                {/* Category */}
+                <div>
+                  <label className="mb-2 block text-sm font-bold">
+                    Category
+                  </label>
+
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    required
+                    disabled={categoriesLoading}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                    <option value="">
+                      {categoriesLoading
+                        ? "Loading categories..."
+                        : "Select a category"}
+                    </option>
+
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {!categoriesLoading && categories.length === 0 && (
+                    <p className="mt-2 text-xs font-medium text-red-500">
+                      No categories found. Create a category first.
+                    </p>
+                  )}
+                </div>
+
+                {/* Image */}
                 <div>
                   <label className="mb-2 block text-sm font-bold">
                     Image URL
@@ -460,8 +666,9 @@ export default function AdminProductsPage() {
                   />
                 </div>
 
+                {/* Image Preview */}
                 {image && (
-                  <div className="md:col-span-2">
+                  <div>
                     <p className="mb-2 text-sm font-bold">Image Preview</p>
 
                     <div className="flex h-40 w-40 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
@@ -477,6 +684,7 @@ export default function AdminProductsPage() {
                   </div>
                 )}
 
+                {/* Description */}
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-bold">
                     Description
@@ -492,6 +700,7 @@ export default function AdminProductsPage() {
                   />
                 </div>
 
+                {/* Price */}
                 <div>
                   <label className="mb-2 block text-sm font-bold">Price</label>
 
@@ -507,6 +716,7 @@ export default function AdminProductsPage() {
                   />
                 </div>
 
+                {/* Stock */}
                 <div>
                   <label className="mb-2 block text-sm font-bold">Stock</label>
 
@@ -521,10 +731,11 @@ export default function AdminProductsPage() {
                   />
                 </div>
 
+                {/* Buttons */}
                 <div className="flex flex-col gap-3 sm:flex-row md:col-span-2">
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || categories.length === 0}
                     className="rounded-2xl bg-blue-600 px-7 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {saving
@@ -546,11 +757,15 @@ export default function AdminProductsPage() {
             </div>
           )}
 
-          {/* Product List */}
+          {/* =====================================================
+              PRODUCT LIST
+          ====================================================== */}
+
           <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
             <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-6 md:flex-row md:items-center md:justify-between md:px-8">
               <div>
                 <h3 className="text-xl font-black">All Products</h3>
+
                 <p className="mt-1 text-sm text-slate-500">
                   {filteredProducts.length} product
                   {filteredProducts.length !== 1 ? "s" : ""} displayed
@@ -571,9 +786,11 @@ export default function AdminProductsPage() {
               </div>
             </div>
 
+            {/* Loading */}
             {loading ? (
               <div className="p-14 text-center">
                 <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+
                 <p className="mt-4 text-sm font-medium text-slate-500">
                   Loading products...
                 </p>
@@ -594,12 +811,16 @@ export default function AdminProductsPage() {
               </div>
             ) : (
               <>
-                {/* Desktop Table */}
+                {/* =====================================================
+                    DESKTOP TABLE
+                ====================================================== */}
+
                 <div className="hidden overflow-x-auto md:block">
                   <table className="w-full">
                     <thead className="bg-slate-50 text-left text-sm text-slate-500">
                       <tr>
                         <th className="px-6 py-4 font-bold">Product</th>
+                        <th className="px-6 py-4 font-bold">Category</th>
                         <th className="px-6 py-4 font-bold">Price</th>
                         <th className="px-6 py-4 font-bold">Stock</th>
                         <th className="px-6 py-4 font-bold">Status</th>
@@ -615,6 +836,7 @@ export default function AdminProductsPage() {
                           key={product.id}
                           className="transition hover:bg-slate-50"
                         >
+                          {/* Product */}
                           <td className="px-6 py-5">
                             <div className="flex items-center gap-4">
                               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
@@ -625,11 +847,13 @@ export default function AdminProductsPage() {
                                     className="h-full w-full object-cover"
                                     onError={(e) => {
                                       e.currentTarget.style.display = "none";
+
                                       e.currentTarget.parentElement?.classList.add(
                                         "flex",
                                         "items-center",
                                         "justify-center",
                                       );
+
                                       if (e.currentTarget.parentElement) {
                                         e.currentTarget.parentElement.innerText =
                                           "📦";
@@ -653,14 +877,30 @@ export default function AdminProductsPage() {
                             </div>
                           </td>
 
+                          {/* Category */}
+                          <td className="px-6 py-5">
+                            {product.category ? (
+                              <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                                {product.category.name}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-slate-400">
+                                No category
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Price */}
                           <td className="px-6 py-5 font-bold">
                             ${Number(product.price).toFixed(2)}
                           </td>
 
+                          {/* Stock */}
                           <td className="px-6 py-5 font-semibold">
                             {product.stock}
                           </td>
 
+                          {/* Status */}
                           <td className="px-6 py-5">
                             {product.stock > 0 ? (
                               <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700">
@@ -673,6 +913,7 @@ export default function AdminProductsPage() {
                             )}
                           </td>
 
+                          {/* Actions */}
                           <td className="px-6 py-5">
                             <div className="flex justify-end gap-2">
                               <button
@@ -701,7 +942,10 @@ export default function AdminProductsPage() {
                   </table>
                 </div>
 
-                {/* Mobile Cards */}
+                {/* =====================================================
+                    MOBILE CARDS
+                ====================================================== */}
+
                 <div className="grid gap-4 p-4 md:hidden">
                   {filteredProducts.map((product) => (
                     <div
@@ -734,6 +978,21 @@ export default function AdminProductsPage() {
                             ${Number(product.price).toFixed(2)}
                           </p>
                         </div>
+                      </div>
+
+                      {/* Mobile Category */}
+                      <div className="mt-4">
+                        <p className="text-xs text-slate-400">Category</p>
+
+                        {product.category ? (
+                          <span className="mt-1 inline-block rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                            {product.category.name}
+                          </span>
+                        ) : (
+                          <p className="mt-1 text-sm text-slate-400">
+                            No category
+                          </p>
+                        )}
                       </div>
 
                       <div className="mt-4 flex items-center justify-between">
