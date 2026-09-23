@@ -79,3 +79,8 @@ export type Wishlist = Prisma.WishlistModel
  * 
  */
 export type WishlistItem = Prisma.WishlistItemModel
+/**
+ * Model Review
+ * 
+ */
+export type Review = Prisma.ReviewModel

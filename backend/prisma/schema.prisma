@@ -1,3 +1,4 @@
+
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -27,32 +28,40 @@ model User {
   email     String   @unique
   password  String
   role      Role     @default(CUSTOMER)
+
   cart      Cart?
   wishlist  Wishlist?
   orders    Order[]
+  reviews   Review[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Product {
-  id          Int         @id @default(autoincrement())
-  name        String
-  description String
-  price       Float
-  stock       Int         @default(0)
-  image       String?
-  cartItems   CartItem[]
-  orderItems  OrderItem[]
+  id            Int            @id @default(autoincrement())
+  name          String
+  description   String
+  price         Float
+  stock         Int            @default(0)
+  image         String?
+
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
   wishlistItems WishlistItem[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  reviews       Review[]
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Cart {
   id        Int        @id @default(autoincrement())
   userId    Int        @unique
+
   user      User       @relation(fields: [userId], references: [id])
   items     CartItem[]
+
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
@@ -74,8 +83,10 @@ model Order {
   userId    Int
   status    OrderStatus @default(PENDING)
   total     Float
+
   user      User        @relation(fields: [userId], references: [id])
   items     OrderItem[]
+
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 }
@@ -92,11 +103,14 @@ model OrderItem {
 
   @@unique([orderId, productId])
 }
+
 model Wishlist {
   id        Int            @id @default(autoincrement())
   userId    Int            @unique
+
   user      User           @relation(fields: [userId], references: [id])
   items     WishlistItem[]
+
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
@@ -113,3 +127,20 @@ model WishlistItem {
 
   @@unique([wishlistId, productId])
 }
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  rating    Int
+  comment   String
+  userId    Int
+  productId Int
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+}
+

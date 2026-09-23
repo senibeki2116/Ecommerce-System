@@ -10,6 +10,7 @@ import { AdminController } from './admin/admin.controller';
 import { ProductsModule } from './products/products.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
+import { ReviewModule } from './review/review.module';
 @Module({
   imports: [
     PrismaModule,
@@ -19,6 +20,7 @@ import { OrdersModule } from './orders/orders.module';
     CartModule,
     OrdersModule,
     WishlistModule,
+    ReviewModule,
   ],
   controllers: [AppController, AdminController],
   providers: [AppService],
