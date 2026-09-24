@@ -1,0 +1,14 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "address" TEXT,
+ADD COLUMN     "city" TEXT,
+ADD COLUMN     "country" TEXT,
+ADD COLUMN     "deliveryInstructions" TEXT,
+ADD COLUMN     "discount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "email" TEXT,
+ADD COLUMN     "firstName" TEXT,
+ADD COLUMN     "lastName" TEXT,
+ADD COLUMN     "paymentMethod" TEXT,
+ADD COLUMN     "phone" TEXT,
+ADD COLUMN     "shipping" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "subtotal" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "tax" DOUBLE PRECISION NOT NULL DEFAULT 0;

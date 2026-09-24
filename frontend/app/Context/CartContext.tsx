@@ -16,7 +16,7 @@ type Product = {
   oldPrice?: number;
   rating?: number;
   reviews?: number;
-  category?: string;
+  category?: string | { id?: number; name?: string } | null;
   image?: string | null;
   images?: string[];
   imageUrl?: string | null;

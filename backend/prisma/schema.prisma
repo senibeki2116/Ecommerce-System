@@ -94,8 +94,40 @@ model Order {
   id        Int         @id @default(autoincrement())
   userId    Int
   status    OrderStatus @default(PENDING)
+
+  // =========================
+  // ORDER AMOUNTS
+  // =========================
+  subtotal  Float       @default(0)
+  shipping  Float       @default(0)
+  tax       Float       @default(0)
+  discount  Float       @default(0)
   total     Float
 
+  // =========================
+  // CUSTOMER INFORMATION
+  // =========================
+  firstName String?
+  lastName  String?
+  email     String?
+  phone     String?
+
+  // =========================
+  // DELIVERY ADDRESS
+  // =========================
+  address              String?
+  city                 String?
+  country              String?
+  deliveryInstructions String?
+
+  // =========================
+  // PAYMENT
+  // =========================
+  paymentMethod String?
+
+  // =========================
+  // RELATIONS
+  // =========================
   user      User        @relation(fields: [userId], references: [id])
   items     OrderItem[]
 
@@ -155,4 +187,3 @@ model Review {
 
   @@unique([userId, productId])
 }
-

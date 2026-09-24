@@ -12,6 +12,7 @@ type FormDataType = {
   address: string;
   city: string;
   country: string;
+  deliveryInstructions: string;
   payment: string;
 };
 
@@ -23,6 +24,11 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [orderId, setOrderId] = useState("");
 
+  const [saveAddress, setSaveAddress] = useState(false);
+
+  // Logged-in customer ID
+  const [userId, setUserId] = useState<number | null>(null);
+
   const [formData, setFormData] = useState<FormDataType>({
     firstName: "",
     lastName: "",
@@ -31,35 +37,138 @@ export default function CheckoutPage() {
     address: "",
     city: "",
     country: "Ethiopia",
+    deliveryInstructions: "",
     payment: "Cash on Delivery",
   });
 
+  /*
+   * Load the currently logged-in customer
+   */
   useEffect(() => {
+    const loadUserInformation = async () => {
+      try {
+        const token =
+          localStorage.getItem("accessToken") || localStorage.getItem("token");
+
+        if (!token) {
+          return;
+        }
+
+        const response = await fetch("http://localhost:3001/auth/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const user = await response.json();
+
+        // Save the current customer's ID
+        setUserId(user.id);
+
+        /*
+         * Your backend profile normally returns "name",
+         * so split it into first and last name.
+         */
+        const userName = user.name || "";
+
+        const nameParts = userName.trim().split(" ");
+
+        const firstName = user.firstName || nameParts[0] || "";
+
+        const lastName = user.lastName || nameParts.slice(1).join(" ") || "";
+
+        setFormData((prev) => ({
+          ...prev,
+
+          firstName,
+
+          lastName,
+
+          email: user.email || "",
+
+          phone: user.phone || "",
+
+          payment: prev.payment,
+        }));
+      } catch (error) {
+        console.error("Could not load user information:", error);
+      }
+    };
+
+    loadUserInformation();
+  }, []);
+
+  /*
+   * Load the saved delivery address
+   * ONLY for the currently logged-in customer.
+   */
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
     try {
-      const savedAddress = localStorage.getItem("shippingAddress");
+      /*
+       * IMPORTANT:
+       * Every customer gets their own localStorage key.
+       *
+       * Example:
+       * savedShippingAddress_1
+       * savedShippingAddress_2
+       * savedShippingAddress_3
+       */
+      const storageKey = `savedShippingAddress_${userId}`;
 
-      const savedUser =
-        localStorage.getItem("user") || localStorage.getItem("currentUser");
+      const savedAddress = localStorage.getItem(storageKey);
 
-      const address = savedAddress ? JSON.parse(savedAddress) : {};
-      const user = savedUser ? JSON.parse(savedUser) : {};
+      /*
+       * This customer has never saved an address.
+       * Start with a fresh address form.
+       */
+      if (!savedAddress) {
+        setSaveAddress(false);
+
+        setFormData((prev) => ({
+          ...prev,
+
+          address: "",
+
+          city: "",
+
+          country: "Ethiopia",
+
+          deliveryInstructions: "",
+        }));
+
+        return;
+      }
+
+      const address = JSON.parse(savedAddress);
 
       setFormData((prev) => ({
         ...prev,
-        firstName: user.firstName || address.firstName || "",
-        lastName: user.lastName || address.lastName || "",
-        email: user.email || address.email || "",
-        phone: user.phone || address.phone || "",
+
         address: address.address || "",
+
         city: address.city || "",
+
         country: address.country || "Ethiopia",
+
+        deliveryInstructions: address.deliveryInstructions || "",
       }));
-    } catch {
-      console.log("Could not load saved information");
+
+      setSaveAddress(true);
+    } catch (error) {
+      console.error("Could not load saved delivery address:", error);
     }
-  }, []);
+  }, [userId]);
 
   const shipping = cartTotal >= 100 ? 0 : 10;
+
   const tax = cartTotal * 0.08;
 
   const couponDiscount = cartTotal > 0 ? Math.min(40.6, cartTotal) : 0;
@@ -74,7 +183,9 @@ export default function CheckoutPage() {
   );
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
   ) => {
     const { name, value } = e.target;
 
@@ -103,7 +214,9 @@ export default function CheckoutPage() {
     ];
 
     for (const field of requiredFields) {
-      if (!formData[field as keyof FormDataType].trim()) {
+      const value = formData[field as keyof FormDataType];
+
+      if (typeof value === "string" && !value.trim()) {
         return `Please enter your ${field
           .replace(/([A-Z])/g, " $1")
           .toLowerCase()}.`;
@@ -114,7 +227,7 @@ export default function CheckoutPage() {
       return "Please enter a valid email address.";
     }
 
-    if (formData.phone.length < 9) {
+    if (formData.phone.trim().length < 9) {
       return "Please enter a valid phone number.";
     }
 
@@ -144,31 +257,76 @@ export default function CheckoutPage() {
       const token =
         localStorage.getItem("accessToken") || localStorage.getItem("token");
 
+      /*
+       * Save delivery address ONLY for the
+       * currently logged-in customer.
+       */
+      if (saveAddress && userId) {
+        const storageKey = `savedShippingAddress_${userId}`;
+
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            address: formData.address,
+
+            city: formData.city,
+
+            country: formData.country,
+
+            deliveryInstructions: formData.deliveryInstructions,
+          }),
+        );
+      }
+
+      /*
+       * If the customer doesn't want to save
+       * the address, remove only THEIR address.
+       */
+      if (!saveAddress && userId) {
+        const storageKey = `savedShippingAddress_${userId}`;
+
+        localStorage.removeItem(storageKey);
+      }
+
       const items = cartProducts.map((item) => ({
         productId: item.id,
+
         quantity: item.quantity,
+
         product: item,
       }));
 
       const orderData = {
         items,
+
         subtotal: cartTotal,
+
         shipping,
+
         tax,
+
         discount: couponDiscount,
+
         total: finalTotal,
 
         customer: {
           firstName: formData.firstName,
+
           lastName: formData.lastName,
+
           email: formData.email,
+
           phone: formData.phone,
         },
 
         shippingAddress: {
           address: formData.address,
+
           city: formData.city,
+
           country: formData.country,
+
+          deliveryInstructions: formData.deliveryInstructions,
         },
 
         paymentMethod: formData.payment,
@@ -176,14 +334,17 @@ export default function CheckoutPage() {
 
       const response = await fetch("http://localhost:3001/orders", {
         method: "POST",
+
         headers: {
           "Content-Type": "application/json",
+
           ...(token
             ? {
                 Authorization: `Bearer ${token}`,
               }
             : {}),
         },
+
         body: JSON.stringify(orderData),
       });
 
@@ -203,6 +364,7 @@ export default function CheckoutPage() {
         data?.id || data?._id || data?.order?.id || data?.order?._id || "";
 
       setOrderId(newOrderId);
+
       setOrderPlaced(true);
 
       clearCart();
@@ -216,6 +378,9 @@ export default function CheckoutPage() {
     }
   };
 
+  /*
+   * Empty cart
+   */
   if (cartProducts.length === 0 && !orderPlaced) {
     return (
       <main className="min-h-screen bg-[#f6f9fc]">
@@ -225,7 +390,8 @@ export default function CheckoutPage() {
               href="/"
               className="text-2xl font-black tracking-tight text-slate-900"
             >
-              Shop<span className="text-blue-600">Ease</span>
+              Shop
+              <span className="text-blue-600">Ease</span>
             </Link>
 
             <Link
@@ -262,6 +428,9 @@ export default function CheckoutPage() {
     );
   }
 
+  /*
+   * Order success
+   */
   if (orderPlaced) {
     return (
       <main className="min-h-screen bg-[#f6f9fc]">
@@ -271,7 +440,8 @@ export default function CheckoutPage() {
               href="/"
               className="text-2xl font-black tracking-tight text-slate-900"
             >
-              Shop<span className="text-blue-600">Ease</span>
+              Shop
+              <span className="text-blue-600">Ease</span>
             </Link>
           </div>
         </div>
@@ -328,24 +498,26 @@ export default function CheckoutPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f9fc] text-slate-900">
-      {/* Header */}
+      {/* HEADER */}
       <header className="border-b border-sky-100 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
           <Link
             href="/"
             className="text-2xl font-black tracking-tight text-slate-900"
           >
-            Shop<span className="text-blue-600">Ease</span>
+            Shop
+            <span className="text-blue-600">Ease</span>
           </Link>
 
           <div className="flex items-center gap-2 text-sm font-bold text-blue-600">
             <span className="hidden sm:inline">Secure checkout</span>
+
             <span className="text-lg">🔒</span>
           </div>
         </div>
       </header>
 
-      {/* Light Blue Hero */}
+      {/* HERO */}
       <section className="bg-linear-to-br from-sky-100 via-blue-50 to-indigo-100">
         <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
           <p className="text-sm font-bold uppercase tracking-[0.25em] text-blue-600">
@@ -357,7 +529,7 @@ export default function CheckoutPage() {
           </h1>
 
           <p className="mt-4 text-slate-600">
-            Almost there. Enter your details and choose your preferred payment
+            Enter your information, delivery address, and preferred payment
             method.
           </p>
 
@@ -377,6 +549,7 @@ export default function CheckoutPage() {
 
       <form onSubmit={handleSubmit}>
         <div className="mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-14">
+          {/* ERROR */}
           {error && (
             <div className="mb-8 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
               <span className="text-xl">!</span>
@@ -392,7 +565,7 @@ export default function CheckoutPage() {
           <div className="grid gap-8 lg:grid-cols-[1fr_390px]">
             {/* LEFT */}
             <div className="space-y-6">
-              {/* Personal */}
+              {/* PERSONAL INFORMATION */}
               <section className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm sm:p-8">
                 <SectionHeading
                   number="01"
@@ -436,26 +609,28 @@ export default function CheckoutPage() {
                 </div>
               </section>
 
-              {/* Address */}
+              {/* DELIVERY ADDRESS */}
               <section className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm sm:p-8">
                 <SectionHeading
                   number="02"
-                  title="Delivery address"
-                  description="Where should we deliver your order?"
+                  title="📍 Delivery address"
+                  description="Tell us exactly where you want your order delivered."
                 />
 
                 <div className="mt-7 space-y-5">
+                  {/* STREET ADDRESS */}
                   <InputField
-                    label="Street address"
+                    label="🏠 Street / House address"
                     name="address"
                     value={formData.address}
                     onChange={handleChange}
-                    placeholder="Enter your street address"
+                    placeholder="Example: 04 Kebele, Street 2, House 15"
                   />
 
+                  {/* CITY + COUNTRY */}
                   <div className="grid gap-5 sm:grid-cols-2">
                     <InputField
-                      label="City"
+                      label="🏙️ City"
                       name="city"
                       value={formData.city}
                       onChange={handleChange}
@@ -464,7 +639,7 @@ export default function CheckoutPage() {
 
                     <div>
                       <label className="mb-2 block text-sm font-bold text-slate-700">
-                        Country
+                        🌍 Country
                       </label>
 
                       <select
@@ -476,15 +651,82 @@ export default function CheckoutPage() {
                         <option value="Ethiopia">Ethiopia</option>
 
                         <option value="Kenya">Kenya</option>
+
                         <option value="Uganda">Uganda</option>
+
                         <option value="Tanzania">Tanzania</option>
                       </select>
                     </div>
                   </div>
+
+                  {/* DELIVERY INSTRUCTIONS */}
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                      📝 Delivery instructions
+                      <span className="ml-2 font-medium text-slate-400">
+                        (Optional)
+                      </span>
+                    </label>
+
+                    <textarea
+                      name="deliveryInstructions"
+                      value={formData.deliveryInstructions}
+                      onChange={handleChange}
+                      rows={4}
+                      placeholder="Example: Call me before delivery. Leave the package with the security guard if I am not available."
+                      className="w-full resize-none rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  {/* SAVE ADDRESS */}
+                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-sky-100 bg-sky-50 p-4">
+                    <input
+                      type="checkbox"
+                      checked={saveAddress}
+                      onChange={(e) => setSaveAddress(e.target.checked)}
+                      className="h-5 w-5 rounded border-sky-300 text-blue-600 focus:ring-blue-500"
+                    />
+
+                    <div>
+                      <p className="text-sm font-black text-slate-800">
+                        Save this address
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-500">
+                        Use this delivery address for my next order.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* ADDRESS PREVIEW */}
+                  {(formData.address || formData.city) && (
+                    <div className="rounded-2xl border border-blue-100 bg-linear-to-br from-blue-50 to-sky-50 p-5">
+                      <div className="flex gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                          📍
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-wider text-blue-600">
+                            Delivery location
+                          </p>
+
+                          <p className="mt-1 font-bold text-slate-800">
+                            {formData.address || "Address not entered"}
+                          </p>
+
+                          <p className="mt-1 text-sm text-slate-500">
+                            {formData.city || "City not entered"}
+                            {formData.country ? `, ${formData.country}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
 
-              {/* Payment */}
+              {/* PAYMENT */}
               <section className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm sm:p-8">
                 <SectionHeading
                   number="03"
@@ -520,7 +762,7 @@ export default function CheckoutPage() {
               </section>
             </div>
 
-            {/* RIGHT */}
+            {/* RIGHT - ORDER SUMMARY */}
             <aside className="lg:sticky lg:top-6 lg:self-start">
               <div className="overflow-hidden rounded-4xl bg-linear-to-br from-sky-500 via-blue-600 to-indigo-600 text-white shadow-2xl shadow-blue-200">
                 <div className="p-7">
@@ -540,7 +782,7 @@ export default function CheckoutPage() {
                     </span>
                   </div>
 
-                  {/* Products */}
+                  {/* PRODUCTS */}
                   <div className="mt-7 space-y-4">
                     {cartProducts.map((item) => {
                       const product = item;
@@ -586,7 +828,7 @@ export default function CheckoutPage() {
                     })}
                   </div>
 
-                  {/* Prices */}
+                  {/* PRICES */}
                   <div className="my-7 space-y-4 border-y border-white/20 py-6">
                     <SummaryRow
                       label="Subtotal"
@@ -609,6 +851,7 @@ export default function CheckoutPage() {
                     />
                   </div>
 
+                  {/* TOTAL */}
                   <div className="flex items-end justify-between">
                     <span className="text-blue-100">Total</span>
 
@@ -617,6 +860,7 @@ export default function CheckoutPage() {
                     </span>
                   </div>
 
+                  {/* PLACE ORDER */}
                   <button
                     type="submit"
                     disabled={placingOrder}
@@ -653,6 +897,7 @@ export default function CheckoutPage() {
         </div>
       </form>
 
+      {/* FOOTER */}
       <footer className="border-t border-sky-100 bg-white py-8">
         <div className="mx-auto max-w-7xl px-5 text-center text-sm text-slate-400 lg:px-8">
           © {new Date().getFullYear()} ShopEase. Secure shopping experience.
@@ -662,7 +907,9 @@ export default function CheckoutPage() {
   );
 }
 
-/* ---------------- Components ---------------- */
+/* =====================================================
+   CHECKOUT STEP
+===================================================== */
 
 function CheckoutStep({
   number,
@@ -696,6 +943,10 @@ function CheckoutStep({
   );
 }
 
+/* =====================================================
+   SECTION HEADING
+===================================================== */
+
 function SectionHeading({
   number,
   title,
@@ -720,6 +971,10 @@ function SectionHeading({
   );
 }
 
+/* =====================================================
+   INPUT FIELD
+===================================================== */
+
 function InputField({
   label,
   name,
@@ -732,7 +987,9 @@ function InputField({
   name: string;
   value: string;
   onChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
   ) => void;
   placeholder?: string;
   type?: string;
@@ -754,6 +1011,10 @@ function InputField({
     </div>
   );
 }
+
+/* =====================================================
+   PAYMENT CARD
+===================================================== */
 
 function PaymentCard({
   title,
@@ -804,6 +1065,10 @@ function PaymentCard({
     </button>
   );
 }
+
+/* =====================================================
+   SUMMARY ROW
+===================================================== */
 
 function SummaryRow({
   label,

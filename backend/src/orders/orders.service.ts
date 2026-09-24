@@ -18,13 +18,31 @@ export class OrdersService {
   // =========================================================
 
   async create(userId: number, createOrderDto: CreateOrderDto) {
-    const { items } = createOrderDto;
+    const {
+      items,
+      subtotal,
+      shipping,
+      tax,
+      discount,
+      total,
+      customer,
+      shippingAddress,
+      paymentMethod,
+    } = createOrderDto;
+
+    // ---------------------------------------------------------
+    // Validate items
+    // ---------------------------------------------------------
 
     if (!items || items.length === 0) {
       throw new BadRequestException('Order must contain at least one item');
     }
 
     const productIds = items.map((item) => item.productId);
+
+    // ---------------------------------------------------------
+    // Get products
+    // ---------------------------------------------------------
 
     const products = await this.prisma.product.findMany({
       where: {
@@ -38,7 +56,10 @@ export class OrdersService {
       throw new BadRequestException('One or more products do not exist');
     }
 
+    // ---------------------------------------------------------
     // Check stock
+    // ---------------------------------------------------------
+
     for (const item of items) {
       const product = products.find((product) => product.id === item.productId);
 
@@ -57,24 +78,89 @@ export class OrdersService {
       }
     }
 
-    // Calculate total
-    let total = 0;
+    // ---------------------------------------------------------
+    // Calculate product subtotal from database prices
+    // ---------------------------------------------------------
+    // We calculate this again from the database instead of
+    // trusting the frontend price values.
+
+    let calculatedSubtotal = 0;
 
     for (const item of items) {
       const product = products.find((product) => product.id === item.productId);
 
       if (product) {
-        total += product.price * item.quantity;
+        calculatedSubtotal += product.price * item.quantity;
       }
     }
 
+    // ---------------------------------------------------------
+    // Use checkout values when available
+    // ---------------------------------------------------------
+
+    const finalSubtotal =
+      typeof subtotal === 'number' ? subtotal : calculatedSubtotal;
+
+    const finalShipping = typeof shipping === 'number' ? shipping : 0;
+
+    const finalTax = typeof tax === 'number' ? tax : 0;
+
+    const finalDiscount = typeof discount === 'number' ? discount : 0;
+
+    const calculatedTotal =
+      finalSubtotal + finalShipping + finalTax - finalDiscount;
+
+    const finalTotal = typeof total === 'number' ? total : calculatedTotal;
+
+    // ---------------------------------------------------------
     // Create order + reduce stock
+    // ---------------------------------------------------------
+
     const order = await this.prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: {
           userId,
-          total,
+
           status: 'PENDING',
+
+          // -----------------------------------------------
+          // ORDER AMOUNTS
+          // -----------------------------------------------
+
+          subtotal: finalSubtotal,
+          shipping: finalShipping,
+          tax: finalTax,
+          discount: finalDiscount,
+          total: finalTotal,
+
+          // -----------------------------------------------
+          // CUSTOMER INFORMATION
+          // -----------------------------------------------
+
+          firstName: customer?.firstName || null,
+          lastName: customer?.lastName || null,
+          email: customer?.email || null,
+          phone: customer?.phone || null,
+
+          // -----------------------------------------------
+          // DELIVERY ADDRESS
+          // -----------------------------------------------
+
+          address: shippingAddress?.address || null,
+          city: shippingAddress?.city || null,
+          country: shippingAddress?.country || null,
+
+          deliveryInstructions: shippingAddress?.deliveryInstructions || null,
+
+          // -----------------------------------------------
+          // PAYMENT
+          // -----------------------------------------------
+
+          paymentMethod: paymentMethod || null,
+
+          // -----------------------------------------------
+          // ORDER ITEMS
+          // -----------------------------------------------
 
           items: {
             create: items.map((item) => {
@@ -92,6 +178,14 @@ export class OrdersService {
         },
 
         include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+
           items: {
             include: {
               product: true,
@@ -99,6 +193,10 @@ export class OrdersService {
           },
         },
       });
+
+      // -----------------------------------------------------
+      // Reduce product stock
+      // -----------------------------------------------------
 
       for (const item of items) {
         await tx.product.update({
@@ -135,6 +233,14 @@ export class OrdersService {
       },
 
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+
         items: {
           include: {
             product: true,
@@ -184,6 +290,14 @@ export class OrdersService {
       },
 
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+
         items: {
           include: {
             product: true,
@@ -252,17 +366,26 @@ export class OrdersService {
 
     const order = await this.getOrder(orderId);
 
-    // Don't update an order to the same status
+    // ---------------------------------------------------------
+    // Same status
+    // ---------------------------------------------------------
+
     if (order.status === status) {
       return order;
     }
 
-    // Prevent changing a delivered order
+    // ---------------------------------------------------------
+    // Delivered order cannot be changed
+    // ---------------------------------------------------------
+
     if (order.status === 'DELIVERED') {
       throw new BadRequestException('A delivered order cannot be changed');
     }
 
-    // Prevent changing a cancelled order
+    // ---------------------------------------------------------
+    // Cancelled order cannot be changed
+    // ---------------------------------------------------------
+
     if (order.status === 'CANCELLED') {
       throw new BadRequestException('A cancelled order cannot be changed');
     }
@@ -301,6 +424,7 @@ export class OrdersService {
         });
 
         // Return cancelled products to stock
+
         for (const item of order.items) {
           await tx.product.update({
             where: {
@@ -376,9 +500,17 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
+    // ---------------------------------------------------------
+    // Only pending and confirmed orders can be cancelled
+    // ---------------------------------------------------------
+
     if (order.status !== 'PENDING' && order.status !== 'CONFIRMED') {
       throw new BadRequestException('This order cannot be cancelled');
     }
+
+    // ---------------------------------------------------------
+    // Cancel + return stock
+    // ---------------------------------------------------------
 
     const cancelledOrder = await this.prisma.$transaction(async (tx) => {
       const updatedOrder = await tx.order.update({
@@ -391,6 +523,14 @@ export class OrdersService {
         },
 
         include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+
           items: {
             include: {
               product: true,
@@ -400,6 +540,7 @@ export class OrdersService {
       });
 
       // Return products to stock
+
       for (const item of order.items) {
         await tx.product.update({
           where: {

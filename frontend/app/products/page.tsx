@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCart } from "../Context/CartContext";
 
+type Category = {
+  id: number;
+  name: string;
+  image?: string | null;
+};
+
 type Product = {
   id: number;
   name: string;
@@ -12,6 +18,14 @@ type Product = {
   price: number;
   stock: number;
   image?: string | null;
+
+  // Supports different backend response shapes
+  categoryId?: number | null;
+  categoryName?: string | null;
+  category?: {
+    id?: number;
+    name?: string;
+  } | null;
 };
 
 type Rating = {
@@ -27,8 +41,13 @@ export default function ProductsPage() {
   const router = useRouter();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
   const [error, setError] = useState("");
+  const [categoryError, setCategoryError] = useState("");
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
@@ -36,11 +55,9 @@ export default function ProductsPage() {
 
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
 
-  // Real wishlist state
   const [wishlist, setWishlist] = useState<number[]>([]);
   const [wishlistLoading, setWishlistLoading] = useState<number | null>(null);
 
-  // Real product ratings
   const [ratings, setRatings] = useState<Record<number, Rating>>({});
 
   // =====================================================
@@ -130,7 +147,6 @@ export default function ProductsPage() {
 
       setProducts(productList);
 
-      // Fetch real ratings after products load
       fetchRatings(productList);
     } catch (err) {
       console.error(err);
@@ -144,15 +160,49 @@ export default function ProductsPage() {
   };
 
   // =====================================================
-  // FETCH MY WISHLIST
+  // FETCH CATEGORIES
+  // =====================================================
+
+  const fetchCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+      setCategoryError("");
+
+      const response = await fetch(`${API_URL}/categories`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load categories");
+      }
+
+      const data = await response.json();
+
+      const categoryList: Category[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data.categories)
+          ? data.categories
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+
+      setCategories(categoryList);
+    } catch (error) {
+      console.error("Category loading error:", error);
+      setCategoryError("Could not load categories.");
+      setCategories([]);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  // =====================================================
+  // FETCH WISHLIST
   // =====================================================
 
   const fetchWishlist = async () => {
     const token = localStorage.getItem("accessToken");
 
-    // User is not logged in.
-    // We don't redirect here because visitors should still
-    // be able to browse products.
     if (!token) {
       setWishlist([]);
       return;
@@ -194,29 +244,53 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
     fetchWishlist();
   }, []);
 
   // =====================================================
-  // URL SEARCH
+  // READ URL PARAMETERS
   // =====================================================
 
   useEffect(() => {
     const searchFromUrl = searchParams.get("search") || "";
+    const categoryFromUrl = searchParams.get("category") || "All";
+
     setSearch(searchFromUrl);
+    setCategory(categoryFromUrl);
   }, [searchParams]);
 
   // =====================================================
-  // CATEGORIES
+  // CATEGORY LIST
   // =====================================================
 
-  const categories = useMemo(() => {
-    const values = products
-      .map((product) => product.name?.trim().split(" ")[0])
-      .filter(Boolean);
+  const categoryList = useMemo(() => {
+    return ["All", ...categories.map((item) => item.name)];
+  }, [categories]);
 
-    return ["All", ...Array.from(new Set(values))];
-  }, [products]);
+  // =====================================================
+  // GET PRODUCT CATEGORY
+  // =====================================================
+
+  const getProductCategory = (product: Product) => {
+    if (product.category?.name) {
+      return product.category.name;
+    }
+
+    if (product.categoryName) {
+      return product.categoryName;
+    }
+
+    if (product.categoryId) {
+      const foundCategory = categories.find(
+        (item) => item.id === Number(product.categoryId),
+      );
+
+      return foundCategory?.name || "";
+    }
+
+    return "";
+  };
 
   // =====================================================
   // FILTER + SORT
@@ -225,6 +299,7 @@ export default function ProductsPage() {
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
+    // SEARCH
     if (search.trim()) {
       const query = search.toLowerCase().trim();
 
@@ -232,16 +307,28 @@ export default function ProductsPage() {
         const name = product.name?.toLowerCase() || "";
         const description = product.description?.toLowerCase() || "";
 
-        return name.includes(query) || description.includes(query);
+        const productCategory = getProductCategory(product).toLowerCase();
+
+        return (
+          name.includes(query) ||
+          description.includes(query) ||
+          productCategory.includes(query)
+        );
       });
     }
 
+    // REAL CATEGORY FILTER
     if (category !== "All") {
-      result = result.filter((product) =>
-        product.name?.toLowerCase().startsWith(category.toLowerCase()),
-      );
+      result = result.filter((product) => {
+        const productCategory = getProductCategory(product);
+
+        return (
+          productCategory.trim().toLowerCase() === category.trim().toLowerCase()
+        );
+      });
     }
 
+    // SORT
     if (sort === "price-low") {
       result.sort((a, b) => Number(a.price) - Number(b.price));
     }
@@ -255,7 +342,53 @@ export default function ProductsPage() {
     }
 
     return result;
-  }, [products, search, category, sort]);
+  }, [products, search, category, sort, categories]);
+
+  // =====================================================
+  // CATEGORY CHANGE
+  // =====================================================
+
+  const handleCategoryChange = (newCategory: string) => {
+    setCategory(newCategory);
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (newCategory === "All") {
+      params.delete("category");
+    } else {
+      params.set("category", newCategory);
+    }
+
+    if (search.trim()) {
+      params.set("search", search);
+    } else {
+      params.delete("search");
+    }
+
+    const queryString = params.toString();
+
+    router.push(queryString ? `/products?${queryString}` : "/products");
+  };
+
+  // =====================================================
+  // SEARCH CHANGE
+  // =====================================================
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (value.trim()) {
+      params.set("search", value);
+    } else {
+      params.delete("search");
+    }
+
+    const queryString = params.toString();
+
+    router.replace(queryString ? `/products?${queryString}` : "/products");
+  };
 
   // =====================================================
   // ADD TO CART
@@ -264,7 +397,12 @@ export default function ProductsPage() {
   const handleAddToCart = (product: Product) => {
     if (product.stock <= 0) return;
 
-    addToCart(product);
+    const cartProduct = {
+      ...product,
+      category: getProductCategory(product) || undefined,
+    };
+
+    addToCart(cartProduct);
 
     setAddedProductId(product.id);
 
@@ -274,13 +412,12 @@ export default function ProductsPage() {
   };
 
   // =====================================================
-  // TOGGLE REAL WISHLIST
+  // TOGGLE WISHLIST
   // =====================================================
 
   const toggleWishlist = async (productId: number) => {
     const token = localStorage.getItem("accessToken");
 
-    // Not logged in
     if (!token) {
       router.push("/login");
       return;
@@ -315,7 +452,6 @@ export default function ProductsPage() {
         throw new Error(data?.message || "Wishlist operation failed");
       }
 
-      // Update UI only after backend succeeds
       setWishlist((current) => {
         if (isCurrentlyWishlisted) {
           return current.filter((id) => id !== productId);
@@ -340,9 +476,7 @@ export default function ProductsPage() {
     setSearch("");
     setCategory("All");
 
-    if (searchParams.get("search")) {
-      window.history.replaceState({}, "", "/products");
-    }
+    router.replace("/products");
   };
 
   // =====================================================
@@ -364,6 +498,14 @@ export default function ProductsPage() {
           <span>/</span>
 
           <span className="font-medium text-slate-700">Products</span>
+
+          {category !== "All" && (
+            <>
+              <span>/</span>
+
+              <span className="font-bold text-blue-600">{category}</span>
+            </>
+          )}
         </div>
 
         {/* =====================================================
@@ -377,7 +519,7 @@ export default function ProductsPage() {
             </span>
 
             <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-              Explore Products
+              {category === "All" ? "Explore Products" : `${category} Products`}
             </h1>
 
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
@@ -386,10 +528,13 @@ export default function ProductsPage() {
             </p>
           </div>
 
-          {/* RIGHT ACTIONS */}
-
           <div className="flex flex-wrap gap-3">
-            {/* Wishlist */}
+            <Link
+              href="/categories"
+              className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-600"
+            >
+              🗂️ Categories
+            </Link>
 
             <Link
               href="/wishlist"
@@ -404,11 +549,9 @@ export default function ProductsPage() {
               )}
             </Link>
 
-            {/* Cart */}
-
             <Link
               href="/cart"
-              className="group relative flex w-fit items-center gap-3 rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-slate-200 transition hover:-translate-y-0.5 hover:bg-blue-600"
+              className="group relative flex items-center gap-3 rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-600"
             >
               <span className="text-lg transition group-hover:scale-110">
                 🛒
@@ -431,8 +574,6 @@ export default function ProductsPage() {
 
         <div className="mb-7 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row">
-            {/* Search */}
-
             <div className="relative flex-1">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-slate-400">
                 🔍
@@ -441,7 +582,7 @@ export default function ProductsPage() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search products..."
                 className="h-12 w-full rounded-2xl bg-slate-50 pl-12 pr-12 text-sm font-medium outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
               />
@@ -456,8 +597,6 @@ export default function ProductsPage() {
                 </button>
               )}
             </div>
-
-            {/* Sort */}
 
             <select
               value={sort}
@@ -479,21 +618,46 @@ export default function ProductsPage() {
             CATEGORY FILTER
         ===================================================== */}
 
-        <div className="mb-9 flex gap-2 overflow-x-auto pb-2">
-          {categories.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setCategory(item)}
-              className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition ${
-                category === item
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-200"
-                  : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600"
-              }`}
-            >
-              {item}
-            </button>
-          ))}
+        <div className="mb-9">
+          {categoriesLoading ? (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-10 w-28 shrink-0 animate-pulse rounded-full bg-slate-200"
+                />
+              ))}
+            </div>
+          ) : categoryError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-bold text-red-700">{categoryError}</p>
+
+              <button
+                type="button"
+                onClick={fetchCategories}
+                className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {categoryList.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => handleCategoryChange(item)}
+                  className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition ${
+                    category === item
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                      : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* =====================================================
@@ -502,7 +666,9 @@ export default function ProductsPage() {
 
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-black text-slate-950">All Products</h2>
+            <h2 className="text-xl font-black text-slate-950">
+              {category === "All" ? "All Products" : category}
+            </h2>
 
             <p className="mt-1 text-sm text-slate-500">
               {filteredProducts.length} product
@@ -560,21 +726,14 @@ export default function ProductsPage() {
 
                 <div className="space-y-3 p-5">
                   <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
-
                   <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
-
                   <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
-
                   <div className="h-11 animate-pulse rounded-2xl bg-slate-200" />
                 </div>
               </div>
             ))}
           </div>
         ) : !error && filteredProducts.length === 0 ? (
-          /* =====================================================
-              EMPTY
-          ===================================================== */
-
           <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-4xl">
               🔍
@@ -583,7 +742,8 @@ export default function ProductsPage() {
             <h3 className="mt-6 text-2xl font-black">No products found</h3>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Try another search term or choose a different category.
+              There are no products in this category yet, or your search did not
+              match any products.
             </p>
 
             <button
@@ -595,10 +755,6 @@ export default function ProductsPage() {
             </button>
           </div>
         ) : (
-          /* =====================================================
-              PRODUCT GRID
-          ===================================================== */
-
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => {
               const isWishlisted = wishlist.includes(product.id);
@@ -606,7 +762,9 @@ export default function ProductsPage() {
               const isWishlistLoading = wishlistLoading === product.id;
 
               const rating = ratings[product.id];
+
               const averageRating = rating?.averageRating || 0;
+
               const totalReviews = rating?.totalReviews || 0;
 
               return (
@@ -614,7 +772,7 @@ export default function ProductsPage() {
                   key={product.id}
                   className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/70"
                 >
-                  {/* ================= IMAGE ================= */}
+                  {/* IMAGE */}
 
                   <div className="relative h-72 overflow-hidden bg-slate-100">
                     {product.image ? (
@@ -622,8 +780,9 @@ export default function ProductsPage() {
                         src={product.image}
                         alt={product.name}
                         className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.style.display = "none";
                         }}
                       />
                     ) : (
@@ -632,11 +791,9 @@ export default function ProductsPage() {
                       </div>
                     )}
 
-                    {/* Image Gradient */}
-
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
 
-                    {/* Stock */}
+                    {/* STOCK */}
 
                     <div className="absolute left-4 top-4">
                       {product.stock > 0 ? (
@@ -650,9 +807,7 @@ export default function ProductsPage() {
                       )}
                     </div>
 
-                    {/* =================================================
-                        REAL WISHLIST BUTTON
-                    ================================================= */}
+                    {/* WISHLIST */}
 
                     <button
                       type="button"
@@ -682,7 +837,7 @@ export default function ProductsPage() {
                       )}
                     </button>
 
-                    {/* View Product */}
+                    {/* VIEW */}
 
                     <Link
                       href={`/products/${product.id}`}
@@ -692,10 +847,10 @@ export default function ProductsPage() {
                     </Link>
                   </div>
 
-                  {/* ================= CONTENT ================= */}
+                  {/* CONTENT */}
 
                   <div className="p-5">
-                    {/* REAL RATING */}
+                    {/* RATING */}
 
                     <div className="flex items-center gap-2">
                       <span className="text-sm tracking-wide text-amber-400">
@@ -723,7 +878,7 @@ export default function ProductsPage() {
                       )}
                     </div>
 
-                    {/* Name */}
+                    {/* NAME */}
 
                     <Link href={`/products/${product.id}`}>
                       <h3 className="mt-2 line-clamp-1 text-lg font-black text-slate-950 transition hover:text-blue-600">
@@ -731,14 +886,22 @@ export default function ProductsPage() {
                       </h3>
                     </Link>
 
-                    {/* Description */}
+                    {/* CATEGORY */}
+
+                    {getProductCategory(product) && (
+                      <span className="mt-2 inline-block rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-600">
+                        {getProductCategory(product)}
+                      </span>
+                    )}
+
+                    {/* DESCRIPTION */}
 
                     <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
                       {product.description ||
                         "Quality product with great value."}
                     </p>
 
-                    {/* Price */}
+                    {/* PRICE */}
 
                     <div className="mt-4 flex items-end justify-between">
                       <div>
@@ -758,7 +921,7 @@ export default function ProductsPage() {
                       </span>
                     </div>
 
-                    {/* Add Cart */}
+                    {/* CART */}
 
                     <button
                       type="button"
