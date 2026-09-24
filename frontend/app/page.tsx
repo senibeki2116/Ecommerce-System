@@ -13,6 +13,12 @@ type Product = {
   image?: string | null;
 };
 
+type Category = {
+  id: number;
+  name: string;
+  image?: string | null;
+};
+
 type WishlistItem = {
   id: number;
   productId: number;
@@ -27,16 +33,43 @@ type WishlistResponse = {
 
 const API_URL = "http://localhost:3001";
 
+const categoryFallbackImages: Record<string, string> = {
+  electronics:
+    "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=900&auto=format&fit=crop",
+  accessories:
+    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=900&auto=format&fit=crop",
+  cameras:
+    "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=900&auto=format&fit=crop",
+  audio:
+    "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=900&auto=format&fit=crop",
+  gaming:
+    "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=900&auto=format&fit=crop",
+  fashion:
+    "https://images.unsplash.com/photo-1445205170230-053b83016050?w=900&auto=format&fit=crop",
+  shoes:
+    "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=900&auto=format&fit=crop",
+  beauty:
+    "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=900&auto=format&fit=crop",
+  sports:
+    "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=900&auto=format&fit=crop",
+};
+
+const defaultCategoryImage =
+  "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900&auto=format&fit=crop";
+
 export default function HomePage() {
   const { addToCart, cartCount } = useCart();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [wishlist, setWishlist] = useState<number[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [wishlistLoading, setWishlistLoading] = useState(false);
 
   const [error, setError] = useState("");
+  const [categoryError, setCategoryError] = useState("");
   const [search, setSearch] = useState("");
 
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
@@ -101,6 +134,44 @@ export default function HomePage() {
   };
 
   // =========================================================
+  // FETCH CATEGORIES
+  // =========================================================
+
+  const fetchCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+      setCategoryError("");
+
+      const response = await fetch(`${API_URL}/categories`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load categories");
+      }
+
+      const data = await response.json();
+
+      const categoryList: Category[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data.categories)
+          ? data.categories
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+
+      setCategories(categoryList);
+    } catch (error) {
+      console.error("Category error:", error);
+
+      setCategoryError("Could not load categories.");
+      setCategories([]);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  // =========================================================
   // FETCH WISHLIST
   // =========================================================
 
@@ -145,6 +216,7 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
     fetchWishlist();
   }, []);
 
@@ -192,7 +264,6 @@ export default function HomePage() {
 
       const isCurrentlyWishlisted = wishlist.includes(productId);
 
-      // REMOVE
       if (isCurrentlyWishlisted) {
         const response = await fetch(`${API_URL}/wishlist/${productId}`, {
           method: "DELETE",
@@ -210,7 +281,6 @@ export default function HomePage() {
         return;
       }
 
-      // ADD
       const response = await fetch(`${API_URL}/wishlist/${productId}`, {
         method: "POST",
         headers: {
@@ -267,27 +337,35 @@ export default function HomePage() {
   const featuredProducts = filteredProducts.slice(0, 8);
 
   // =========================================================
-  // CATEGORIES
+  // CATEGORY IMAGE
   // =========================================================
 
-  const categories = useMemo(() => {
-    const categoryList = products
-      .map((product) => product.name?.trim().split(" ")[0])
-      .filter(Boolean);
+  const getCategoryImage = (category: Category) => {
+    const name = category.name?.trim().toLowerCase() || "";
 
-    return Array.from(new Set(categoryList)).slice(0, 6);
-  }, [products]);
-
-  // =========================================================
-  // IMAGE
-  // =========================================================
-
-  const getImage = (product: Product) => {
-    if (product.image && product.image.trim() !== "") {
-      return product.image;
+    if (
+      category.image &&
+      category.image.trim() !== "" &&
+      !category.image.includes("example.com")
+    ) {
+      return category.image;
     }
 
-    return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80";
+    const exactMatch = categoryFallbackImages[name];
+
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    const keywordMatch = Object.keys(categoryFallbackImages).find((key) =>
+      name.includes(key),
+    );
+
+    if (keywordMatch) {
+      return categoryFallbackImages[keywordMatch];
+    }
+
+    return defaultCategoryImage;
   };
 
   // =========================================================
@@ -297,7 +375,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* =====================================================
-          HEADER / NAVBAR
+          HEADER
       ===================================================== */}
 
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
@@ -323,16 +401,12 @@ export default function HomePage() {
           {/* DESKTOP NAVIGATION */}
 
           <nav className="hidden items-center gap-1 lg:flex">
-            {/* HOME */}
-
             <Link
               href="/"
               className="rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-600 transition hover:bg-blue-100"
             >
               🏠 Home
             </Link>
-
-            {/* PRODUCTS */}
 
             <Link
               href="/products"
@@ -341,7 +415,14 @@ export default function HomePage() {
               🛍️ Products
             </Link>
 
-            {/* ORDERS */}
+            {/* CATEGORIES */}
+
+            <Link
+              href="/categories"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
+            >
+              🗂️ Categories
+            </Link>
 
             <Link
               href="/orders"
@@ -349,8 +430,6 @@ export default function HomePage() {
             >
               📦 Orders
             </Link>
-
-            {/* WISHLIST */}
 
             <Link
               href="/wishlist"
@@ -363,8 +442,6 @@ export default function HomePage() {
                 </span>
               )}
             </Link>
-
-            {/* CART */}
 
             <Link
               href="/cart"
@@ -379,7 +456,7 @@ export default function HomePage() {
             </Link>
           </nav>
 
-          {/* LOGIN / ACCOUNT */}
+          {/* ACCOUNT */}
 
           <div className="flex items-center gap-2">
             {isLoggedIn ? (
@@ -410,15 +487,13 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* =================================================
-            MOBILE NAVIGATION
-        ================================================= */}
+        {/* MOBILE NAV */}
 
         <div className="border-t border-slate-100 lg:hidden">
           <div className="mx-auto flex max-w-7xl items-center justify-between overflow-x-auto px-3 py-2">
             <Link
               href="/"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl bg-blue-50 px-4 py-2 text-[10px] font-bold text-blue-600"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl bg-blue-50 px-3 py-2 text-[10px] font-bold text-blue-600"
             >
               <span className="text-lg">🏠</span>
               Home
@@ -426,15 +501,23 @@ export default function HomePage() {
 
             <Link
               href="/products"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
             >
               <span className="text-lg">🛍️</span>
               Products
             </Link>
 
             <Link
+              href="/categories"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+            >
+              <span className="text-lg">🗂️</span>
+              Categories
+            </Link>
+
+            <Link
               href="/orders"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
             >
               <span className="text-lg">📦</span>
               Orders
@@ -442,12 +525,12 @@ export default function HomePage() {
 
             <Link
               href="/wishlist"
-              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-red-500"
+              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-red-500"
             >
               <span className="text-lg">♥</span>
               Wishlist
               {wishlist.length > 0 && (
-                <span className="absolute right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] text-white">
+                <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] text-white">
                   {wishlist.length}
                 </span>
               )}
@@ -455,12 +538,12 @@ export default function HomePage() {
 
             <Link
               href="/cart"
-              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
             >
               <span className="text-lg">🛒</span>
               Cart
               {cartCount > 0 && (
-                <span className="absolute right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] text-white">
+                <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] text-white">
                   {cartCount}
                 </span>
               )}
@@ -469,7 +552,7 @@ export default function HomePage() {
             {!isLoggedIn && (
               <Link
                 href="/login"
-                className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+                className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
               >
                 <span className="text-lg">🔐</span>
                 Login
@@ -489,8 +572,6 @@ export default function HomePage() {
         <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-violet-100 blur-3xl" />
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 py-14 md:px-8 md:py-20 lg:grid-cols-2">
-          {/* HERO LEFT */}
-
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-600">
               ✨ Welcome to E-Shop
@@ -543,9 +624,13 @@ export default function HomePage() {
               </div>
 
               <div>
-                <p className="text-2xl font-black text-slate-950">24/7</p>
+                <p className="text-2xl font-black text-slate-950">
+                  {categories.length}+
+                </p>
 
-                <p className="text-xs font-semibold text-slate-400">Shopping</p>
+                <p className="text-xs font-semibold text-slate-400">
+                  Categories
+                </p>
               </div>
 
               <div>
@@ -556,7 +641,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* HERO RIGHT */}
+          {/* HERO IMAGE */}
 
           <div className="relative">
             <div className="overflow-hidden rounded-4xl border border-white bg-white p-3 shadow-2xl shadow-blue-100">
@@ -590,8 +675,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-
-            {/* FLOATING CARD */}
 
             <div className="absolute -bottom-5 -left-3 rounded-2xl border border-white bg-white px-5 py-4 shadow-xl sm:-left-8">
               <div className="flex items-center gap-3">
@@ -629,7 +712,13 @@ export default function HomePage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {/* WISHLIST */}
+            <Link
+              href="/categories"
+              className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
+            >
+              <span className="text-lg">🗂️</span>
+              Categories
+            </Link>
 
             <Link
               href="/wishlist"
@@ -643,8 +732,6 @@ export default function HomePage() {
                 </span>
               )}
             </Link>
-
-            {/* CART */}
 
             <Link
               href="/cart"
@@ -663,47 +750,127 @@ export default function HomePage() {
       </section>
 
       {/* =====================================================
-          CATEGORY SECTION
+          REAL CATEGORIES
       ===================================================== */}
 
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-8 md:px-8">
-          <div className="mb-5 flex items-center justify-between">
+      <section className="border-b border-slate-200 bg-slate-50">
+        <div className="mx-auto max-w-7xl px-5 py-14 md:px-8">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-blue-600">
                 Explore
               </p>
 
-              <h2 className="mt-1 text-xl font-black text-slate-950">
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
                 Shop by Category
               </h2>
+
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                Find exactly what you are looking for by browsing our product
+                categories.
+              </p>
             </div>
 
             <Link
-              href="/products"
-              className="text-sm font-bold text-blue-600 transition hover:text-blue-700"
+              href="/categories"
+              className="w-fit rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
             >
-              View all →
+              View All Categories →
             </Link>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {categories.map((category) => (
-              <Link
-                key={category}
-                href={`/products?search=${encodeURIComponent(category)}`}
-                className="whitespace-nowrap rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
-              >
-                {category}
-              </Link>
-            ))}
+          {/* CATEGORY LOADING */}
 
-            {categories.length === 0 && (
-              <span className="text-sm text-slate-400">
-                Categories will appear here.
-              </span>
-            )}
-          </div>
+          {categoriesLoading ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white"
+                >
+                  <div className="h-40 animate-pulse bg-slate-200" />
+
+                  <div className="p-4">
+                    <div className="h-5 w-2/3 animate-pulse rounded bg-slate-200" />
+
+                    <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-200" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : categoryError ? (
+            <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-center">
+              <p className="font-bold text-red-700">{categoryError}</p>
+
+              <button
+                type="button"
+                onClick={fetchCategories}
+                className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
+                🗂️
+              </div>
+
+              <h3 className="mt-4 text-xl font-black text-slate-950">
+                No categories yet
+              </h3>
+
+              <p className="mt-2 text-sm text-slate-500">
+                Categories created by the administrator will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {categories.slice(0, 10).map((category) => (
+                <Link
+                  key={category.id}
+                  href={`/products?category=${encodeURIComponent(category.name)}`}
+                  className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
+                >
+                  <div className="relative h-40 overflow-hidden bg-slate-100">
+                    <img
+                      src={getCategoryImage(category)}
+                      alt={category.name}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src = defaultCategoryImage;
+                      }}
+                    />
+
+                    <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/10 to-transparent" />
+
+                    <div className="absolute bottom-3 left-3">
+                      <span className="rounded-full bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-800 shadow-sm">
+                        Explore
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4">
+                    <div>
+                      <h3 className="line-clamp-1 text-base font-black text-slate-950 transition group-hover:text-blue-600">
+                        {category.name}
+                      </h3>
+
+                      <p className="mt-1 text-xs font-semibold text-slate-400">
+                        Browse products
+                      </p>
+                    </div>
+
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition group-hover:bg-blue-600 group-hover:text-white">
+                      →
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -764,11 +931,8 @@ export default function HomePage() {
 
                 <div className="space-y-3 p-5">
                   <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
-
                   <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
-
                   <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
-
                   <div className="h-11 animate-pulse rounded-xl bg-slate-200" />
                 </div>
               </div>
@@ -798,7 +962,6 @@ export default function HomePage() {
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {featuredProducts.map((product) => {
               const isWishlisted = wishlist.includes(product.id);
-
               const isAdded = addedProductId === product.id;
 
               return (
@@ -810,10 +973,15 @@ export default function HomePage() {
 
                   <div className="relative h-72 overflow-hidden bg-slate-100">
                     <img
-                      src={getImage(product)}
+                      src={
+                        product.image && product.image.trim() !== ""
+                          ? product.image
+                          : "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80"
+                      }
                       alt={product.name}
                       className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
                       onError={(event) => {
+                        event.currentTarget.onerror = null;
                         event.currentTarget.src =
                           "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80";
                       }}
@@ -866,8 +1034,6 @@ export default function HomePage() {
                   {/* CONTENT */}
 
                   <div className="p-5">
-                    {/* RATING */}
-
                     <div className="flex items-center gap-2">
                       <span className="text-sm tracking-wide text-amber-400">
                         ★★★★★
@@ -878,22 +1044,16 @@ export default function HomePage() {
                       </span>
                     </div>
 
-                    {/* NAME */}
-
                     <Link href={`/products/${product.id}`}>
                       <h3 className="mt-2 line-clamp-1 text-lg font-black text-slate-950 transition hover:text-blue-600">
                         {product.name}
                       </h3>
                     </Link>
 
-                    {/* DESCRIPTION */}
-
                     <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
                       {product.description ||
                         "Quality product with great value."}
                     </p>
-
-                    {/* PRICE */}
 
                     <div className="mt-4 flex items-end justify-between">
                       <div>
@@ -912,8 +1072,6 @@ export default function HomePage() {
                           : "Unavailable"}
                       </span>
                     </div>
-
-                    {/* ADD TO CART */}
 
                     <button
                       type="button"
@@ -1022,17 +1180,17 @@ export default function HomePage() {
 
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
+              href="/categories"
+              className="rounded-2xl border border-slate-700 bg-slate-900 px-7 py-3.5 text-sm font-black text-white transition hover:bg-slate-800"
+            >
+              Browse Categories
+            </Link>
+
+            <Link
               href="/products"
               className="rounded-2xl bg-blue-600 px-7 py-3.5 text-sm font-black text-white transition hover:bg-blue-500"
             >
               Explore Products
-            </Link>
-
-            <Link
-              href="/wishlist"
-              className="rounded-2xl border border-slate-700 bg-slate-900 px-7 py-3.5 text-sm font-black text-white transition hover:bg-slate-800"
-            >
-              View Wishlist
             </Link>
           </div>
         </div>
