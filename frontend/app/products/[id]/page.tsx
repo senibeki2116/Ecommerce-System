@@ -397,6 +397,13 @@ export default function ProductDetailsPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 409) {
+          setReviewError(
+            data.message || "You have already reviewed this product.",
+          );
+          return;
+        }
+
         throw new Error(data.message || "Unable to submit review.");
       }
 

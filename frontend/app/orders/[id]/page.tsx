@@ -30,6 +30,16 @@ type Order = {
   tax?: number;
   discount?: number;
 
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+
+  address?: string;
+  city?: string;
+  country?: string;
+  deliveryInstructions?: string;
+
   paymentMethod?: string;
 
   createdAt?: string;
@@ -37,19 +47,6 @@ type Order = {
 
   items?: OrderItem[];
   orderItems?: OrderItem[];
-
-  customer?: {
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    phone?: string;
-  };
-
-  shippingAddress?: {
-    address?: string;
-    city?: string;
-    country?: string;
-  };
 };
 
 const STATUS_STEPS = [
@@ -320,12 +317,14 @@ export default function OrderDetailsPage() {
         <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="animate-pulse space-y-6">
             <div className="h-8 w-64 rounded-lg bg-slate-200" />
+
             <div className="h-4 w-96 rounded bg-slate-200" />
 
             <div className="h-56 rounded-3xl bg-white shadow-sm" />
 
             <div className="grid gap-6 lg:grid-cols-3">
               <div className="h-96 rounded-3xl bg-white lg:col-span-2" />
+
               <div className="h-96 rounded-3xl bg-white" />
             </div>
           </div>
@@ -381,6 +380,7 @@ export default function OrderDetailsPage() {
       {/* HERO */}
       <section className="relative overflow-hidden bg-slate-950">
         <div className="absolute -left-24 -top-32 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl" />
+
         <div className="absolute -right-20 top-0 h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -462,7 +462,6 @@ export default function OrderDetailsPage() {
           ) : (
             <div className="mt-10">
               <div className="relative">
-                {/* Progress line */}
                 <div className="absolute left-[9%] right-[9%] top-6 hidden h-1 rounded-full bg-slate-100 sm:block" />
 
                 <div
@@ -539,6 +538,7 @@ export default function OrderDetailsPage() {
               <div className="mt-7 divide-y divide-slate-100">
                 {items.map((item, index) => {
                   const quantity = Number(item.quantity || 1);
+
                   const price = Number(item.price || 0);
 
                   return (
@@ -581,6 +581,7 @@ export default function OrderDetailsPage() {
 
             {/* CUSTOMER + ADDRESS */}
             <div className="grid gap-6 sm:grid-cols-2">
+              {/* CUSTOMER INFORMATION */}
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-xl">
                   👤
@@ -595,9 +596,9 @@ export default function OrderDetailsPage() {
                     </p>
 
                     <p className="mt-1 font-semibold text-slate-800">
-                      {order.customer?.firstName || order.customer?.lastName
-                        ? `${order.customer?.firstName || ""} ${
-                            order.customer?.lastName || ""
+                      {order.firstName || order.lastName
+                        ? `${order.firstName || ""} ${
+                            order.lastName || ""
                           }`.trim()
                         : "Customer"}
                     </p>
@@ -609,7 +610,7 @@ export default function OrderDetailsPage() {
                     </p>
 
                     <p className="mt-1 break-all font-semibold text-slate-800">
-                      {order.customer?.email || "—"}
+                      {order.email || "—"}
                     </p>
                   </div>
 
@@ -619,12 +620,13 @@ export default function OrderDetailsPage() {
                     </p>
 
                     <p className="mt-1 font-semibold text-slate-800">
-                      {order.customer?.phone || "—"}
+                      {order.phone || "—"}
                     </p>
                   </div>
                 </div>
               </section>
 
+              {/* DELIVERY ADDRESS */}
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
                   📍
@@ -634,12 +636,24 @@ export default function OrderDetailsPage() {
 
                 <div className="mt-5 text-sm leading-6 text-slate-600">
                   <p className="font-bold text-slate-900">
-                    {order.shippingAddress?.address || "—"}
+                    {order.address || "—"}
                   </p>
 
-                  <p>{order.shippingAddress?.city || "—"}</p>
+                  <p>{order.city || "—"}</p>
 
-                  <p>{order.shippingAddress?.country || "—"}</p>
+                  <p>{order.country || "—"}</p>
+
+                  {order.deliveryInstructions && (
+                    <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Delivery Instructions
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-700">
+                        {order.deliveryInstructions}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </section>
             </div>
