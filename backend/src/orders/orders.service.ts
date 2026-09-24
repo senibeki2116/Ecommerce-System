@@ -83,7 +83,7 @@ export class OrdersService {
     }
 
     // ---------------------------------------------------------
-    // Calculate product subtotal from database prices
+    // Calculate subtotal from database prices
     // ---------------------------------------------------------
 
     let calculatedSubtotal = 0;
@@ -115,55 +115,64 @@ export class OrdersService {
     const finalTotal = typeof total === 'number' ? total : calculatedTotal;
 
     // ---------------------------------------------------------
-    // Create order + reduce stock
+    // Convert frontend payment method to Prisma enum
     // ---------------------------------------------------------
 
+    let paymentMethodEnum: 'CASH_ON_DELIVERY' | 'TELEBIRR' | 'CARD';
+
+    switch (paymentMethod) {
+      case 'Telebirr':
+        paymentMethodEnum = 'TELEBIRR';
+        break;
+
+      case 'Credit / Debit Card':
+        paymentMethodEnum = 'CARD';
+        break;
+
+      case 'Cash on Delivery':
+      default:
+        paymentMethodEnum = 'CASH_ON_DELIVERY';
+        break;
+    }
+
+    // =========================================================
+    // CREATE ORDER + PAYMENT + REDUCE STOCK
+    // =========================================================
+
     const order = await this.prisma.$transaction(async (tx) => {
+      // -------------------------------------------------------
+      // Create order
+      // -------------------------------------------------------
+
       const newOrder = await tx.order.create({
         data: {
           userId,
 
           status: 'PENDING',
 
-          // -----------------------------------------------
           // ORDER AMOUNTS
-          // -----------------------------------------------
-
           subtotal: finalSubtotal,
           shipping: finalShipping,
           tax: finalTax,
           discount: finalDiscount,
           total: finalTotal,
 
-          // -----------------------------------------------
           // CUSTOMER INFORMATION
-          // -----------------------------------------------
-
           firstName: customer?.firstName || null,
           lastName: customer?.lastName || null,
           email: customer?.email || null,
           phone: customer?.phone || null,
 
-          // -----------------------------------------------
           // DELIVERY ADDRESS
-          // -----------------------------------------------
-
           address: shippingAddress?.address || null,
           city: shippingAddress?.city || null,
           country: shippingAddress?.country || null,
-
           deliveryInstructions: shippingAddress?.deliveryInstructions || null,
 
-          // -----------------------------------------------
-          // PAYMENT
-          // -----------------------------------------------
-
+          // ORDER PAYMENT METHOD
           paymentMethod: paymentMethod || null,
 
-          // -----------------------------------------------
           // ORDER ITEMS
-          // -----------------------------------------------
-
           items: {
             create: items.map((item) => {
               const product = products.find(
@@ -196,9 +205,23 @@ export class OrdersService {
         },
       });
 
-      // -----------------------------------------------------
+      // -------------------------------------------------------
+      // CREATE PAYMENT RECORD
+      // -------------------------------------------------------
+
+      await tx.payment.create({
+        data: {
+          orderId: newOrder.id,
+          amount: finalTotal,
+          method: paymentMethodEnum,
+          status: 'PENDING',
+          transactionId: null,
+        },
+      });
+
+      // -------------------------------------------------------
       // Reduce product stock
-      // -----------------------------------------------------
+      // -------------------------------------------------------
 
       for (const item of items) {
         await tx.product.update({
@@ -228,7 +251,33 @@ export class OrdersService {
       userId: undefined,
     });
 
-    return order;
+    // ---------------------------------------------------------
+    // Return order with payment
+    // ---------------------------------------------------------
+
+    return this.prisma.order.findUnique({
+      where: {
+        id: order.id,
+      },
+
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+
+        items: {
+          include: {
+            product: true,
+          },
+        },
+
+        payment: true,
+      },
+    });
   }
 
   // =========================================================
@@ -259,6 +308,8 @@ export class OrdersService {
             product: true,
           },
         },
+
+        payment: true,
       },
     });
   }
@@ -287,6 +338,8 @@ export class OrdersService {
             product: true,
           },
         },
+
+        payment: true,
       },
     });
   }
@@ -316,6 +369,8 @@ export class OrdersService {
             product: true,
           },
         },
+
+        payment: true,
       },
     });
 
@@ -350,6 +405,8 @@ export class OrdersService {
             product: true,
           },
         },
+
+        payment: true,
       },
     });
 
@@ -405,7 +462,6 @@ export class OrdersService {
 
     // ---------------------------------------------------------
     // ADMIN CANCELS ORDER
-    // Return products to stock
     // ---------------------------------------------------------
 
     if (status === 'CANCELLED') {
@@ -433,10 +489,12 @@ export class OrdersService {
                 product: true,
               },
             },
+
+            payment: true,
           },
         });
 
-        // Return cancelled products to stock
+        // Return products to stock
 
         for (const item of order.items) {
           await tx.product.update({
@@ -452,12 +510,22 @@ export class OrdersService {
           });
         }
 
+        // Cancel payment if it exists
+
+        if (order.payment) {
+          await tx.payment.update({
+            where: {
+              id: order.payment.id,
+            },
+
+            data: {
+              status: 'CANCELLED',
+            },
+          });
+        }
+
         return updatedOrder;
       });
-
-      // -------------------------------------------------------
-      // ADMIN CANCELLATION NOTIFICATION
-      // -------------------------------------------------------
 
       await this.notificationsService.createNotification({
         title: 'Order Cancelled',
@@ -466,7 +534,7 @@ export class OrdersService {
         userId: undefined,
       });
 
-      return cancelledOrder;
+      return this.getOrder(orderId);
     }
 
     // ---------------------------------------------------------
@@ -496,12 +564,10 @@ export class OrdersService {
             product: true,
           },
         },
+
+        payment: true,
       },
     });
-
-    // ---------------------------------------------------------
-    // STATUS CHANGE NOTIFICATION
-    // ---------------------------------------------------------
 
     await this.notificationsService.createNotification({
       title: 'Order Status Updated',
@@ -530,6 +596,8 @@ export class OrdersService {
             product: true,
           },
         },
+
+        payment: true,
       },
     });
 
@@ -549,30 +617,14 @@ export class OrdersService {
     // Cancel + return stock
     // ---------------------------------------------------------
 
-    const cancelledOrder = await this.prisma.$transaction(async (tx) => {
-      const updatedOrder = await tx.order.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
         where: {
           id: orderId,
         },
 
         data: {
           status: 'CANCELLED',
-        },
-
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-
-          items: {
-            include: {
-              product: true,
-            },
-          },
         },
       });
 
@@ -592,12 +644,20 @@ export class OrdersService {
         });
       }
 
-      return updatedOrder;
-    });
+      // Cancel payment if it exists
 
-    // ---------------------------------------------------------
-    // CUSTOMER CANCELLATION NOTIFICATION
-    // ---------------------------------------------------------
+      if (order.payment) {
+        await tx.payment.update({
+          where: {
+            id: order.payment.id,
+          },
+
+          data: {
+            status: 'CANCELLED',
+          },
+        });
+      }
+    });
 
     await this.notificationsService.createNotification({
       title: 'Order Cancelled',
@@ -606,6 +666,6 @@ export class OrdersService {
       userId: undefined,
     });
 
-    return cancelledOrder;
+    return this.getOrder(orderId);
   }
 }

@@ -26,7 +26,6 @@ export default function CheckoutPage() {
 
   const [saveAddress, setSaveAddress] = useState(false);
 
-  // Logged-in customer ID
   const [userId, setUserId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<FormDataType>({
@@ -42,7 +41,7 @@ export default function CheckoutPage() {
   });
 
   /*
-   * Load the currently logged-in customer
+   * LOAD LOGGED-IN USER
    */
   useEffect(() => {
     const loadUserInformation = async () => {
@@ -66,13 +65,8 @@ export default function CheckoutPage() {
 
         const user = await response.json();
 
-        // Save the current customer's ID
         setUserId(user.id);
 
-        /*
-         * Your backend profile normally returns "name",
-         * so split it into first and last name.
-         */
         const userName = user.name || "";
 
         const nameParts = userName.trim().split(" ");
@@ -83,16 +77,10 @@ export default function CheckoutPage() {
 
         setFormData((prev) => ({
           ...prev,
-
           firstName,
-
           lastName,
-
           email: user.email || "",
-
           phone: user.phone || "",
-
-          payment: prev.payment,
         }));
       } catch (error) {
         console.error("Could not load user information:", error);
@@ -103,8 +91,7 @@ export default function CheckoutPage() {
   }, []);
 
   /*
-   * Load the saved delivery address
-   * ONLY for the currently logged-in customer.
+   * LOAD SAVED ADDRESS
    */
   useEffect(() => {
     if (!userId) {
@@ -112,35 +99,18 @@ export default function CheckoutPage() {
     }
 
     try {
-      /*
-       * IMPORTANT:
-       * Every customer gets their own localStorage key.
-       *
-       * Example:
-       * savedShippingAddress_1
-       * savedShippingAddress_2
-       * savedShippingAddress_3
-       */
       const storageKey = `savedShippingAddress_${userId}`;
 
       const savedAddress = localStorage.getItem(storageKey);
 
-      /*
-       * This customer has never saved an address.
-       * Start with a fresh address form.
-       */
       if (!savedAddress) {
         setSaveAddress(false);
 
         setFormData((prev) => ({
           ...prev,
-
           address: "",
-
           city: "",
-
           country: "Ethiopia",
-
           deliveryInstructions: "",
         }));
 
@@ -151,13 +121,9 @@ export default function CheckoutPage() {
 
       setFormData((prev) => ({
         ...prev,
-
         address: address.address || "",
-
         city: address.city || "",
-
         country: address.country || "Ethiopia",
-
         deliveryInstructions: address.deliveryInstructions || "",
       }));
 
@@ -167,6 +133,9 @@ export default function CheckoutPage() {
     }
   }, [userId]);
 
+  /*
+   * ORDER CALCULATIONS
+   */
   const shipping = cartTotal >= 100 ? 0 : 10;
 
   const tax = cartTotal * 0.08;
@@ -182,6 +151,9 @@ export default function CheckoutPage() {
     0,
   );
 
+  /*
+   * INPUT CHANGE
+   */
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -195,13 +167,21 @@ export default function CheckoutPage() {
     }));
   };
 
+  /*
+   * PAYMENT SELECTION
+   */
   const selectPayment = (payment: string) => {
     setFormData((prev) => ({
       ...prev,
       payment,
     }));
+
+    setError("");
   };
 
+  /*
+   * VALIDATION
+   */
   const validateForm = () => {
     const requiredFields = [
       "firstName",
@@ -231,9 +211,16 @@ export default function CheckoutPage() {
       return "Please enter a valid phone number.";
     }
 
+    if (!formData.payment) {
+      return "Please select a payment method.";
+    }
+
     return "";
   };
 
+  /*
+   * PLACE ORDER
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -258,8 +245,7 @@ export default function CheckoutPage() {
         localStorage.getItem("accessToken") || localStorage.getItem("token");
 
       /*
-       * Save delivery address ONLY for the
-       * currently logged-in customer.
+       * SAVE ADDRESS
        */
       if (saveAddress && userId) {
         const storageKey = `savedShippingAddress_${userId}`;
@@ -268,19 +254,15 @@ export default function CheckoutPage() {
           storageKey,
           JSON.stringify({
             address: formData.address,
-
             city: formData.city,
-
             country: formData.country,
-
             deliveryInstructions: formData.deliveryInstructions,
           }),
         );
       }
 
       /*
-       * If the customer doesn't want to save
-       * the address, remove only THEIR address.
+       * REMOVE SAVED ADDRESS
        */
       if (!saveAddress && userId) {
         const storageKey = `savedShippingAddress_${userId}`;
@@ -288,14 +270,18 @@ export default function CheckoutPage() {
         localStorage.removeItem(storageKey);
       }
 
+      /*
+       * ORDER ITEMS
+       */
       const items = cartProducts.map((item) => ({
         productId: item.id,
-
         quantity: item.quantity,
-
         product: item,
       }));
 
+      /*
+       * ORDER DATA
+       */
       const orderData = {
         items,
 
@@ -311,27 +297,24 @@ export default function CheckoutPage() {
 
         customer: {
           firstName: formData.firstName,
-
           lastName: formData.lastName,
-
           email: formData.email,
-
           phone: formData.phone,
         },
 
         shippingAddress: {
           address: formData.address,
-
           city: formData.city,
-
           country: formData.country,
-
           deliveryInstructions: formData.deliveryInstructions,
         },
 
         paymentMethod: formData.payment,
       };
 
+      /*
+       * CREATE ORDER
+       */
       const response = await fetch("http://localhost:3001/orders", {
         method: "POST",
 
@@ -363,7 +346,7 @@ export default function CheckoutPage() {
       const newOrderId =
         data?.id || data?._id || data?.order?.id || data?.order?._id || "";
 
-      setOrderId(newOrderId);
+      setOrderId(String(newOrderId));
 
       setOrderPlaced(true);
 
@@ -379,7 +362,7 @@ export default function CheckoutPage() {
   };
 
   /*
-   * Empty cart
+   * EMPTY CART
    */
   if (cartProducts.length === 0 && !orderPlaced) {
     return (
@@ -396,7 +379,7 @@ export default function CheckoutPage() {
 
             <Link
               href="/cart"
-              className="rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-bold text-blue-700"
+              className="rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
             >
               ← Cart
             </Link>
@@ -429,7 +412,7 @@ export default function CheckoutPage() {
   }
 
   /*
-   * Order success
+   * ORDER SUCCESS
    */
   if (orderPlaced) {
     return (
@@ -448,7 +431,7 @@ export default function CheckoutPage() {
 
         <div className="mx-auto max-w-3xl px-5 py-16 lg:py-24">
           <div className="rounded-4xl border border-sky-100 bg-white p-7 text-center shadow-xl shadow-blue-100 sm:p-12">
-            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-emerald-50 text-5xl">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-emerald-50 text-5xl text-emerald-600">
               ✓
             </div>
 
@@ -473,6 +456,30 @@ export default function CheckoutPage() {
               <p className="mt-2 break-all text-xl font-black text-blue-600">
                 {orderId || "Order received"}
               </p>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left">
+              <div className="flex gap-3">
+                <span className="text-xl">
+                  {formData.payment === "Cash on Delivery"
+                    ? "💵"
+                    : formData.payment === "Telebirr"
+                      ? "📱"
+                      : "💳"}
+                </span>
+
+                <div>
+                  <p className="font-black text-slate-800">Payment method</p>
+
+                  <p className="mt-1 text-sm text-slate-600">
+                    {formData.payment}
+                  </p>
+
+                  <p className="mt-1 text-xs font-bold text-amber-700">
+                    Payment status: Pending
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -618,7 +625,6 @@ export default function CheckoutPage() {
                 />
 
                 <div className="mt-7 space-y-5">
-                  {/* STREET ADDRESS */}
                   <InputField
                     label="🏠 Street / House address"
                     name="address"
@@ -627,7 +633,6 @@ export default function CheckoutPage() {
                     placeholder="Example: 04 Kebele, Street 2, House 15"
                   />
 
-                  {/* CITY + COUNTRY */}
                   <div className="grid gap-5 sm:grid-cols-2">
                     <InputField
                       label="🏙️ City"
@@ -659,7 +664,6 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  {/* DELIVERY INSTRUCTIONS */}
                   <div>
                     <label className="mb-2 block text-sm font-bold text-slate-700">
                       📝 Delivery instructions
@@ -678,7 +682,6 @@ export default function CheckoutPage() {
                     />
                   </div>
 
-                  {/* SAVE ADDRESS */}
                   <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-sky-100 bg-sky-50 p-4">
                     <input
                       type="checkbox"
@@ -698,7 +701,6 @@ export default function CheckoutPage() {
                     </div>
                   </label>
 
-                  {/* ADDRESS PREVIEW */}
                   {(formData.address || formData.city) && (
                     <div className="rounded-2xl border border-blue-100 bg-linear-to-br from-blue-50 to-sky-50 p-5">
                       <div className="flex gap-3">
@@ -759,6 +761,143 @@ export default function CheckoutPage() {
                     onClick={() => selectPayment("Credit / Debit Card")}
                   />
                 </div>
+
+                {/* CASH ON DELIVERY */}
+                {formData.payment === "Cash on Delivery" && (
+                  <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                    <div className="flex gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-2xl">
+                        💵
+                      </div>
+
+                      <div className="flex-1">
+                        <h3 className="font-black text-slate-900">
+                          Cash on Delivery
+                        </h3>
+
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                          You will pay the delivery person when your order
+                          arrives.
+                        </p>
+
+                        <div className="mt-3 rounded-xl bg-white px-4 py-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                            Amount to pay
+                          </p>
+
+                          <p className="mt-1 text-xl font-black text-slate-900">
+                            ${finalTotal.toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TELEBIRR */}
+                {formData.payment === "Telebirr" && (
+                  <div className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-5">
+                    <div className="flex gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-2xl">
+                        📱
+                      </div>
+
+                      <div className="flex-1">
+                        <h3 className="font-black text-slate-900">
+                          Telebirr Payment
+                        </h3>
+
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                          Your payment will be created as pending. Complete the
+                          Telebirr payment and the payment status can then be
+                          confirmed.
+                        </p>
+
+                        <div className="mt-4 rounded-xl bg-white p-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-slate-500">
+                              Amount
+                            </span>
+
+                            <span className="text-xl font-black text-slate-900">
+                              ${finalTotal.toFixed(2)}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 flex items-center gap-2 text-xs font-bold text-amber-600">
+                            <span className="h-2 w-2 rounded-full bg-amber-400" />
+                            Payment status: Pending
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD */}
+                {formData.payment === "Credit / Debit Card" && (
+                  <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-50 p-5">
+                    <div className="flex gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-2xl">
+                        💳
+                      </div>
+
+                      <div className="flex-1">
+                        <h3 className="font-black text-slate-900">
+                          Credit / Debit Card
+                        </h3>
+
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                          Enter your card information to continue.
+                        </p>
+
+                        <div className="mt-4 grid gap-4">
+                          <input
+                            type="text"
+                            placeholder="Card number"
+                            inputMode="numeric"
+                            autoComplete="cc-number"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+                          />
+
+                          <input
+                            type="text"
+                            placeholder="Cardholder name"
+                            autoComplete="cc-name"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+                          />
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <input
+                              type="text"
+                              placeholder="MM / YY"
+                              autoComplete="cc-exp"
+                              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+                            />
+
+                            <input
+                              type="password"
+                              placeholder="CVV"
+                              maxLength={4}
+                              inputMode="numeric"
+                              autoComplete="cc-csc"
+                              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+                            />
+                          </div>
+
+                          <div className="flex items-start gap-2 rounded-xl bg-white p-3 text-xs leading-5 text-slate-500">
+                            <span>🔒</span>
+
+                            <span>
+                              This is a demo card form. Do not send real card
+                              numbers or CVV information to your own backend.
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             </div>
 
@@ -858,6 +997,27 @@ export default function CheckoutPage() {
                     <span className="text-3xl font-black">
                       ${finalTotal.toFixed(2)}
                     </span>
+                  </div>
+
+                  {/* SELECTED PAYMENT */}
+                  <div className="mt-5 rounded-2xl bg-white/15 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-100">
+                      Payment method
+                    </p>
+
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-lg">
+                        {formData.payment === "Cash on Delivery"
+                          ? "💵"
+                          : formData.payment === "Telebirr"
+                            ? "📱"
+                            : "💳"}
+                      </span>
+
+                      <span className="text-sm font-bold">
+                        {formData.payment}
+                      </span>
+                    </div>
                   </div>
 
                   {/* PLACE ORDER */}

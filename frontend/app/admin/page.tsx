@@ -32,6 +32,16 @@ type Product = {
   image?: string | null;
 };
 
+type Payment = {
+  id: number;
+  orderId: number;
+  amount: number;
+  method: "CASH_ON_DELIVERY" | "TELEBIRR" | "CARD";
+  status: "PENDING" | "PAID" | "FAILED" | "CANCELLED";
+  transactionId?: string | null;
+  createdAt?: string;
+};
+
 type IconName =
   | "grid"
   | "bag"
@@ -54,7 +64,8 @@ type IconName =
   | "warning"
   | "calendar"
   | "activity"
-  | "chevron";
+  | "chevron"
+  | "card";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const common = {
@@ -257,6 +268,15 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
         </svg>
       );
 
+    case "card":
+      return (
+        <svg {...common}>
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M3 10h18" />
+          <path d="M7 15h4" />
+        </svg>
+      );
+
     default:
       return null;
   }
@@ -278,8 +298,11 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -291,11 +314,13 @@ export default function AdminDashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setPaymentsLoading(true);
 
       const token = localStorage.getItem("accessToken");
 
       if (!token) {
         setLoading(false);
+        setPaymentsLoading(false);
         return;
       }
 
@@ -304,11 +329,28 @@ export default function AdminDashboard() {
         "Content-Type": "application/json",
       };
 
-      const [ordersRes, usersRes, productsRes] = await Promise.all([
-        fetch("http://localhost:3001/admin/orders", { headers }),
-        fetch("http://localhost:3001/admin/users", { headers }),
-        fetch("http://localhost:3001/products"),
-      ]);
+      const [ordersRes, usersRes, productsRes, paymentsRes] = await Promise.all(
+        [
+          fetch("http://localhost:3001/admin/orders", {
+            headers,
+            cache: "no-store",
+          }),
+
+          fetch("http://localhost:3001/admin/users", {
+            headers,
+            cache: "no-store",
+          }),
+
+          fetch("http://localhost:3001/products", {
+            cache: "no-store",
+          }),
+
+          fetch("http://localhost:3001/payments/admin/all", {
+            headers,
+            cache: "no-store",
+          }),
+        ],
+      );
 
       if (ordersRes.ok) {
         const data = await ordersRes.json();
@@ -324,6 +366,7 @@ export default function AdminDashboard() {
         );
       } else {
         console.error("Orders request failed:", ordersRes.status);
+        setOrders([]);
       }
 
       if (usersRes.ok) {
@@ -340,6 +383,7 @@ export default function AdminDashboard() {
         );
       } else {
         console.error("Users request failed:", usersRes.status);
+        setUsers([]);
       }
 
       if (productsRes.ok) {
@@ -356,11 +400,34 @@ export default function AdminDashboard() {
         );
       } else {
         console.error("Products request failed:", productsRes.status);
+        setProducts([]);
+      }
+
+      if (paymentsRes.ok) {
+        const data = await paymentsRes.json();
+
+        const paymentList = Array.isArray(data)
+          ? data
+          : Array.isArray(data.payments)
+            ? data.payments
+            : Array.isArray(data.data)
+              ? data.data
+              : [];
+
+        setPayments(paymentList);
+      } else {
+        console.error("Payments request failed:", paymentsRes.status);
+        setPayments([]);
       }
     } catch (error) {
       console.error("Dashboard error:", error);
+      setOrders([]);
+      setUsers([]);
+      setProducts([]);
+      setPayments([]);
     } finally {
       setLoading(false);
+      setPaymentsLoading(false);
     }
   };
 
@@ -418,6 +485,34 @@ export default function AdminDashboard() {
   const inventoryHealth =
     totalProducts > 0 ? Math.round((inStockProducts / totalProducts) * 100) : 0;
 
+  /* PAYMENT SUMMARY */
+
+  const totalPayments = payments.length;
+
+  const paidPayments = payments.filter(
+    (payment) => payment.status === "PAID",
+  ).length;
+
+  const pendingPayments = payments.filter(
+    (payment) => payment.status === "PENDING",
+  ).length;
+
+  const failedPayments = payments.filter(
+    (payment) => payment.status === "FAILED",
+  ).length;
+
+  const cancelledPayments = payments.filter(
+    (payment) => payment.status === "CANCELLED",
+  ).length;
+
+  const paidPaymentValue = payments
+    .filter((payment) => payment.status === "PAID")
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
+  const pendingPaymentValue = payments
+    .filter((payment) => payment.status === "PENDING")
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
   const recentOrders = useMemo(() => {
     return [...orders]
       .sort(
@@ -453,7 +548,8 @@ export default function AdminDashboard() {
   const notificationCount =
     pendingOrders +
     notificationLowStockProducts.length +
-    notificationOutOfStockProducts.length;
+    notificationOutOfStockProducts.length +
+    pendingPayments;
 
   const notificationBadge =
     notificationCount > 9 ? "9+" : String(notificationCount);
@@ -565,6 +661,7 @@ export default function AdminDashboard() {
 
     orders.forEach((order) => {
       const name = order.user?.name?.toLowerCase() || "";
+
       const email = order.user?.email?.toLowerCase() || "";
 
       if (
@@ -610,8 +707,24 @@ export default function AdminDashboard() {
       }
     });
 
+    payments.forEach((payment) => {
+      if (
+        String(payment.id).includes(query) ||
+        String(payment.orderId).includes(query) ||
+        payment.status.toLowerCase().includes(query) ||
+        payment.method.toLowerCase().includes(query)
+      ) {
+        results.push({
+          type: "Payment",
+          name: `Payment #${payment.id}`,
+          href: "/admin/payments",
+          detail: `Order #${payment.orderId} • ${payment.status}`,
+        });
+      }
+    });
+
     return results.slice(0, 8);
-  }, [search, orders, products, users]);
+  }, [search, orders, products, users, payments]);
 
   const navigation = [
     {
@@ -645,6 +758,12 @@ export default function AdminDashboard() {
       name: "Users",
       href: "/admin/users",
       icon: "users" as IconName,
+    },
+    {
+      name: "Payments",
+      href: "/admin/payments",
+      icon: "card" as IconName,
+      badge: pendingPayments,
     },
   ];
 
@@ -680,7 +799,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f6f8fb] text-slate-900">
-      {/* DESKTOP SEARCH OVERLAY ONLY */}
+      {/* DESKTOP SEARCH OVERLAY */}
+
       {desktopSearchOpen && (
         <button
           type="button"
@@ -691,6 +811,7 @@ export default function AdminDashboard() {
       )}
 
       {/* MOBILE SIDEBAR OVERLAY */}
+
       {sidebarOpen && (
         <button
           type="button"
@@ -701,6 +822,7 @@ export default function AdminDashboard() {
       )}
 
       {/* SIDEBAR */}
+
       <aside
         className={`fixed left-0 top-0 z-50 flex h-screen w-[250px] flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -848,8 +970,10 @@ export default function AdminDashboard() {
       </aside>
 
       {/* MAIN */}
+
       <main className="min-h-screen lg:pl-[250px]">
         {/* HEADER */}
+
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <div className="flex min-h-[72px] items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -878,6 +1002,7 @@ export default function AdminDashboard() {
 
             <div className="flex shrink-0 items-center gap-2">
               {/* DESKTOP SEARCH */}
+
               <div className="relative z-[60] hidden lg:block">
                 <div
                   className={`flex h-10 w-[280px] items-center gap-2 rounded-xl border px-3 transition ${
@@ -953,7 +1078,9 @@ export default function AdminDashboard() {
                                     ? "bag"
                                     : result.type === "Product"
                                       ? "box"
-                                      : "users"
+                                      : result.type === "Payment"
+                                        ? "card"
+                                        : "users"
                                 }
                                 size={16}
                               />
@@ -988,7 +1115,7 @@ export default function AdminDashboard() {
                         </p>
 
                         <p className="mt-1 text-[10px] text-slate-400">
-                          Try another order, product, or customer.
+                          Try another order, product, payment, or customer.
                         </p>
                       </div>
                     )}
@@ -997,6 +1124,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* MOBILE SEARCH */}
+
               <button
                 type="button"
                 onClick={openMobileSearch}
@@ -1011,9 +1139,8 @@ export default function AdminDashboard() {
                 <Icon name="search" size={18} />
               </button>
 
-              {/* ===================================================== */}
-              {/* FIXED NOTIFICATION SYSTEM */}
-              {/* ===================================================== */}
+              {/* NOTIFICATIONS */}
+
               <div className="relative z-[80]">
                 <button
                   type="button"
@@ -1037,7 +1164,6 @@ export default function AdminDashboard() {
 
                 {notificationsOpen && (
                   <>
-                    {/* NOTIFICATION BACKDROP */}
                     <button
                       type="button"
                       onClick={() => setNotificationsOpen(false)}
@@ -1045,9 +1171,7 @@ export default function AdminDashboard() {
                       aria-label="Close notifications"
                     />
 
-                    {/* NOTIFICATION PANEL */}
                     <div className="absolute right-0 top-12 z-[90] w-[350px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                      {/* HEADER */}
                       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
@@ -1079,9 +1203,9 @@ export default function AdminDashboard() {
                         </button>
                       </div>
 
-                      {/* NOTIFICATION LIST */}
-                      <div className="max-h-[360px] overflow-y-auto p-2">
+                      <div className="max-h-[380px] overflow-y-auto p-2">
                         {/* PENDING ORDERS */}
+
                         {pendingOrders > 0 && (
                           <Link
                             href="/admin/orders"
@@ -1104,13 +1228,40 @@ export default function AdminDashboard() {
                               </p>
                             </div>
 
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 transition group-hover:bg-amber-100 group-hover:text-amber-600">
-                              <Icon name="chevron" size={14} />
+                            <Icon name="chevron" size={14} />
+                          </Link>
+                        )}
+
+                        {/* PENDING PAYMENTS */}
+
+                        {pendingPayments > 0 && (
+                          <Link
+                            href="/admin/payments"
+                            onClick={handleNotificationNavigation}
+                            className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-indigo-50"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-white">
+                              <Icon name="card" size={17} />
                             </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-black text-slate-800">
+                                Pending payments
+                              </p>
+
+                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                {pendingPayments} payment
+                                {pendingPayments !== 1 ? "s" : ""} waiting for
+                                review.
+                              </p>
+                            </div>
+
+                            <Icon name="chevron" size={14} />
                           </Link>
                         )}
 
                         {/* LOW STOCK */}
+
                         {notificationLowStockProducts.length > 0 && (
                           <Link
                             href="/admin/products"
@@ -1133,13 +1284,12 @@ export default function AdminDashboard() {
                               </p>
                             </div>
 
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 transition group-hover:bg-orange-100 group-hover:text-orange-600">
-                              <Icon name="chevron" size={14} />
-                            </div>
+                            <Icon name="chevron" size={14} />
                           </Link>
                         )}
 
                         {/* OUT OF STOCK */}
+
                         {notificationOutOfStockProducts.length > 0 && (
                           <Link
                             href="/admin/products"
@@ -1162,13 +1312,10 @@ export default function AdminDashboard() {
                               </p>
                             </div>
 
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 transition group-hover:bg-rose-100 group-hover:text-rose-600">
-                              <Icon name="chevron" size={14} />
-                            </div>
+                            <Icon name="chevron" size={14} />
                           </Link>
                         )}
 
-                        {/* EMPTY */}
                         {notificationCount === 0 && (
                           <div className="px-5 py-8 text-center">
                             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
@@ -1180,33 +1327,40 @@ export default function AdminDashboard() {
                             </p>
 
                             <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                              There are no pending orders or inventory alerts.
+                              There are no pending orders, payments, or
+                              inventory alerts.
                             </p>
                           </div>
                         )}
                       </div>
 
-                      {/* DIRECT NAVIGATION */}
                       <div className="border-t border-slate-100 bg-slate-50/70 p-2">
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                           <Link
                             href="/admin/orders"
                             onClick={handleNotificationNavigation}
-                            className="flex items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2.5 text-[10px] font-black text-slate-600 shadow-sm transition hover:bg-indigo-50 hover:text-indigo-600"
+                            className="flex items-center justify-center gap-1 rounded-xl bg-white px-2 py-2.5 text-[10px] font-black text-slate-600 shadow-sm transition hover:bg-indigo-50 hover:text-indigo-600"
                           >
-                            <Icon name="bag" size={13} />
+                            <Icon name="bag" size={12} />
                             Orders
-                            <Icon name="arrow" size={12} />
+                          </Link>
+
+                          <Link
+                            href="/admin/payments"
+                            onClick={handleNotificationNavigation}
+                            className="flex items-center justify-center gap-1 rounded-xl bg-white px-2 py-2.5 text-[10px] font-black text-slate-600 shadow-sm transition hover:bg-indigo-50 hover:text-indigo-600"
+                          >
+                            <Icon name="card" size={12} />
+                            Payments
                           </Link>
 
                           <Link
                             href="/admin/products"
                             onClick={handleNotificationNavigation}
-                            className="flex items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2.5 text-[10px] font-black text-slate-600 shadow-sm transition hover:bg-indigo-50 hover:text-indigo-600"
+                            className="flex items-center justify-center gap-1 rounded-xl bg-white px-2 py-2.5 text-[10px] font-black text-slate-600 shadow-sm transition hover:bg-indigo-50 hover:text-indigo-600"
                           >
-                            <Icon name="box" size={13} />
+                            <Icon name="box" size={12} />
                             Products
-                            <Icon name="arrow" size={12} />
                           </Link>
                         </div>
                       </div>
@@ -1216,6 +1370,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* REFRESH */}
+
               <button
                 type="button"
                 onClick={() => {
@@ -1223,19 +1378,20 @@ export default function AdminDashboard() {
                   setSidebarOpen(false);
                   fetchDashboardData();
                 }}
-                disabled={loading}
+                disabled={loading || paymentsLoading}
                 className="flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Icon name="refresh" size={16} />
 
                 <span className="hidden sm:inline">
-                  {loading ? "Refreshing..." : "Refresh"}
+                  {loading || paymentsLoading ? "Refreshing..." : "Refresh"}
                 </span>
               </button>
             </div>
           </div>
 
           {/* MOBILE SEARCH */}
+
           {mobileSearchOpen && (
             <div className="pb-3 lg:hidden">
               <div className="flex h-11 items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 ring-4 ring-indigo-500/5">
@@ -1293,7 +1449,9 @@ export default function AdminDashboard() {
                                 ? "bag"
                                 : result.type === "Product"
                                   ? "box"
-                                  : "users"
+                                  : result.type === "Payment"
+                                    ? "card"
+                                    : "users"
                             }
                             size={16}
                           />
@@ -1330,8 +1488,10 @@ export default function AdminDashboard() {
         </header>
 
         {/* CONTENT */}
+
         <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {/* WELCOME */}
+
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
             <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
               <div>
@@ -1348,8 +1508,8 @@ export default function AdminDashboard() {
                 </h2>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                  Monitor your store, manage orders, review inventory and track
-                  your ecommerce activity from one dashboard.
+                  Monitor your store, manage orders, review inventory, track
+                  payments and follow ecommerce activity from one dashboard.
                 </p>
               </div>
 
@@ -1360,6 +1520,14 @@ export default function AdminDashboard() {
                 >
                   Review orders
                   <Icon name="arrow" size={14} />
+                </Link>
+
+                <Link
+                  href="/admin/payments"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-600 transition hover:bg-slate-50 hover:text-indigo-600 active:scale-[0.98]"
+                >
+                  <Icon name="card" size={15} />
+                  Payments
                 </Link>
 
                 <Link
@@ -1374,6 +1542,7 @@ export default function AdminDashboard() {
           </section>
 
           {/* KPI CARDS */}
+
           <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {loading ? (
               <>
@@ -1495,9 +1664,186 @@ export default function AdminDashboard() {
             )}
           </section>
 
+          {/* PAYMENTS OVERVIEW */}
+
+          <section className="mt-6 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
+            <div className="border-b border-indigo-50 bg-linear-to-r from-indigo-50 via-white to-violet-50 px-6 py-5">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                      <Icon name="card" size={18} />
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-500">
+                        Financial activity
+                      </p>
+
+                      <h2 className="mt-0.5 text-xl font-black text-slate-950">
+                        Payment overview
+                      </h2>
+                    </div>
+                  </div>
+
+                  <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+                    Track payment records and quickly review pending or failed
+                    transactions.
+                  </p>
+                </div>
+
+                <Link
+                  href="/admin/payments"
+                  className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.98]"
+                >
+                  View Payments
+                  <Icon name="arrow" size={14} />
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+              {paymentsLoading ? (
+                <>
+                  <LoadingCard />
+                  <LoadingCard />
+                  <LoadingCard />
+                  <LoadingCard />
+                </>
+              ) : (
+                <>
+                  {/* TOTAL */}
+
+                  <Link
+                    href="/admin/payments"
+                    className="group rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-white hover:shadow-md"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                        <Icon name="card" size={18} />
+                      </div>
+
+                      <Icon name="arrow" size={14} />
+                    </div>
+
+                    <p className="mt-4 text-xs font-bold text-slate-400">
+                      Total Payments
+                    </p>
+
+                    <p className="mt-1 text-2xl font-black text-slate-950">
+                      {totalPayments}
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {formatCurrency(
+                        payments.reduce(
+                          (sum, payment) => sum + Number(payment.amount || 0),
+                          0,
+                        ),
+                      )}{" "}
+                      total value
+                    </p>
+                  </Link>
+
+                  {/* PAID */}
+
+                  <Link
+                    href="/admin/payments?status=PAID"
+                    className="group rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                        <Icon name="check" size={18} />
+                      </div>
+
+                      <Icon name="arrow" size={14} />
+                    </div>
+
+                    <p className="mt-4 text-xs font-bold text-slate-400">
+                      Paid
+                    </p>
+
+                    <p className="mt-1 text-2xl font-black text-emerald-700">
+                      {paidPayments}
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-emerald-600/70">
+                      {formatCurrency(paidPaymentValue)} collected
+                    </p>
+                  </Link>
+
+                  {/* PENDING */}
+
+                  <Link
+                    href="/admin/payments?status=PENDING"
+                    className="group rounded-2xl border border-amber-100 bg-amber-50/60 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                        <Icon name="clock" size={18} />
+                      </div>
+
+                      <Icon name="arrow" size={14} />
+                    </div>
+
+                    <p className="mt-4 text-xs font-bold text-slate-400">
+                      Pending
+                    </p>
+
+                    <p className="mt-1 text-2xl font-black text-amber-700">
+                      {pendingPayments}
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-amber-600/70">
+                      {formatCurrency(pendingPaymentValue)} awaiting review
+                    </p>
+                  </Link>
+
+                  {/* FAILED */}
+
+                  <Link
+                    href="/admin/payments?status=FAILED"
+                    className="group rounded-2xl border border-rose-100 bg-rose-50/60 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                        <Icon name="warning" size={18} />
+                      </div>
+
+                      <Icon name="arrow" size={14} />
+                    </div>
+
+                    <p className="mt-4 text-xs font-bold text-slate-400">
+                      Failed
+                    </p>
+
+                    <p className="mt-1 text-2xl font-black text-rose-600">
+                      {failedPayments}
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-rose-500/70">
+                      Requires attention
+                    </p>
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {cancelledPayments > 0 && (
+              <div className="border-t border-slate-100 px-5 py-3">
+                <p className="text-[10px] font-semibold text-slate-400">
+                  {cancelledPayments} cancelled payment
+                  {cancelledPayments !== 1 ? "s" : ""} included in the total.
+                </p>
+              </div>
+            )}
+          </section>
+
           {/* ANALYTICS */}
+
           <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr_1fr]">
             {/* REVENUE */}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1595,6 +1941,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* ORDER STATUS */}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Order workflow
@@ -1698,6 +2045,7 @@ export default function AdminDashboard() {
           </section>
 
           {/* QUICK ACTIONS */}
+
           <section className="mt-6">
             <div className="mb-4">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -1720,20 +2068,20 @@ export default function AdminDashboard() {
                   color: "text-blue-600",
                 },
                 {
+                  title: "Manage Payments",
+                  text: "Review payment activity",
+                  href: "/admin/payments",
+                  icon: "card" as IconName,
+                  bg: "bg-indigo-50",
+                  color: "text-indigo-600",
+                },
+                {
                   title: "Add Product",
                   text: "Create a new product",
                   href: "/admin/products",
                   icon: "plus" as IconName,
                   bg: "bg-emerald-50",
                   color: "text-emerald-600",
-                },
-                {
-                  title: "Categories",
-                  text: "Organize your catalog",
-                  href: "/admin/categories",
-                  icon: "tag" as IconName,
-                  bg: "bg-orange-50",
-                  color: "text-orange-600",
                 },
                 {
                   title: "Customers",
@@ -1774,8 +2122,10 @@ export default function AdminDashboard() {
           </section>
 
           {/* ORDERS + INVENTORY */}
+
           <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr_1fr]">
             {/* RECENT ORDERS */}
+
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
                 <div>
@@ -1859,6 +2209,7 @@ export default function AdminDashboard() {
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-1.5 text-xs text-slate-500">
                               <Icon name="calendar" size={12} />
+
                               {formatShortDate(order.createdAt)}
                             </div>
                           </td>
@@ -1903,6 +2254,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* INVENTORY */}
+
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-5">
                 <div className="flex items-center justify-between">
@@ -2078,6 +2430,7 @@ export default function AdminDashboard() {
           </section>
 
           {/* ORDER SUMMARY */}
+
           <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               {

@@ -3,6 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+type Payment = {
+  id?: number;
+  orderId?: number;
+  amount?: number;
+  method?: string;
+  status?: string;
+  transactionId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 type OrderItem = {
   id?: number;
   productId?: number;
@@ -39,6 +50,7 @@ type Order = {
   deliveryInstructions?: string;
 
   paymentMethod?: string;
+  payment?: Payment;
 
   createdAt?: string;
 
@@ -147,6 +159,12 @@ export default function OrdersPage() {
             ? {
                 ...order,
                 status: "CANCELLED",
+                payment: order.payment
+                  ? {
+                      ...order.payment,
+                      status: "CANCELLED",
+                    }
+                  : order.payment,
               }
             : order;
         }),
@@ -222,8 +240,8 @@ export default function OrdersPage() {
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">
-            Track your purchases, check delivery status, and manage your recent
-            orders.
+            Track your purchases, check payment and delivery status, and manage
+            your recent orders.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -361,6 +379,10 @@ export default function OrdersPage() {
                   })
                 : "Recent order";
 
+              const paymentStatus = normalizePaymentStatus(
+                order.payment?.status,
+              );
+
               return (
                 <div
                   key={id || index}
@@ -481,8 +503,6 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
-                      {/* Delivery instructions */}
-
                       {order.deliveryInstructions && (
                         <div className="mt-5 border-t border-blue-100 pt-4">
                           <p className="text-xs font-black uppercase tracking-wider text-slate-400">
@@ -538,21 +558,39 @@ export default function OrdersPage() {
                       {/* Payment */}
 
                       <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white">
-                            💳
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white">
+                              💳
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="text-xs font-black uppercase tracking-wider text-slate-400">
+                                Payment
+                              </p>
+
+                              <p className="truncate font-black text-slate-900">
+                                {formatPaymentMethod(
+                                  order.paymentMethod || order.payment?.method,
+                                )}
+                              </p>
+                            </div>
                           </div>
 
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-slate-400">
-                              Payment Method
-                            </p>
-
-                            <p className="font-black text-slate-900">
-                              {formatPaymentMethod(order.paymentMethod)}
-                            </p>
-                          </div>
+                          <PaymentStatusBadge status={paymentStatus} />
                         </div>
+
+                        {order.payment?.amount !== undefined && (
+                          <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
+                            <span className="text-sm font-semibold text-slate-500">
+                              Amount
+                            </span>
+
+                            <span className="font-black text-slate-900">
+                              ${Number(order.payment.amount).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -615,6 +653,26 @@ export default function OrdersPage() {
                         </button>
                       )}
 
+                      {/* View Payment */}
+
+                      {order.payment?.id ? (
+                        <Link
+                          href={`/payment?orderId=${id}`}
+                          className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 text-center text-sm font-bold text-blue-700 transition hover:bg-blue-100"
+                        >
+                          💳 View Payment
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/payment?orderId=${id}`}
+                          className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-3 text-center text-sm font-bold text-slate-600 transition hover:bg-slate-100"
+                        >
+                          💳 Payment Details
+                        </Link>
+                      )}
+
+                      {/* View Order */}
+
                       <Link
                         href={`/orders/${id}`}
                         className="rounded-xl bg-blue-600 px-5 py-3 text-center text-sm font-bold text-white shadow-md shadow-blue-100 transition hover:bg-indigo-600"
@@ -644,7 +702,7 @@ export default function OrdersPage() {
 }
 
 /* =========================================================
-   COMPONENTS
+   STAT CARD
 ========================================================= */
 
 function StatCard({ number, label }: { number: number; label: string }) {
@@ -658,7 +716,7 @@ function StatCard({ number, label }: { number: number; label: string }) {
 }
 
 /* =========================================================
-   STATUS BADGE
+   ORDER STATUS BADGE
 ========================================================= */
 
 function StatusBadge({ status }: { status: string }) {
@@ -692,6 +750,36 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /* =========================================================
+   PAYMENT STATUS BADGE
+========================================================= */
+
+function PaymentStatusBadge({ status }: { status: string }) {
+  const normalized = normalizePaymentStatus(status);
+
+  let classes = "bg-amber-50 text-amber-700 border-amber-200";
+
+  if (normalized === "PAID") {
+    classes = "bg-emerald-50 text-emerald-700 border-emerald-200";
+  }
+
+  if (normalized === "FAILED") {
+    classes = "bg-red-50 text-red-700 border-red-200";
+  }
+
+  if (normalized === "CANCELLED") {
+    classes = "bg-slate-100 text-slate-600 border-slate-200";
+  }
+
+  return (
+    <span
+      className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-black ${classes}`}
+    >
+      {formatStatus(normalized)}
+    </span>
+  );
+}
+
+/* =========================================================
    SUMMARY ROW
 ========================================================= */
 
@@ -714,7 +802,6 @@ function SummaryRow({ label, value }: { label: string; value?: number }) {
 function normalizeStatus(status: string) {
   const value = status.toUpperCase();
 
-  // Support old frontend/backend status names
   if (value === "PROCESSING") {
     return "CONFIRMED";
   }
@@ -722,12 +809,20 @@ function normalizeStatus(status: string) {
   return value;
 }
 
+function normalizePaymentStatus(status?: string) {
+  if (!status) {
+    return "PENDING";
+  }
+
+  return status.toUpperCase();
+}
+
 function formatStatus(status: string) {
   if (!status) return "Pending";
 
   return status
     .toLowerCase()
-    .replace("_", " ")
+    .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 

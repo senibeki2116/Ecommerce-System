@@ -13,6 +13,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ReviewModule } from './review/review.module';
 import { CategoryModule } from './category/category.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PaymentsModule } from './payments/payments.module';
 @Module({
   imports: [
     PrismaModule,
@@ -23,6 +24,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     OrdersModule,
     WishlistModule,
     ReviewModule,
+    PaymentsModule,
     NotificationsModule,
     CategoryModule,
   ],
