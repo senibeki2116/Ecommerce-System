@@ -5,13 +5,17 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export type OrderStatusValue =
   'PENDING' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   // =========================================================
   // CUSTOMER - CREATE ORDER
@@ -81,8 +85,6 @@ export class OrdersService {
     // ---------------------------------------------------------
     // Calculate product subtotal from database prices
     // ---------------------------------------------------------
-    // We calculate this again from the database instead of
-    // trusting the frontend price values.
 
     let calculatedSubtotal = 0;
 
@@ -213,6 +215,17 @@ export class OrdersService {
       }
 
       return newOrder;
+    });
+
+    // =========================================================
+    // CREATE ADMIN NOTIFICATION
+    // =========================================================
+
+    await this.notificationsService.createNotification({
+      title: 'New Order',
+      message: `A new order #${order.id} has been placed.`,
+      type: 'ORDER',
+      userId: undefined,
     });
 
     return order;
@@ -442,6 +455,17 @@ export class OrdersService {
         return updatedOrder;
       });
 
+      // -------------------------------------------------------
+      // ADMIN CANCELLATION NOTIFICATION
+      // -------------------------------------------------------
+
+      await this.notificationsService.createNotification({
+        title: 'Order Cancelled',
+        message: `Order #${orderId} has been cancelled.`,
+        type: 'ORDER',
+        userId: undefined,
+      });
+
       return cancelledOrder;
     }
 
@@ -449,7 +473,7 @@ export class OrdersService {
     // NORMAL STATUS UPDATE
     // ---------------------------------------------------------
 
-    return this.prisma.order.update({
+    const updatedOrder = await this.prisma.order.update({
       where: {
         id: orderId,
       },
@@ -474,6 +498,19 @@ export class OrdersService {
         },
       },
     });
+
+    // ---------------------------------------------------------
+    // STATUS CHANGE NOTIFICATION
+    // ---------------------------------------------------------
+
+    await this.notificationsService.createNotification({
+      title: 'Order Status Updated',
+      message: `Order #${orderId} status changed to ${status}.`,
+      type: 'ORDER',
+      userId: undefined,
+    });
+
+    return updatedOrder;
   }
 
   // =========================================================
@@ -556,6 +593,17 @@ export class OrdersService {
       }
 
       return updatedOrder;
+    });
+
+    // ---------------------------------------------------------
+    // CUSTOMER CANCELLATION NOTIFICATION
+    // ---------------------------------------------------------
+
+    await this.notificationsService.createNotification({
+      title: 'Order Cancelled',
+      message: `Order #${orderId} has been cancelled by the customer.`,
+      type: 'ORDER',
+      userId: undefined,
     });
 
     return cancelledOrder;

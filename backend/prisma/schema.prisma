@@ -32,7 +32,7 @@ model User {
   wishlist  Wishlist?
   orders    Order[]
   reviews   Review[]
-
+notifications Notification[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -186,4 +186,19 @@ model Review {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, productId])
+}
+model Notification {
+  id        Int      @id @default(autoincrement())
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  userId    Int?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
 }

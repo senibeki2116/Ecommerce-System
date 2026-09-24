@@ -9,7 +9,7 @@ type Category = {
   image?: string | null;
 };
 
-const API_URL = "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 const categoryFallbackImages: Record<string, string> = {
   electronics:

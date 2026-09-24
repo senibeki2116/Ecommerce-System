@@ -264,7 +264,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 
 function LoadingCard() {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="animate-pulse">
         <div className="h-3 w-24 rounded bg-slate-200" />
         <div className="mt-4 h-8 w-32 rounded bg-slate-200" />
@@ -281,8 +281,12 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [search, setSearch] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [desktopSearchOpen, setDesktopSearchOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const fetchDashboardData = async () => {
     try {
@@ -318,6 +322,8 @@ export default function AdminDashboard() {
                 ? data.data
                 : [],
         );
+      } else {
+        console.error("Orders request failed:", ordersRes.status);
       }
 
       if (usersRes.ok) {
@@ -332,6 +338,8 @@ export default function AdminDashboard() {
                 ? data.data
                 : [],
         );
+      } else {
+        console.error("Users request failed:", usersRes.status);
       }
 
       if (productsRes.ok) {
@@ -346,6 +354,8 @@ export default function AdminDashboard() {
                 ? data.data
                 : [],
         );
+      } else {
+        console.error("Products request failed:", productsRes.status);
       }
     } catch (error) {
       console.error("Dashboard error:", error);
@@ -424,6 +434,30 @@ export default function AdminDashboard() {
       .slice(0, 5);
   }, [products]);
 
+  const notificationLowStockProducts = useMemo(() => {
+    return [...products]
+      .filter(
+        (product) =>
+          Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5,
+      )
+      .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0))
+      .slice(0, 4);
+  }, [products]);
+
+  const notificationOutOfStockProducts = useMemo(() => {
+    return [...products]
+      .filter((product) => Number(product.stock || 0) <= 0)
+      .slice(0, 4);
+  }, [products]);
+
+  const notificationCount =
+    pendingOrders +
+    notificationLowStockProducts.length +
+    notificationOutOfStockProducts.length;
+
+  const notificationBadge =
+    notificationCount > 9 ? "9+" : String(notificationCount);
+
   const monthlySales = useMemo(() => {
     const now = new Date();
 
@@ -472,6 +506,7 @@ export default function AdminDashboard() {
 
   const statusPercent = (value: number) => {
     if (!totalStatusOrders) return 0;
+
     return Math.round((value / totalStatusOrders) * 100);
   };
 
@@ -613,12 +648,53 @@ export default function AdminDashboard() {
     },
   ];
 
+  const closeAllPanels = () => {
+    setDesktopSearchOpen(false);
+    setMobileSearchOpen(false);
+    setNotificationsOpen(false);
+  };
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+  };
+
+  const openMobileSearch = () => {
+    setSidebarOpen(false);
+    setNotificationsOpen(false);
+    setMobileSearchOpen((value) => !value);
+  };
+
+  const toggleNotifications = () => {
+    setSidebarOpen(false);
+    setDesktopSearchOpen(false);
+    setMobileSearchOpen(false);
+    setNotificationsOpen((value) => !value);
+  };
+
+  const handleNotificationNavigation = () => {
+    setNotificationsOpen(false);
+    setDesktopSearchOpen(false);
+    setMobileSearchOpen(false);
+    setSidebarOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-[#f6f8fb] text-slate-900">
-      {/* MOBILE OVERLAY */}
+      {/* DESKTOP SEARCH OVERLAY ONLY */}
+      {desktopSearchOpen && (
+        <button
+          type="button"
+          onClick={() => setDesktopSearchOpen(false)}
+          className="fixed inset-0 z-40 cursor-default bg-transparent"
+          aria-label="Close search results"
+        />
+      )}
+
+      {/* MOBILE SIDEBAR OVERLAY */}
       {sidebarOpen && (
         <button
-          onClick={() => setSidebarOpen(false)}
+          type="button"
+          onClick={closeSidebar}
           className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-sm lg:hidden"
           aria-label="Close sidebar"
         />
@@ -633,7 +709,7 @@ export default function AdminDashboard() {
         <div className="flex h-[76px] items-center border-b border-slate-100 px-5">
           <Link
             href="/"
-            onClick={() => setSidebarOpen(false)}
+            onClick={closeSidebar}
             className="flex items-center gap-3"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm">
@@ -652,8 +728,10 @@ export default function AdminDashboard() {
           </Link>
 
           <button
-            onClick={() => setSidebarOpen(false)}
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+            type="button"
+            onClick={closeSidebar}
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+            aria-label="Close menu"
           >
             <Icon name="x" size={17} />
           </button>
@@ -669,10 +747,10 @@ export default function AdminDashboard() {
               <Link
                 key={item.name}
                 href={item.href}
-                onClick={() => setSidebarOpen(false)}
+                onClick={closeSidebar}
                 className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition ${
                   item.active
-                    ? "bg-indigo-50 text-indigo-700"
+                    ? "bg-indigo-50 text-indigo-700 shadow-sm"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
@@ -680,7 +758,7 @@ export default function AdminDashboard() {
                   className={`flex h-9 w-9 items-center justify-center rounded-lg ${
                     item.active
                       ? "bg-white text-indigo-600 shadow-sm"
-                      : "bg-slate-50 text-slate-500"
+                      : "bg-slate-50 text-slate-500 group-hover:bg-white"
                   }`}
                 >
                   <Icon name={item.icon} size={18} />
@@ -705,7 +783,7 @@ export default function AdminDashboard() {
 
           <Link
             href="/"
-            onClick={() => setSidebarOpen(false)}
+            onClick={closeSidebar}
             className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50">
@@ -773,60 +851,87 @@ export default function AdminDashboard() {
       <main className="min-h-screen lg:pl-[250px]">
         {/* HEADER */}
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="flex min-h-[72px] items-center justify-between gap-4">
+          <div className="flex min-h-[72px] items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <button
-                onClick={() => setSidebarOpen(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm lg:hidden"
+                type="button"
+                onClick={() => {
+                  setNotificationsOpen(false);
+                  setSidebarOpen(true);
+                }}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 lg:hidden"
+                aria-label="Open menu"
               >
                 <Icon name="menu" size={19} />
               </button>
 
-              <div>
+              <div className="min-w-0">
                 <p className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600 sm:block">
                   Store management
                 </p>
 
-                <h1 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
+                <h1 className="truncate text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
                   Dashboard
                 </h1>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="relative hidden lg:block">
-                <div className="flex h-10 w-[280px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-indigo-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/10">
+            <div className="flex shrink-0 items-center gap-2">
+              {/* DESKTOP SEARCH */}
+              <div className="relative z-[60] hidden lg:block">
+                <div
+                  className={`flex h-10 w-[280px] items-center gap-2 rounded-xl border px-3 transition ${
+                    desktopSearchOpen
+                      ? "border-indigo-300 bg-white ring-4 ring-indigo-500/10"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
                   <Icon name="search" size={17} />
 
                   <input
                     value={search}
                     onChange={(e) => {
                       setSearch(e.target.value);
-                      setSearchOpen(true);
+                      setDesktopSearchOpen(true);
                     }}
-                    onFocus={() => setSearchOpen(true)}
-                    onBlur={() => setTimeout(() => setSearchOpen(false), 180)}
+                    onFocus={() => {
+                      setNotificationsOpen(false);
+                      setDesktopSearchOpen(true);
+                    }}
                     placeholder="Search orders, products..."
                     className="min-w-0 flex-1 bg-transparent text-xs font-medium outline-none placeholder:text-slate-400"
                   />
 
                   {search && (
                     <button
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => setSearch("")}
-                      className="text-slate-400 hover:text-slate-700"
+                      type="button"
+                      onClick={() => {
+                        setSearch("");
+                        setDesktopSearchOpen(true);
+                      }}
+                      className="text-slate-400 transition hover:text-slate-700"
+                      aria-label="Clear search"
                     >
                       <Icon name="x" size={14} />
                     </button>
                   )}
                 </div>
 
-                {searchOpen && search.trim() !== "" && (
-                  <div className="absolute right-0 top-12 z-50 w-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-                    <div className="border-b border-slate-100 px-4 py-3">
+                {desktopSearchOpen && search.trim() !== "" && (
+                  <div className="absolute right-0 top-12 z-[100] w-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                       <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                         Search results
                       </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setDesktopSearchOpen(false)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                        aria-label="Close search results"
+                      >
+                        <Icon name="x" size={14} />
+                      </button>
                     </div>
 
                     {filteredSearchResults.length > 0 ? (
@@ -836,12 +941,12 @@ export default function AdminDashboard() {
                             key={`${result.type}-${result.name}-${index}`}
                             href={result.href}
                             onClick={() => {
+                              closeAllPanels();
                               setSearch("");
-                              setSearchOpen(false);
                             }}
-                            className="flex items-center gap-3 rounded-xl p-3 hover:bg-slate-50"
+                            className="flex items-center gap-3 rounded-xl p-3 transition hover:bg-slate-50"
                           >
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
                               <Icon
                                 name={
                                   result.type === "Order"
@@ -867,14 +972,23 @@ export default function AdminDashboard() {
                             <span className="rounded-full bg-slate-100 px-2 py-1 text-[8px] font-black uppercase text-slate-500">
                               {result.type}
                             </span>
+
+                            <Icon name="chevron" size={13} />
                           </Link>
                         ))}
                       </div>
                     ) : (
                       <div className="px-5 py-8 text-center">
-                        <Icon name="search" size={20} />
+                        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                          <Icon name="search" size={18} />
+                        </div>
+
                         <p className="mt-3 text-xs font-bold text-slate-700">
                           No results found
+                        </p>
+
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Try another order, product, or customer.
                         </p>
                       </div>
                     )}
@@ -882,25 +996,235 @@ export default function AdminDashboard() {
                 )}
               </div>
 
+              {/* MOBILE SEARCH */}
               <button
-                onClick={() => setSearchOpen((value) => !value)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-600 lg:hidden"
+                type="button"
+                onClick={openMobileSearch}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border bg-white shadow-sm transition lg:hidden ${
+                  mobileSearchOpen
+                    ? "border-indigo-300 text-indigo-600 ring-4 ring-indigo-500/10"
+                    : "border-slate-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                }`}
+                aria-label="Search"
+                aria-expanded={mobileSearchOpen}
               >
                 <Icon name="search" size={18} />
               </button>
 
-              <button className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-600">
-                <Icon name="bell" size={18} />
+              {/* ===================================================== */}
+              {/* FIXED NOTIFICATION SYSTEM */}
+              {/* ===================================================== */}
+              <div className="relative z-[80]">
+                <button
+                  type="button"
+                  onClick={toggleNotifications}
+                  aria-label="Notifications"
+                  aria-expanded={notificationsOpen}
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-xl border bg-white shadow-sm transition ${
+                    notificationsOpen
+                      ? "border-indigo-300 text-indigo-600 ring-4 ring-indigo-500/10"
+                      : "border-slate-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                  }`}
+                >
+                  <Icon name="bell" size={18} />
 
-                {pendingOrders > 0 && (
-                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
+                  {notificationCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-rose-500 px-1 text-[8px] font-black text-white shadow-sm">
+                      {notificationBadge}
+                    </span>
+                  )}
+                </button>
+
+                {notificationsOpen && (
+                  <>
+                    {/* NOTIFICATION BACKDROP */}
+                    <button
+                      type="button"
+                      onClick={() => setNotificationsOpen(false)}
+                      className="fixed inset-0 z-[40] cursor-default bg-transparent"
+                      aria-label="Close notifications"
+                    />
+
+                    {/* NOTIFICATION PANEL */}
+                    <div className="absolute right-0 top-12 z-[90] w-[350px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                      {/* HEADER */}
+                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                            <Icon name="bell" size={18} />
+                          </div>
+
+                          <div>
+                            <h3 className="text-sm font-black text-slate-900">
+                              Notifications
+                            </h3>
+
+                            <p className="mt-0.5 text-[10px] text-slate-400">
+                              {notificationCount > 0
+                                ? `${notificationCount} item${
+                                    notificationCount !== 1 ? "s" : ""
+                                  } need attention`
+                                : "Everything is up to date"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                          aria-label="Close notifications"
+                        >
+                          <Icon name="x" size={16} />
+                        </button>
+                      </div>
+
+                      {/* NOTIFICATION LIST */}
+                      <div className="max-h-[360px] overflow-y-auto p-2">
+                        {/* PENDING ORDERS */}
+                        {pendingOrders > 0 && (
+                          <Link
+                            href="/admin/orders"
+                            onClick={handleNotificationNavigation}
+                            className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-amber-50"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-white">
+                              <Icon name="clock" size={17} />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-black text-slate-800">
+                                Pending orders
+                              </p>
+
+                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                {pendingOrders} order
+                                {pendingOrders !== 1 ? "s" : ""} waiting for
+                                review.
+                              </p>
+                            </div>
+
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 transition group-hover:bg-amber-100 group-hover:text-amber-600">
+                              <Icon name="chevron" size={14} />
+                            </div>
+                          </Link>
+                        )}
+
+                        {/* LOW STOCK */}
+                        {notificationLowStockProducts.length > 0 && (
+                          <Link
+                            href="/admin/products"
+                            onClick={handleNotificationNavigation}
+                            className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-orange-50"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 group-hover:bg-white">
+                              <Icon name="warning" size={17} />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-black text-slate-800">
+                                Low stock alert
+                              </p>
+
+                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                {lowStockProducts} product
+                                {lowStockProducts !== 1 ? "s" : ""} have 5 or
+                                fewer units remaining.
+                              </p>
+                            </div>
+
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 transition group-hover:bg-orange-100 group-hover:text-orange-600">
+                              <Icon name="chevron" size={14} />
+                            </div>
+                          </Link>
+                        )}
+
+                        {/* OUT OF STOCK */}
+                        {notificationOutOfStockProducts.length > 0 && (
+                          <Link
+                            href="/admin/products"
+                            onClick={handleNotificationNavigation}
+                            className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-rose-50"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 group-hover:bg-white">
+                              <Icon name="box" size={17} />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-black text-slate-800">
+                                Out of stock
+                              </p>
+
+                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                {outOfStockProducts} product
+                                {outOfStockProducts !== 1 ? "s" : ""} currently
+                                have no available stock.
+                              </p>
+                            </div>
+
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 transition group-hover:bg-rose-100 group-hover:text-rose-600">
+                              <Icon name="chevron" size={14} />
+                            </div>
+                          </Link>
+                        )}
+
+                        {/* EMPTY */}
+                        {notificationCount === 0 && (
+                          <div className="px-5 py-8 text-center">
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                              <Icon name="check" size={22} />
+                            </div>
+
+                            <p className="mt-3 text-xs font-black text-slate-800">
+                              You&apos;re all caught up
+                            </p>
+
+                            <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                              There are no pending orders or inventory alerts.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* DIRECT NAVIGATION */}
+                      <div className="border-t border-slate-100 bg-slate-50/70 p-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Link
+                            href="/admin/orders"
+                            onClick={handleNotificationNavigation}
+                            className="flex items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2.5 text-[10px] font-black text-slate-600 shadow-sm transition hover:bg-indigo-50 hover:text-indigo-600"
+                          >
+                            <Icon name="bag" size={13} />
+                            Orders
+                            <Icon name="arrow" size={12} />
+                          </Link>
+
+                          <Link
+                            href="/admin/products"
+                            onClick={handleNotificationNavigation}
+                            className="flex items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2.5 text-[10px] font-black text-slate-600 shadow-sm transition hover:bg-indigo-50 hover:text-indigo-600"
+                          >
+                            <Icon name="box" size={13} />
+                            Products
+                            <Icon name="arrow" size={12} />
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
-              </button>
+              </div>
 
+              {/* REFRESH */}
               <button
-                onClick={fetchDashboardData}
+                type="button"
+                onClick={() => {
+                  closeAllPanels();
+                  setSidebarOpen(false);
+                  fetchDashboardData();
+                }}
                 disabled={loading}
-                className="flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+                className="flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Icon name="refresh" size={16} />
 
@@ -911,9 +1235,10 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {searchOpen && (
+          {/* MOBILE SEARCH */}
+          {mobileSearchOpen && (
             <div className="pb-3 lg:hidden">
-              <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:bg-white">
+              <div className="flex h-11 items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 ring-4 ring-indigo-500/5">
                 <Icon name="search" size={17} />
 
                 <input
@@ -921,21 +1246,35 @@ export default function AdminDashboard() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search orders, products..."
-                  className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
                 />
 
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="text-slate-400 hover:text-slate-700"
+                    aria-label="Clear search"
+                  >
+                    <Icon name="x" size={16} />
+                  </button>
+                )}
+
                 <button
+                  type="button"
                   onClick={() => {
                     setSearch("");
-                    setSearchOpen(false);
+                    setMobileSearchOpen(false);
                   }}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close search"
                 >
-                  <Icon name="x" size={16} />
+                  <Icon name="x" size={15} />
                 </button>
               </div>
 
               {search.trim() !== "" && (
-                <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
                   {filteredSearchResults.length > 0 ? (
                     filteredSearchResults.map((result, index) => (
                       <Link
@@ -943,11 +1282,11 @@ export default function AdminDashboard() {
                         href={result.href}
                         onClick={() => {
                           setSearch("");
-                          setSearchOpen(false);
+                          setMobileSearchOpen(false);
                         }}
-                        className="flex items-center gap-3 rounded-lg p-3 hover:bg-slate-50"
+                        className="flex items-center gap-3 rounded-lg p-3 transition hover:bg-slate-50"
                       >
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
                           <Icon
                             name={
                               result.type === "Order"
@@ -960,8 +1299,8 @@ export default function AdminDashboard() {
                           />
                         </div>
 
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-black">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-black text-slate-800">
                             {result.name}
                           </p>
 
@@ -969,12 +1308,20 @@ export default function AdminDashboard() {
                             {result.detail}
                           </p>
                         </div>
+
+                        <Icon name="chevron" size={13} />
                       </Link>
                     ))
                   ) : (
-                    <p className="px-3 py-5 text-center text-xs text-slate-400">
-                      No results found.
-                    </p>
+                    <div className="px-3 py-6 text-center">
+                      <p className="text-xs font-bold text-slate-600">
+                        No results found
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-slate-400">
+                        Try another search term.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -1009,7 +1356,7 @@ export default function AdminDashboard() {
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/admin/orders"
-                  className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black text-white shadow-sm hover:bg-indigo-700"
+                  className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.98]"
                 >
                   Review orders
                   <Icon name="arrow" size={14} />
@@ -1017,7 +1364,7 @@ export default function AdminDashboard() {
 
                 <Link
                   href="/admin/analytics"
-                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-50"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-600 transition hover:bg-slate-50 hover:text-indigo-600 active:scale-[0.98]"
                 >
                   <Icon name="chart" size={15} />
                   Analytics
@@ -1037,7 +1384,10 @@ export default function AdminDashboard() {
               </>
             ) : (
               <>
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <Link
+                  href="/admin/analytics"
+                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg"
+                >
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-xs font-bold text-slate-400">
@@ -1053,13 +1403,16 @@ export default function AdminDashboard() {
                       </p>
                     </div>
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 transition group-hover:scale-110">
                       <Icon name="trend" size={21} />
                     </div>
                   </div>
-                </div>
+                </Link>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <Link
+                  href="/admin/orders"
+                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg"
+                >
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-xs font-bold text-slate-400">
@@ -1075,13 +1428,16 @@ export default function AdminDashboard() {
                       </p>
                     </div>
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition group-hover:scale-110">
                       <Icon name="bag" size={21} />
                     </div>
                   </div>
-                </div>
+                </Link>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <Link
+                  href="/admin/users"
+                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-violet-200 hover:shadow-lg"
+                >
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-xs font-bold text-slate-400">
@@ -1097,13 +1453,16 @@ export default function AdminDashboard() {
                       </p>
                     </div>
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600 transition group-hover:scale-110">
                       <Icon name="users" size={21} />
                     </div>
                   </div>
-                </div>
+                </Link>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <Link
+                  href="/admin/products"
+                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-orange-200 hover:shadow-lg"
+                >
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-xs font-bold text-slate-400">
@@ -1118,25 +1477,27 @@ export default function AdminDashboard() {
                         <span className="font-bold text-emerald-600">
                           {inStockProducts} in stock
                         </span>
+
                         <span className="mx-1 text-slate-300">•</span>
+
                         <span className="font-bold text-rose-500">
                           {outOfStockProducts} out
                         </span>
                       </p>
                     </div>
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600 transition group-hover:scale-110">
                       <Icon name="box" size={21} />
                     </div>
                   </div>
-                </div>
+                </Link>
               </>
             )}
           </section>
 
           {/* ANALYTICS */}
           <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr_1fr]">
-            {/* REVENUE CHART */}
+            {/* REVENUE */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1153,7 +1514,7 @@ export default function AdminDashboard() {
 
                 <Link
                   href="/admin/analytics"
-                  className="hidden items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 sm:flex"
+                  className="hidden items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-600 sm:flex"
                 >
                   Analytics
                   <Icon name="arrow" size={13} />
@@ -1243,9 +1604,9 @@ export default function AdminDashboard() {
                 Order status
               </h2>
 
-              <div className="mt-7 flex justify-center">
+              <Link href="/admin/orders" className="mt-7 flex justify-center">
                 <div
-                  className="relative flex h-44 w-44 items-center justify-center rounded-full"
+                  className="relative flex h-44 w-44 items-center justify-center rounded-full transition hover:scale-105"
                   style={{
                     background:
                       totalStatusOrders > 0
@@ -1279,7 +1640,7 @@ export default function AdminDashboard() {
                         : "#e2e8f0",
                   }}
                 >
-                  <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white">
+                  <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white shadow-inner">
                     <span className="text-3xl font-black text-slate-950">
                       {totalOrders}
                     </span>
@@ -1289,7 +1650,7 @@ export default function AdminDashboard() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
 
               <div className="mt-7 grid grid-cols-2 gap-2">
                 {[
@@ -1314,9 +1675,10 @@ export default function AdminDashboard() {
                     color: "bg-emerald-500",
                   },
                 ].map((item) => (
-                  <div
+                  <Link
                     key={item.label}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5"
+                    href="/admin/orders"
+                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 transition hover:bg-indigo-50"
                   >
                     <div className="flex items-center gap-2">
                       <span className={`h-2 w-2 rounded-full ${item.color}`} />
@@ -1329,7 +1691,7 @@ export default function AdminDashboard() {
                     <span className="text-sm font-black text-slate-900">
                       {item.value}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -1385,10 +1747,10 @@ export default function AdminDashboard() {
                 <Link
                   key={item.title}
                   href={item.href}
-                  className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
+                  className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg"
                 >
                   <div
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${item.bg} ${item.color}`}
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${item.bg} ${item.color} transition group-hover:scale-110`}
                   >
                     <Icon name={item.icon} size={20} />
                   </div>
@@ -1403,7 +1765,7 @@ export default function AdminDashboard() {
                     </p>
                   </div>
 
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition group-hover:bg-indigo-50 group-hover:text-indigo-600">
                     <Icon name="arrow" size={14} />
                   </div>
                 </Link>
@@ -1428,7 +1790,7 @@ export default function AdminDashboard() {
 
                 <Link
                   href="/admin/orders"
-                  className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
+                  className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-600"
                 >
                   View all
                   <Icon name="arrow" size={13} />
@@ -1466,7 +1828,7 @@ export default function AdminDashboard() {
                       recentOrders.map((order) => (
                         <tr
                           key={order.id}
-                          className="border-b border-slate-100 hover:bg-slate-50 last:border-0"
+                          className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
                         >
                           <td className="px-6 py-4">
                             <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-black text-slate-700">
@@ -1556,7 +1918,7 @@ export default function AdminDashboard() {
 
                   <Link
                     href="/admin/products"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-600"
                   >
                     <Icon name="arrow" size={14} />
                   </Link>
@@ -1589,7 +1951,10 @@ export default function AdminDashboard() {
               </div>
 
               <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
-                <div className="px-3 py-4 text-center">
+                <Link
+                  href="/admin/products"
+                  className="px-3 py-4 text-center transition hover:bg-emerald-50"
+                >
                   <p className="text-lg font-black text-emerald-600">
                     {inStockProducts}
                   </p>
@@ -1597,9 +1962,12 @@ export default function AdminDashboard() {
                   <p className="mt-1 text-[8px] font-bold uppercase tracking-wider text-slate-400">
                     In stock
                   </p>
-                </div>
+                </Link>
 
-                <div className="px-3 py-4 text-center">
+                <Link
+                  href="/admin/products"
+                  className="px-3 py-4 text-center transition hover:bg-amber-50"
+                >
                   <p className="text-lg font-black text-amber-600">
                     {lowStockProducts}
                   </p>
@@ -1607,9 +1975,12 @@ export default function AdminDashboard() {
                   <p className="mt-1 text-[8px] font-bold uppercase tracking-wider text-slate-400">
                     Low stock
                   </p>
-                </div>
+                </Link>
 
-                <div className="px-3 py-4 text-center">
+                <Link
+                  href="/admin/products"
+                  className="px-3 py-4 text-center transition hover:bg-rose-50"
+                >
                   <p className="text-lg font-black text-rose-500">
                     {outOfStockProducts}
                   </p>
@@ -1617,7 +1988,7 @@ export default function AdminDashboard() {
                   <p className="mt-1 text-[8px] font-bold uppercase tracking-wider text-slate-400">
                     Out
                   </p>
-                </div>
+                </Link>
               </div>
 
               <div className="p-5">
@@ -1643,7 +2014,7 @@ export default function AdminDashboard() {
                       <Link
                         key={product.id}
                         href="/admin/products"
-                        className="group flex items-center gap-3 rounded-xl bg-slate-50 p-3 hover:bg-slate-100"
+                        className="group flex items-center gap-3 rounded-xl bg-slate-50 p-3 transition hover:bg-slate-100"
                       >
                         <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-white">
                           {product.image ? (
@@ -1708,71 +2079,60 @@ export default function AdminDashboard() {
 
           {/* ORDER SUMMARY */}
           <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-                  <Icon name="clock" size={19} />
+            {[
+              {
+                label: "Pending orders",
+                value: pendingOrders,
+                icon: "clock" as IconName,
+                bg: "bg-amber-50",
+                color: "text-amber-600",
+              },
+              {
+                label: "Confirmed",
+                value: confirmedOrders,
+                icon: "check" as IconName,
+                bg: "bg-blue-50",
+                color: "text-blue-600",
+              },
+              {
+                label: "Shipped",
+                value: shippedOrders,
+                icon: "truck" as IconName,
+                bg: "bg-violet-50",
+                color: "text-violet-600",
+              },
+              {
+                label: "Delivered",
+                value: deliveredOrders,
+                icon: "check" as IconName,
+                bg: "bg-emerald-50",
+                color: "text-emerald-600",
+              },
+            ].map((item) => (
+              <Link
+                key={item.label}
+                href="/admin/orders"
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.bg} ${item.color}`}
+                  >
+                    <Icon name={item.icon} size={19} />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold text-slate-400">
+                      {item.label}
+                    </p>
+
+                    <p className="mt-1 text-xl font-black text-slate-950">
+                      {item.value}
+                    </p>
+                  </div>
                 </div>
-
-                <div>
-                  <p className="text-xs font-bold text-slate-400">
-                    Pending orders
-                  </p>
-
-                  <p className="mt-1 text-xl font-black text-slate-950">
-                    {pendingOrders}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                  <Icon name="check" size={19} />
-                </div>
-
-                <div>
-                  <p className="text-xs font-bold text-slate-400">Confirmed</p>
-
-                  <p className="mt-1 text-xl font-black text-slate-950">
-                    {confirmedOrders}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                  <Icon name="truck" size={19} />
-                </div>
-
-                <div>
-                  <p className="text-xs font-bold text-slate-400">Shipped</p>
-
-                  <p className="mt-1 text-xl font-black text-slate-950">
-                    {shippedOrders}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                  <Icon name="check" size={19} />
-                </div>
-
-                <div>
-                  <p className="text-xs font-bold text-slate-400">Delivered</p>
-
-                  <p className="mt-1 text-xl font-black text-slate-950">
-                    {deliveredOrders}
-                  </p>
-                </div>
-              </div>
-            </div>
+              </Link>
+            ))}
           </section>
 
           <div className="h-8" />

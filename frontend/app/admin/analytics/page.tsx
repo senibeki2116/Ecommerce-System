@@ -268,6 +268,9 @@ export default function AdminAnalyticsPage() {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
 
+  // Notification state
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
   const fetchAnalyticsData = async () => {
     try {
       setLoading(true);
@@ -417,6 +420,33 @@ export default function AdminAnalyticsPage() {
     (product) =>
       Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5,
   ).length;
+
+  /*
+   * Notification products.
+   * We show only the first 4 in the dropdown.
+   */
+  const notificationLowStockProducts = useMemo(
+    () =>
+      products
+        .filter(
+          (product) =>
+            Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5,
+        )
+        .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0))
+        .slice(0, 4),
+    [products],
+  );
+
+  const notificationOutOfStockProducts = useMemo(
+    () =>
+      products.filter((product) => Number(product.stock || 0) <= 0).slice(0, 4),
+    [products],
+  );
+
+  const notificationCount =
+    pendingOrders +
+    notificationLowStockProducts.length +
+    notificationOutOfStockProducts.length;
 
   const periodDays = {
     "7D": 7,
@@ -937,6 +967,7 @@ export default function AdminAnalyticsPage() {
 
                   {search && (
                     <button
+                      type="button"
                       onClick={() => setSearch("")}
                       className="text-slate-400 hover:text-slate-700"
                     >
@@ -996,7 +1027,9 @@ export default function AdminAnalyticsPage() {
                       </div>
                     ) : (
                       <div className="px-4 py-8 text-center">
-                        <Icon name="search" size={22} />
+                        <div className="flex justify-center text-slate-300">
+                          <Icon name="search" size={22} />
+                        </div>
 
                         <p className="mt-3 text-sm font-bold text-slate-600">
                           No results found
@@ -1010,28 +1043,256 @@ export default function AdminAnalyticsPage() {
               {/* MOBILE SEARCH */}
 
               <button
+                type="button"
                 onClick={() => setSearchOpen(!searchOpen)}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm lg:hidden"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 lg:hidden"
+                aria-label="Search"
               >
                 <Icon name="search" size={18} />
               </button>
 
               {/* NOTIFICATION */}
 
-              <button
-                className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm"
-                aria-label="Notifications"
-              >
-                <Icon name="bell" size={18} />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen((value) => !value)}
+                  aria-label="Notifications"
+                  aria-expanded={notificationsOpen}
+                  className={`relative flex h-11 w-11 items-center justify-center rounded-xl border bg-white shadow-sm transition ${
+                    notificationsOpen
+                      ? "border-indigo-200 text-indigo-600 ring-4 ring-indigo-500/10"
+                      : "border-slate-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                  }`}
+                >
+                  <Icon name="bell" size={19} />
 
-                {pendingOrders > 0 && (
-                  <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-white bg-rose-500" />
+                  {notificationCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-rose-500 px-1 text-[8px] font-black text-white shadow-sm">
+                      {notificationCount > 9 ? "9+" : notificationCount}
+                    </span>
+                  )}
+                </button>
+
+                {notificationsOpen && (
+                  <>
+                    {/* Click outside */}
+
+                    <button
+                      type="button"
+                      aria-label="Close notifications"
+                      onClick={() => setNotificationsOpen(false)}
+                      className="fixed inset-0 z-40 cursor-default bg-transparent"
+                    />
+
+                    {/* Notification panel */}
+
+                    <div className="absolute right-0 top-14 z-50 w-[350px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                      {/* Header */}
+
+                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                            <Icon name="bell" size={18} />
+                          </div>
+
+                          <div>
+                            <p className="text-sm font-black text-slate-900">
+                              Notifications
+                            </p>
+
+                            <p className="text-[10px] font-medium text-slate-400">
+                              {notificationCount === 0
+                                ? "Everything looks good"
+                                : `${notificationCount} item${
+                                    notificationCount === 1 ? "" : "s"
+                                  } need attention`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                          aria-label="Close notifications"
+                        >
+                          <Icon name="x" size={16} />
+                        </button>
+                      </div>
+
+                      {/* Notification content */}
+
+                      <div className="max-h-[420px] overflow-y-auto p-2">
+                        {/* Pending orders */}
+
+                        {pendingOrders > 0 && (
+                          <Link
+                            href="/admin/orders"
+                            onClick={() => setNotificationsOpen(false)}
+                            className="group flex items-start gap-3 rounded-xl p-3 transition hover:bg-amber-50"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-white">
+                              <Icon name="clock" size={18} />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs font-black text-slate-800">
+                                  Pending orders
+                                </p>
+
+                                <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-black text-amber-700">
+                                  {pendingOrders}
+                                </span>
+                              </div>
+
+                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                Orders are waiting for confirmation.
+                              </p>
+
+                              <p className="mt-2 text-[10px] font-black text-amber-600">
+                                Review orders →
+                              </p>
+                            </div>
+                          </Link>
+                        )}
+
+                        {/* Low stock */}
+
+                        {notificationLowStockProducts.length > 0 && (
+                          <Link
+                            href="/admin/products"
+                            onClick={() => setNotificationsOpen(false)}
+                            className="group flex items-start gap-3 rounded-xl p-3 transition hover:bg-orange-50"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 group-hover:bg-white">
+                              <Icon name="box" size={18} />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs font-black text-slate-800">
+                                  Low stock
+                                </p>
+
+                                <span className="rounded-full bg-orange-100 px-2 py-1 text-[9px] font-black text-orange-700">
+                                  {lowStock}
+                                </span>
+                              </div>
+
+                              <div className="mt-2 space-y-1">
+                                {notificationLowStockProducts.map((product) => (
+                                  <div
+                                    key={product.id}
+                                    className="flex items-center justify-between gap-3"
+                                  >
+                                    <span className="truncate text-[10px] font-semibold text-slate-500">
+                                      {product.name}
+                                    </span>
+
+                                    <span className="shrink-0 text-[10px] font-black text-orange-600">
+                                      {product.stock} left
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <p className="mt-2 text-[10px] font-black text-orange-600">
+                                Manage inventory →
+                              </p>
+                            </div>
+                          </Link>
+                        )}
+
+                        {/* Out of stock */}
+
+                        {notificationOutOfStockProducts.length > 0 && (
+                          <Link
+                            href="/admin/products"
+                            onClick={() => setNotificationsOpen(false)}
+                            className="group flex items-start gap-3 rounded-xl p-3 transition hover:bg-rose-50"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 group-hover:bg-white">
+                              <Icon name="box" size={18} />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs font-black text-slate-800">
+                                  Out of stock
+                                </p>
+
+                                <span className="rounded-full bg-rose-100 px-2 py-1 text-[9px] font-black text-rose-700">
+                                  {outOfStock}
+                                </span>
+                              </div>
+
+                              <div className="mt-2 space-y-1">
+                                {notificationOutOfStockProducts.map(
+                                  (product) => (
+                                    <div
+                                      key={product.id}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+
+                                      <span className="truncate text-[10px] font-semibold text-slate-500">
+                                        {product.name}
+                                      </span>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+
+                              <p className="mt-2 text-[10px] font-black text-rose-600">
+                                Restock products →
+                              </p>
+                            </div>
+                          </Link>
+                        )}
+
+                        {/* Empty state */}
+
+                        {notificationCount === 0 && (
+                          <div className="px-5 py-10 text-center">
+                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                              <Icon name="check" size={25} />
+                            </div>
+
+                            <p className="mt-4 text-sm font-black text-slate-800">
+                              You&apos;re all caught up
+                            </p>
+
+                            <p className="mt-1 text-xs leading-5 text-slate-400">
+                              There are no pending orders or inventory issues
+                              right now.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+
+                      <div className="border-t border-slate-100 bg-slate-50/70 p-3">
+                        <Link
+                          href="/admin/orders"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[10px] font-black text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-950 hover:text-white hover:ring-slate-950"
+                        >
+                          Open order management
+                          <Icon name="arrow" size={13} />
+                        </Link>
+                      </div>
+                    </div>
+                  </>
                 )}
-              </button>
+              </div>
 
               {/* REFRESH */}
 
               <button
+                type="button"
                 onClick={fetchAnalyticsData}
                 disabled={loading}
                 className="flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-600 disabled:opacity-50"
@@ -1061,6 +1322,7 @@ export default function AdminAnalyticsPage() {
                 />
 
                 <button
+                  type="button"
                   onClick={() => {
                     setSearch("");
                     setSearchOpen(false);
@@ -1126,6 +1388,7 @@ export default function AdminAnalyticsPage() {
           <section className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
             <div className="relative overflow-hidden bg-linear-to-br from-indigo-600 via-indigo-600 to-violet-600 px-6 py-8 text-white sm:px-8 lg:px-10 lg:py-10">
               <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+
               <div className="absolute -bottom-24 right-32 h-56 w-56 rounded-full bg-violet-300/20 blur-3xl" />
 
               <div className="relative flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
@@ -1226,6 +1489,7 @@ export default function AdminAnalyticsPage() {
                 ["1Y", "1 Year"],
               ].map(([value, label]) => (
                 <button
+                  type="button"
                   key={value}
                   onClick={() => setPeriod(value as Period)}
                   className={`rounded-xl px-4 py-2.5 text-xs font-black transition ${
@@ -1239,6 +1503,7 @@ export default function AdminAnalyticsPage() {
               ))}
 
               <button
+                type="button"
                 onClick={exportReport}
                 className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
               >
@@ -1998,8 +2263,6 @@ export default function AdminAnalyticsPage() {
               </table>
             </div>
           </section>
-
-          {/* FOOTER SPACE */}
 
           <div className="h-10" />
         </div>
