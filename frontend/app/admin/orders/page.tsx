@@ -25,9 +25,31 @@ type User = {
 
 type Order = {
   id: number;
-  total: number;
+  userId?: number;
+
   status: string;
+
+  subtotal?: number;
+  shipping?: number;
+  tax?: number;
+  discount?: number;
+  total: number;
+
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  deliveryInstructions?: string | null;
+
+  paymentMethod?: string | null;
+
   createdAt: string;
+  updatedAt?: string;
+
   user?: User;
   items: OrderItem[];
 };
@@ -180,11 +202,17 @@ export default function AdminOrdersPage() {
     const query = search.trim().toLowerCase();
 
     return orders.filter((order) => {
+      const customerName =
+        `${order.firstName || ""} ${order.lastName || ""}`.trim();
+
       const matchesSearch =
         !query ||
         String(order.id).includes(query) ||
+        customerName.toLowerCase().includes(query) ||
+        order.email?.toLowerCase().includes(query) ||
         order.user?.name?.toLowerCase().includes(query) ||
-        order.user?.email?.toLowerCase().includes(query);
+        order.user?.email?.toLowerCase().includes(query) ||
+        order.phone?.toLowerCase().includes(query);
 
       const matchesStatus =
         statusFilter === "ALL" || order.status === statusFilter;
@@ -261,24 +289,33 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const getCustomerName = (order: Order) => {
+    const name = `${order.firstName || ""} ${order.lastName || ""}`.trim();
+
+    return name || order.user?.name || "Unknown Customer";
+  };
+
+  const getCustomerEmail = (order: Order) => {
+    return order.email || order.user?.email || "No email";
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* Sidebar */}{" "}
+      {/* Sidebar */}
       <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-slate-800 bg-slate-950 text-white lg:block">
-        {" "}
         <div className="border-b border-slate-800 px-6 py-6">
-          {" "}
           <div className="flex items-center gap-3">
-            {" "}
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl shadow-lg shadow-blue-900/30">
-              S{" "}
+              S
             </div>
+
             <div>
               <h1 className="text-lg font-bold">ShopHub</h1>
               <p className="text-xs text-slate-400">Admin Dashboard</p>
             </div>
           </div>
         </div>
+
         <nav className="space-y-2 p-4">
           <Link
             href="/admin"
@@ -323,6 +360,7 @@ export default function AdminOrdersPage() {
           </Link>
         </nav>
       </aside>
+
       {/* Main */}
       <main className="lg:ml-64">
         {/* Top Header */}
@@ -471,6 +509,7 @@ export default function AdminOrdersPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="font-bold">Order Status Overview</h3>
+
                 <p className="mt-1 text-xs text-slate-500">
                   Current distribution of your orders
                 </p>
@@ -523,9 +562,7 @@ export default function AdminOrdersPage() {
                         : item.label.toUpperCase(),
                     )
                   }
-                  className={`rounded-xl p-4 text-left transition hover:scale-[1.01] ${
-                    item.bg
-                  } ${
+                  className={`rounded-xl p-4 text-left transition hover:scale-[1.01] ${item.bg} ${
                     statusFilter === item.label.toUpperCase()
                       ? "ring-2 ring-blue-500 ring-offset-1"
                       : ""
@@ -711,18 +748,18 @@ export default function AdminOrdersPage() {
                             <td className="px-6 py-5 align-top">
                               <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white">
-                                  {(order.user?.name || "U")
+                                  {getCustomerName(order)
                                     .charAt(0)
                                     .toUpperCase()}
                                 </div>
 
                                 <div className="min-w-0">
                                   <p className="max-w-40 truncate font-semibold">
-                                    {order.user?.name || "Unknown Customer"}
+                                    {getCustomerName(order)}
                                   </p>
 
                                   <p className="mt-1 max-w-48 truncate text-xs text-slate-500">
-                                    {order.user?.email || "No email"}
+                                    {getCustomerEmail(order)}
                                   </p>
                                 </div>
                               </div>
@@ -834,7 +871,7 @@ export default function AdminOrdersPage() {
                               </button>
 
                               {isExpanded && (
-                                <div className="absolute right-8 z-20 mt-3 w-80 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-2xl">
+                                <div className="absolute right-8 z-20 mt-3 w-96 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-2xl">
                                   <div className="mb-4 flex items-center justify-between">
                                     <div>
                                       <p className="font-bold">
@@ -842,7 +879,7 @@ export default function AdminOrdersPage() {
                                       </p>
 
                                       <p className="text-xs text-slate-400">
-                                        Order items
+                                        Customer & delivery details
                                       </p>
                                     </div>
 
@@ -854,53 +891,213 @@ export default function AdminOrdersPage() {
                                     </button>
                                   </div>
 
-                                  <div className="space-y-3">
-                                    {order.items.map((item) => (
-                                      <div
-                                        key={item.id}
-                                        className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"
-                                      >
-                                        {item.product?.image ? (
-                                          <img
-                                            src={item.product.image}
-                                            alt={item.product.name}
-                                            className="h-12 w-12 rounded-lg object-cover"
-                                          />
-                                        ) : (
-                                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white">
-                                            📦
-                                          </div>
-                                        )}
+                                  {/* Customer Information */}
+                                  <div className="mb-4 rounded-xl bg-blue-50 p-4">
+                                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-blue-700">
+                                      Customer Information
+                                    </p>
 
-                                        <div className="min-w-0 flex-1">
-                                          <p className="truncate text-sm font-semibold">
-                                            {item.product?.name || "Product"}
+                                    <div className="space-y-2 text-sm">
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-slate-500">
+                                          Name
+                                        </span>
+
+                                        <span className="text-right font-semibold text-slate-800">
+                                          {getCustomerName(order)}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-slate-500">
+                                          Email
+                                        </span>
+
+                                        <span className="max-w-52 truncate text-right font-semibold text-slate-800">
+                                          {getCustomerEmail(order)}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-slate-500">
+                                          Phone
+                                        </span>
+
+                                        <span className="font-semibold text-slate-800">
+                                          {order.phone || "Not provided"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Delivery Information */}
+                                  <div className="mb-4 rounded-xl bg-emerald-50 p-4">
+                                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-emerald-700">
+                                      Delivery Information
+                                    </p>
+
+                                    <div className="space-y-2 text-sm">
+                                      <div>
+                                        <p className="text-xs text-slate-500">
+                                          Address
+                                        </p>
+
+                                        <p className="mt-1 font-semibold text-slate-800">
+                                          {order.address || "Not provided"}
+                                        </p>
+                                      </div>
+
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                          <p className="text-xs text-slate-500">
+                                            City
                                           </p>
 
-                                          <p className="mt-1 text-xs text-slate-500">
-                                            {item.quantity} × $
-                                            {Number(item.price).toFixed(2)}
+                                          <p className="mt-1 font-semibold text-slate-800">
+                                            {order.city || "Not provided"}
                                           </p>
                                         </div>
 
-                                        <p className="text-sm font-bold">
-                                          $
-                                          {(
-                                            Number(item.price) * item.quantity
-                                          ).toFixed(2)}
-                                        </p>
+                                        <div>
+                                          <p className="text-xs text-slate-500">
+                                            Country
+                                          </p>
+
+                                          <p className="mt-1 font-semibold text-slate-800">
+                                            {order.country || "Not provided"}
+                                          </p>
+                                        </div>
                                       </div>
-                                    ))}
+
+                                      {order.deliveryInstructions && (
+                                        <div className="pt-1">
+                                          <p className="text-xs text-slate-500">
+                                            Delivery Instructions
+                                          </p>
+
+                                          <p className="mt-1 font-medium text-slate-700">
+                                            {order.deliveryInstructions}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
 
-                                  <div className="mt-4 border-t border-slate-100 pt-4">
-                                    <div className="flex justify-between">
+                                  {/* Payment */}
+                                  <div className="mb-4 rounded-xl bg-violet-50 p-4">
+                                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-violet-700">
+                                      Payment
+                                    </p>
+
+                                    <div className="flex justify-between gap-3">
                                       <span className="text-sm text-slate-500">
+                                        Method
+                                      </span>
+
+                                      <span className="text-sm font-semibold text-slate-800">
+                                        {order.paymentMethod || "Not provided"}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Order Items */}
+                                  <div>
+                                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                                      Order Items
+                                    </p>
+
+                                    <div className="space-y-3">
+                                      {order.items.map((item) => (
+                                        <div
+                                          key={item.id}
+                                          className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"
+                                        >
+                                          {item.product?.image ? (
+                                            <img
+                                              src={item.product.image}
+                                              alt={item.product.name}
+                                              className="h-12 w-12 rounded-lg object-cover"
+                                            />
+                                          ) : (
+                                            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white">
+                                              📦
+                                            </div>
+                                          )}
+
+                                          <div className="min-w-0 flex-1">
+                                            <p className="truncate text-sm font-semibold">
+                                              {item.product?.name || "Product"}
+                                            </p>
+
+                                            <p className="mt-1 text-xs text-slate-500">
+                                              {item.quantity} × $
+                                              {Number(item.price).toFixed(2)}
+                                            </p>
+                                          </div>
+
+                                          <p className="text-sm font-bold">
+                                            $
+                                            {(
+                                              Number(item.price) * item.quantity
+                                            ).toFixed(2)}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Summary */}
+                                  <div className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-500">
+                                        Subtotal
+                                      </span>
+
+                                      <span>
+                                        $
+                                        {Number(order.subtotal || 0).toFixed(2)}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-500">
+                                        Shipping
+                                      </span>
+
+                                      <span>
+                                        $
+                                        {Number(order.shipping || 0).toFixed(2)}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-500">
+                                        Tax
+                                      </span>
+
+                                      <span>
+                                        ${Number(order.tax || 0).toFixed(2)}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-500">
+                                        Discount
+                                      </span>
+
+                                      <span>
+                                        -$
+                                        {Number(order.discount || 0).toFixed(2)}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex justify-between border-t border-slate-100 pt-3">
+                                      <span className="font-semibold">
                                         Total
                                       </span>
 
                                       <span className="font-bold">
-                                        ${Number(order.total).toFixed(2)}
+                                        ${Number(order.total || 0).toFixed(2)}
                                       </span>
                                     </div>
                                   </div>
@@ -932,11 +1129,11 @@ export default function AdminOrdersPage() {
 
                             <div>
                               <p className="font-bold">
-                                {order.user?.name || "Unknown Customer"}
+                                {getCustomerName(order)}
                               </p>
 
                               <p className="mt-1 max-w-48 truncate text-xs text-slate-500">
-                                {order.user?.email || "No email"}
+                                {getCustomerEmail(order)}
                               </p>
                             </div>
                           </div>
@@ -953,6 +1150,7 @@ export default function AdminOrdersPage() {
                         <div className="mt-4 grid grid-cols-2 gap-3">
                           <div className="rounded-xl bg-slate-50 p-3">
                             <p className="text-xs text-slate-400">Total</p>
+
                             <p className="mt-1 font-bold">
                               ${Number(order.total).toFixed(2)}
                             </p>
@@ -960,6 +1158,7 @@ export default function AdminOrdersPage() {
 
                           <div className="rounded-xl bg-slate-50 p-3">
                             <p className="text-xs text-slate-400">Products</p>
+
                             <p className="mt-1 font-bold">
                               {order.items.length}
                             </p>
@@ -1004,7 +1203,63 @@ export default function AdminOrdersPage() {
 
                         {isExpanded && (
                           <div className="mt-4 border-t border-slate-100 pt-4">
-                            <p className="mb-3 text-sm font-bold">
+                            {/* Customer */}
+                            <div className="rounded-xl bg-blue-50 p-4">
+                              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
+                                Customer
+                              </p>
+
+                              <p className="mt-2 font-semibold">
+                                {getCustomerName(order)}
+                              </p>
+
+                              <p className="mt-1 text-sm text-slate-600">
+                                {getCustomerEmail(order)}
+                              </p>
+
+                              <p className="mt-1 text-sm text-slate-600">
+                                {order.phone || "No phone number"}
+                              </p>
+                            </div>
+
+                            {/* Delivery */}
+                            <div className="mt-3 rounded-xl bg-emerald-50 p-4">
+                              <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                                Delivery
+                              </p>
+
+                              <p className="mt-2 text-sm font-semibold">
+                                {order.address || "No address"}
+                              </p>
+
+                              <p className="mt-1 text-sm text-slate-600">
+                                {order.city || "No city"},{" "}
+                                {order.country || "No country"}
+                              </p>
+
+                              {order.deliveryInstructions && (
+                                <p className="mt-2 text-sm text-slate-600">
+                                  <span className="font-semibold">
+                                    Instructions:
+                                  </span>{" "}
+                                  {order.deliveryInstructions}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Payment */}
+                            <div className="mt-3 rounded-xl bg-violet-50 p-4">
+                              <p className="text-xs font-bold uppercase tracking-wide text-violet-700">
+                                Payment
+                              </p>
+
+                              <p className="mt-2 text-sm font-semibold">
+                                {order.paymentMethod || "Not provided"}
+                              </p>
+                            </div>
+
+                            {/* Items */}
+                            <p className="mb-3 mt-4 text-sm font-bold">
                               Order Items
                             </p>
 
