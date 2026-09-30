@@ -31,31 +31,44 @@ type WishlistResponse = {
   items: WishlistItem[];
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+// IMPORTANT:
+// Your backend is confirmed to be running on port 3001.
+const API_URL = "http://localhost:3001";
 
 const categoryFallbackImages: Record<string, string> = {
   electronics:
     "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=900&auto=format&fit=crop",
+
   accessories:
     "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=900&auto=format&fit=crop",
+
   cameras:
     "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=900&auto=format&fit=crop",
+
   audio:
     "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=900&auto=format&fit=crop",
+
   gaming:
     "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=900&auto=format&fit=crop",
+
   fashion:
     "https://images.unsplash.com/photo-1445205170230-053b83016050?w=900&auto=format&fit=crop",
+
   shoes:
     "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=900&auto=format&fit=crop",
+
   beauty:
     "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=900&auto=format&fit=crop",
+
   sports:
     "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=900&auto=format&fit=crop",
 };
 
 const defaultCategoryImage =
   "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900&auto=format&fit=crop";
+
+const defaultProductImage =
+  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80";
 
 export default function HomePage() {
   const { addToCart, cartCount } = useCart();
@@ -81,7 +94,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
-    setIsLoggedIn(!!token);
+    setIsLoggedIn(Boolean(token));
   }, []);
 
   // =========================================================
@@ -89,7 +102,9 @@ export default function HomePage() {
   // =========================================================
 
   const getToken = () => {
-    if (typeof window === "undefined") return null;
+    if (typeof window === "undefined") {
+      return null;
+    }
 
     return localStorage.getItem("accessToken");
   };
@@ -103,15 +118,22 @@ export default function HomePage() {
       setLoading(true);
       setError("");
 
+      console.log("Fetching products from:", `${API_URL}/products`);
+
       const response = await fetch(`${API_URL}/products`, {
+        method: "GET",
         cache: "no-store",
       });
 
+      console.log("Products response:", response.status);
+
       if (!response.ok) {
-        throw new Error("Failed to load products");
+        throw new Error(`Failed to load products. Status: ${response.status}`);
       }
 
       const data = await response.json();
+
+      console.log("Products data:", data);
 
       const productList: Product[] = Array.isArray(data)
         ? data
@@ -123,7 +145,7 @@ export default function HomePage() {
 
       setProducts(productList);
     } catch (error) {
-      console.error(error);
+      console.error("Product error:", error);
 
       setError(
         "Could not load products. Please make sure the backend is running on port 3001.",
@@ -142,15 +164,24 @@ export default function HomePage() {
       setCategoriesLoading(true);
       setCategoryError("");
 
+      console.log("Fetching categories from:", `${API_URL}/categories`);
+
       const response = await fetch(`${API_URL}/categories`, {
+        method: "GET",
         cache: "no-store",
       });
 
+      console.log("Categories response:", response.status);
+
       if (!response.ok) {
-        throw new Error("Failed to load categories");
+        throw new Error(
+          `Failed to load categories. Status: ${response.status}`,
+        );
       }
 
       const data = await response.json();
+
+      console.log("Categories data:", data);
 
       const categoryList: Category[] = Array.isArray(data)
         ? data
@@ -185,6 +216,7 @@ export default function HomePage() {
 
     try {
       const response = await fetch(`${API_URL}/wishlist`, {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -197,16 +229,19 @@ export default function HomePage() {
       }
 
       if (!response.ok) {
-        throw new Error("Failed to load wishlist");
+        throw new Error(`Failed to load wishlist. Status: ${response.status}`);
       }
 
       const data: WishlistResponse = await response.json();
 
-      const ids = data.items.map((item) => item.productId);
+      const ids = Array.isArray(data.items)
+        ? data.items.map((item) => item.productId)
+        : [];
 
       setWishlist(ids);
     } catch (error) {
       console.error("Wishlist error:", error);
+      setWishlist([]);
     }
   };
 
@@ -226,7 +261,11 @@ export default function HomePage() {
 
   const handleLogout = () => {
     localStorage.removeItem("accessToken");
+    localStorage.removeItem("user");
+
     setIsLoggedIn(false);
+    setWishlist([]);
+
     window.location.href = "/";
   };
 
@@ -235,13 +274,15 @@ export default function HomePage() {
   // =========================================================
 
   const handleAddToCart = (product: Product) => {
-    if (product.stock <= 0) return;
+    if (product.stock <= 0) {
+      return;
+    }
 
     addToCart(product);
 
     setAddedProductId(product.id);
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       setAddedProductId(null);
     }, 1500);
   };
@@ -273,7 +314,11 @@ export default function HomePage() {
         });
 
         if (!response.ok) {
-          throw new Error("Could not remove product from wishlist");
+          const errorData = await response.json().catch(() => null);
+
+          throw new Error(
+            errorData?.message || "Could not remove product from wishlist.",
+          );
         }
 
         setWishlist((current) => current.filter((id) => id !== productId));
@@ -293,11 +338,17 @@ export default function HomePage() {
         const errorData = await response.json().catch(() => null);
 
         throw new Error(
-          errorData?.message || "Could not add product to wishlist",
+          errorData?.message || "Could not add product to wishlist.",
         );
       }
 
-      setWishlist((current) => [...current, productId]);
+      setWishlist((current) => {
+        if (current.includes(productId)) {
+          return current;
+        }
+
+        return [...current, productId];
+      });
     } catch (error) {
       console.error("Wishlist error:", error);
 
@@ -316,11 +367,11 @@ export default function HomePage() {
   // =========================================================
 
   const filteredProducts = useMemo(() => {
-    if (!search.trim()) {
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
       return products;
     }
-
-    const query = search.toLowerCase().trim();
 
     return products.filter((product) => {
       const name = product.name?.toLowerCase() || "";
@@ -414,8 +465,6 @@ export default function HomePage() {
             >
               🛍️ Products
             </Link>
-
-            {/* CATEGORIES */}
 
             <Link
               href="/categories"
@@ -750,7 +799,7 @@ export default function HomePage() {
       </section>
 
       {/* =====================================================
-          REAL CATEGORIES
+          CATEGORIES
       ===================================================== */}
 
       <section className="border-b border-slate-200 bg-slate-50">
@@ -778,8 +827,6 @@ export default function HomePage() {
               View All Categories →
             </Link>
           </div>
-
-          {/* CATEGORY LOADING */}
 
           {categoriesLoading ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -829,7 +876,9 @@ export default function HomePage() {
               {categories.slice(0, 10).map((category) => (
                 <Link
                   key={category.id}
-                  href={`/products?category=${encodeURIComponent(category.name)}`}
+                  href={`/products?category=${encodeURIComponent(
+                    category.name,
+                  )}`}
                   className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
                 >
                   <div className="relative h-40 overflow-hidden bg-slate-100">
@@ -931,8 +980,11 @@ export default function HomePage() {
 
                 <div className="space-y-3 p-5">
                   <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
+
                   <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
+
                   <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+
                   <div className="h-11 animate-pulse rounded-xl bg-slate-200" />
                 </div>
               </div>
@@ -976,14 +1028,13 @@ export default function HomePage() {
                       src={
                         product.image && product.image.trim() !== ""
                           ? product.image
-                          : "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80"
+                          : defaultProductImage
                       }
                       alt={product.name}
                       className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
                       onError={(event) => {
                         event.currentTarget.onerror = null;
-                        event.currentTarget.src =
-                          "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80";
+                        event.currentTarget.src = defaultProductImage;
                       }}
                     />
 
@@ -1034,6 +1085,7 @@ export default function HomePage() {
                   {/* CONTENT */}
 
                   <div className="p-5">
+                    {/* CURRENTLY STATIC RATING */}
                     <div className="flex items-center gap-2">
                       <span className="text-sm tracking-wide text-amber-400">
                         ★★★★★

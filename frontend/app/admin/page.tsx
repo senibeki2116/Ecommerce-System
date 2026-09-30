@@ -824,11 +824,11 @@ export default function AdminDashboard() {
       {/* SIDEBAR */}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-[250px] flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 flex h-screen w-62.5 flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-[76px] items-center border-b border-slate-100 px-5">
+        <div className="flex h-19 items-center border-b border-slate-100 px-5">
           <Link
             href="/"
             onClick={closeSidebar}
@@ -971,11 +971,11 @@ export default function AdminDashboard() {
 
       {/* MAIN */}
 
-      <main className="min-h-screen lg:pl-[250px]">
+      <main className="min-h-screen lg:pl-62.5">
         {/* HEADER */}
 
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="flex min-h-[72px] items-center justify-between gap-3">
+          <div className="flex min-h-18 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
@@ -1003,9 +1003,9 @@ export default function AdminDashboard() {
             <div className="flex shrink-0 items-center gap-2">
               {/* DESKTOP SEARCH */}
 
-              <div className="relative z-[60] hidden lg:block">
+              <div className="relative z-60 hidden lg:block">
                 <div
-                  className={`flex h-10 w-[280px] items-center gap-2 rounded-xl border px-3 transition ${
+                  className={`flex h-10 w-70 items-center gap-2 rounded-xl border px-3 transition ${
                     desktopSearchOpen
                       ? "border-indigo-300 bg-white ring-4 ring-indigo-500/10"
                       : "border-slate-200 bg-slate-50"
@@ -1043,7 +1043,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {desktopSearchOpen && search.trim() !== "" && (
-                  <div className="absolute right-0 top-12 z-[100] w-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                  <div className="absolute right-0 top-12 z-100 w-90 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                     <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                       <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                         Search results
@@ -1060,7 +1060,7 @@ export default function AdminDashboard() {
                     </div>
 
                     {filteredSearchResults.length > 0 ? (
-                      <div className="max-h-[340px] overflow-y-auto p-2">
+                      <div className="max-h-85 overflow-y-auto p-2">
                         {filteredSearchResults.map((result, index) => (
                           <Link
                             key={`${result.type}-${result.name}-${index}`}
@@ -1141,7 +1141,7 @@ export default function AdminDashboard() {
 
               {/* NOTIFICATIONS */}
 
-              <div className="relative z-[80]">
+              <div className="relative z-80">
                 <button
                   type="button"
                   onClick={toggleNotifications}
@@ -1167,11 +1167,11 @@ export default function AdminDashboard() {
                     <button
                       type="button"
                       onClick={() => setNotificationsOpen(false)}
-                      className="fixed inset-0 z-[40] cursor-default bg-transparent"
+                      className="fixed inset-0 z-40 cursor-default bg-transparent"
                       aria-label="Close notifications"
                     />
 
-                    <div className="absolute right-0 top-12 z-[90] w-[350px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                    <div className="absolute right-0 top-12 z-90 w-87.5 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
@@ -1203,7 +1203,7 @@ export default function AdminDashboard() {
                         </button>
                       </div>
 
-                      <div className="max-h-[380px] overflow-y-auto p-2">
+                      <div className="max-h-95 overflow-y-auto p-2">
                         {/* PENDING ORDERS */}
 
                         {pendingOrders > 0 && (
@@ -1489,7 +1489,7 @@ export default function AdminDashboard() {
 
         {/* CONTENT */}
 
-        <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto max-w-375 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {/* WELCOME */}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
@@ -1867,7 +1867,7 @@ export default function AdminDashboard() {
                 </Link>
               </div>
 
-              <div className="mt-8 flex h-[250px] items-end gap-3 sm:gap-5">
+              <div className="mt-8 flex h-62.5 items-end gap-3 sm:gap-5">
                 {monthlySales.map((month) => {
                   const height =
                     month.sales > 0
@@ -2148,7 +2148,7 @@ export default function AdminDashboard() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[680px]">
+                <table className="w-full min-w-170">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/70">
                       <th className="px-6 py-3 text-left text-[9px] font-black uppercase tracking-wider text-slate-400">
@@ -2194,7 +2194,7 @@ export default function AdminDashboard() {
                                   .toUpperCase()}
                               </div>
 
-                              <div className="max-w-[180px]">
+                              <div className="max-w-45">
                                 <p className="truncate text-xs font-black text-slate-800">
                                   {order.user?.name || "Customer"}
                                 </p>
@@ -2494,3 +2494,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
