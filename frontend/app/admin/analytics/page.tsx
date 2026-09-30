@@ -267,8 +267,6 @@ export default function AdminAnalyticsPage() {
   const [period, setPeriod] = useState<Period>("6M");
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-
-  // Notification state
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const fetchAnalyticsData = async () => {
@@ -388,42 +386,54 @@ export default function AdminAnalyticsPage() {
   const averageOrderValue =
     activeOrders.length > 0 ? totalRevenue / activeOrders.length : 0;
 
-  const pendingOrders = orders.filter(
-    (order) => order.status === "PENDING",
-  ).length;
+  const pendingOrders = useMemo(
+    () => orders.filter((order) => order.status === "PENDING").length,
+    [orders],
+  );
 
-  const confirmedOrders = orders.filter(
-    (order) => order.status === "CONFIRMED",
-  ).length;
+  const confirmedOrders = useMemo(
+    () => orders.filter((order) => order.status === "CONFIRMED").length,
+    [orders],
+  );
 
-  const shippedOrders = orders.filter(
-    (order) => order.status === "SHIPPED",
-  ).length;
+  const shippedOrders = useMemo(
+    () => orders.filter((order) => order.status === "SHIPPED").length,
+    [orders],
+  );
 
-  const deliveredOrders = orders.filter(
-    (order) => order.status === "DELIVERED",
-  ).length;
+  const deliveredOrders = useMemo(
+    () => orders.filter((order) => order.status === "DELIVERED").length,
+    [orders],
+  );
 
-  const cancelledOrders = orders.filter(
-    (order) => order.status === "CANCELLED",
-  ).length;
+  const cancelledOrders = useMemo(
+    () => orders.filter((order) => order.status === "CANCELLED").length,
+    [orders],
+  );
 
-  const inStock = products.filter(
-    (product) => Number(product.stock || 0) > 0,
-  ).length;
+  const inStock = useMemo(
+    () => products.filter((product) => Number(product.stock || 0) > 0).length,
+    [products],
+  );
 
-  const outOfStock = products.filter(
-    (product) => Number(product.stock || 0) <= 0,
-  ).length;
+  const outOfStock = useMemo(
+    () => products.filter((product) => Number(product.stock || 0) <= 0).length,
+    [products],
+  );
 
-  const lowStock = products.filter(
-    (product) =>
-      Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5,
-  ).length;
+  const lowStock = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5,
+      ).length,
+    [products],
+  );
 
   /*
    * Notification products.
-   * We show only the first 4 in the dropdown.
+   * The dropdown shows only the first 4 products in each category,
+   * but the notification badge uses the TOTAL number of affected products.
    */
   const notificationLowStockProducts = useMemo(
     () =>
@@ -443,10 +453,12 @@ export default function AdminAnalyticsPage() {
     [products],
   );
 
-  const notificationCount =
-    pendingOrders +
-    notificationLowStockProducts.length +
-    notificationOutOfStockProducts.length;
+  /*
+   * FIX:
+   * Count ALL affected inventory products, not only the first 4
+   * displayed in the notification dropdown.
+   */
+  const notificationCount = pendingOrders + lowStock + outOfStock;
 
   const periodDays = {
     "7D": 7,
@@ -745,6 +757,7 @@ export default function AdminAnalyticsPage() {
       ["Customers", customers.length],
       ["Products", products.length],
       ["In Stock", inStock],
+      ["Low Stock", lowStock],
       ["Out of Stock", outOfStock],
     ];
 
@@ -785,11 +798,11 @@ export default function AdminAnalyticsPage() {
       {/* SIDEBAR */}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-[260px] flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 flex h-screen w-65 flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-[82px] items-center border-b border-slate-100 px-5">
+        <div className="flex h-20.5 items-center border-b border-slate-100 px-5">
           <Link
             href="/"
             className="flex items-center gap-3"
@@ -926,11 +939,11 @@ export default function AdminAnalyticsPage() {
 
       {/* MAIN */}
 
-      <main className="min-h-screen lg:pl-[260px]">
+      <main className="min-h-screen lg:pl-65">
         {/* HEADER */}
 
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="flex min-h-[52px] items-center justify-between gap-3">
+          <div className="flex min-h-13 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
@@ -954,7 +967,7 @@ export default function AdminAnalyticsPage() {
               {/* DESKTOP SEARCH */}
 
               <div className="relative hidden lg:block">
-                <div className="flex h-11 w-[230px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-indigo-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/10">
+                <div className="flex h-11 w-57.5 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-indigo-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/10">
                   <Icon name="search" size={18} />
 
                   <input
@@ -977,7 +990,7 @@ export default function AdminAnalyticsPage() {
                 </div>
 
                 {searchOpen && search.trim() !== "" && (
-                  <div className="absolute right-0 top-14 z-50 w-[340px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                  <div className="absolute right-0 top-14 z-50 w-85 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                     <div className="border-b border-slate-100 px-4 py-3">
                       <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                         Search results
@@ -985,7 +998,7 @@ export default function AdminAnalyticsPage() {
                     </div>
 
                     {searchResults.length > 0 ? (
-                      <div className="max-h-[350px] overflow-y-auto p-2">
+                      <div className="max-h-87.5 overflow-y-auto p-2">
                         {searchResults.map((result, index) => (
                           <Link
                             key={`${result.type}-${result.name}-${index}`}
@@ -1076,8 +1089,6 @@ export default function AdminAnalyticsPage() {
 
                 {notificationsOpen && (
                   <>
-                    {/* Click outside */}
-
                     <button
                       type="button"
                       aria-label="Close notifications"
@@ -1085,10 +1096,8 @@ export default function AdminAnalyticsPage() {
                       className="fixed inset-0 z-40 cursor-default bg-transparent"
                     />
 
-                    {/* Notification panel */}
-
-                    <div className="absolute right-0 top-14 z-50 w-[350px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                      {/* Header */}
+                    <div className="absolute right-0 top-14 z-50 w-87.5 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                      {/* HEADER */}
 
                       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
                         <div className="flex items-center gap-3">
@@ -1121,10 +1130,10 @@ export default function AdminAnalyticsPage() {
                         </button>
                       </div>
 
-                      {/* Notification content */}
+                      {/* CONTENT */}
 
-                      <div className="max-h-[420px] overflow-y-auto p-2">
-                        {/* Pending orders */}
+                      <div className="max-h-105 overflow-y-auto p-2">
+                        {/* PENDING ORDERS */}
 
                         {pendingOrders > 0 && (
                           <Link
@@ -1158,7 +1167,7 @@ export default function AdminAnalyticsPage() {
                           </Link>
                         )}
 
-                        {/* Low stock */}
+                        {/* LOW STOCK */}
 
                         {notificationLowStockProducts.length > 0 && (
                           <Link
@@ -1198,6 +1207,16 @@ export default function AdminAnalyticsPage() {
                                 ))}
                               </div>
 
+                              {lowStock >
+                                notificationLowStockProducts.length && (
+                                <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                                  +
+                                  {lowStock -
+                                    notificationLowStockProducts.length}{" "}
+                                  more low-stock products
+                                </p>
+                              )}
+
                               <p className="mt-2 text-[10px] font-black text-orange-600">
                                 Manage inventory →
                               </p>
@@ -1205,7 +1224,7 @@ export default function AdminAnalyticsPage() {
                           </Link>
                         )}
 
-                        {/* Out of stock */}
+                        {/* OUT OF STOCK */}
 
                         {notificationOutOfStockProducts.length > 0 && (
                           <Link
@@ -1245,6 +1264,16 @@ export default function AdminAnalyticsPage() {
                                 )}
                               </div>
 
+                              {outOfStock >
+                                notificationOutOfStockProducts.length && (
+                                <p className="mt-1 text-[9px] font-semibold text-slate-400">
+                                  +
+                                  {outOfStock -
+                                    notificationOutOfStockProducts.length}{" "}
+                                  more out-of-stock products
+                                </p>
+                              )}
+
                               <p className="mt-2 text-[10px] font-black text-rose-600">
                                 Restock products →
                               </p>
@@ -1252,7 +1281,7 @@ export default function AdminAnalyticsPage() {
                           </Link>
                         )}
 
-                        {/* Empty state */}
+                        {/* EMPTY */}
 
                         {notificationCount === 0 && (
                           <div className="px-5 py-10 text-center">
@@ -1272,7 +1301,7 @@ export default function AdminAnalyticsPage() {
                         )}
                       </div>
 
-                      {/* Footer */}
+                      {/* FOOTER */}
 
                       <div className="border-t border-slate-100 bg-slate-50/70 p-3">
                         <Link
@@ -1306,7 +1335,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
 
-          {/* MOBILE SEARCH PANEL */}
+          {/* MOBILE SEARCH */}
 
           {searchOpen && (
             <div className="mt-3 lg:hidden">
@@ -1413,7 +1442,7 @@ export default function AdminAnalyticsPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:w-[430px]">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:w-107.5">
                   <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
                     <Icon name="dollar" size={19} />
 
@@ -1508,6 +1537,7 @@ export default function AdminAnalyticsPage() {
                 className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
               >
                 <Icon name="download" size={15} />
+
                 <span className="hidden sm:inline">Export</span>
               </button>
             </div>
@@ -1618,7 +1648,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* REVENUE CHART + STATUS */}
+          {/* REVENUE + STATUS */}
 
           <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.65fr_1fr]">
             {/* REVENUE */}
@@ -1644,7 +1674,7 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
 
-              <div className="mt-10 flex h-[290px] items-end gap-2 sm:gap-4">
+              <div className="mt-10 flex h-72.5 items-end gap-2 sm:gap-4">
                 {chartData.map((item) => {
                   const height =
                     item.sales > 0
@@ -1759,7 +1789,7 @@ export default function AdminAnalyticsPage() {
                         : "#e2e8f0",
                   }}
                 >
-                  <div className="flex h-[132px] w-[132px] flex-col items-center justify-center rounded-full bg-white shadow-inner">
+                  <div className="flex h-33 w-33 flex-col items-center justify-center rounded-full bg-white shadow-inner">
                     <span className="text-4xl font-black text-slate-950">
                       {orders.length}
                     </span>
@@ -1973,6 +2003,8 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-7 space-y-5">
+                {/* DELIVERY */}
+
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -2006,6 +2038,8 @@ export default function AdminAnalyticsPage() {
                     />
                   </div>
                 </div>
+
+                {/* FULFILLMENT */}
 
                 <div>
                   <div className="mb-2 flex items-center justify-between">
@@ -2047,6 +2081,8 @@ export default function AdminAnalyticsPage() {
                   </div>
                 </div>
 
+                {/* CUSTOMER BASE */}
+
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -2073,6 +2109,8 @@ export default function AdminAnalyticsPage() {
                     />
                   </div>
                 </div>
+
+                {/* INVENTORY HEALTH */}
 
                 <div>
                   <div className="mb-2 flex items-center justify-between">
@@ -2165,7 +2203,7 @@ export default function AdminAnalyticsPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px]">
+              <table className="w-full min-w-180">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/70">
                     <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -2211,7 +2249,7 @@ export default function AdminAnalyticsPage() {
                                 .toUpperCase()}
                             </div>
 
-                            <div className="max-w-[200px]">
+                            <div className="max-w-50">
                               <p className="truncate text-xs font-black text-slate-800">
                                 {order.user?.name || "Customer"}
                               </p>
