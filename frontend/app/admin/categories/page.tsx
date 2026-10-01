@@ -72,8 +72,7 @@ function getCategoryImage(category: Category) {
     return categoryFallbackImages[categoryName];
   }
 
-  // Keyword matching for names such as:
-  // "Gaming Consoles", "Men Fashion", "Sports Equipment", etc.
+  // Keyword matching
   const matchingCategory = Object.keys(categoryFallbackImages).find((key) =>
     categoryName.includes(key),
   );
@@ -90,6 +89,7 @@ export default function AdminCategoriesPage() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -121,6 +121,7 @@ export default function AdminCategoriesPage() {
       }
     } catch {
       localStorage.removeItem("user");
+      localStorage.removeItem("accessToken");
       router.replace("/login");
     }
   }, [router]);
@@ -133,18 +134,23 @@ export default function AdminCategoriesPage() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`${API_URL}/categories`);
+      const response = await fetch(`${API_URL}/categories`, {
+        cache: "no-store",
+      });
 
       if (!response.ok) {
-        throw new Error("Failed to load categories");
+        throw new Error("Failed to load categories.");
       }
 
       const data = await response.json();
 
       setCategories(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error(err);
-      setError("Unable to load categories.");
+      console.error("Fetch categories error:", err);
+
+      setError(
+        err instanceof Error ? err.message : "Unable to load categories.",
+      );
     } finally {
       setLoading(false);
     }
@@ -160,7 +166,9 @@ export default function AdminCategoriesPage() {
   const filteredCategories = useMemo(() => {
     const value = search.toLowerCase().trim();
 
-    if (!value) return categories;
+    if (!value) {
+      return categories;
+    }
 
     return categories.filter((category) =>
       category.name.toLowerCase().includes(value),
@@ -168,7 +176,7 @@ export default function AdminCategoriesPage() {
   }, [categories, search]);
 
   // --------------------------------------------------
-  // Open Add modal
+  // Open Add Modal
   // --------------------------------------------------
   const openAddModal = () => {
     setEditingCategory(null);
@@ -180,7 +188,7 @@ export default function AdminCategoriesPage() {
   };
 
   // --------------------------------------------------
-  // Open Edit modal
+  // Open Edit Modal
   // --------------------------------------------------
   const openEditModal = (category: Category) => {
     setEditingCategory(category);
@@ -192,13 +200,37 @@ export default function AdminCategoriesPage() {
   };
 
   // --------------------------------------------------
-  // Save category
+  // Close Modal
   // --------------------------------------------------
-  const handleSubmit = async (e: React.FormEvent) => {
+  const closeModal = () => {
+    if (saving) {
+      return;
+    }
+
+    setShowModal(false);
+    setEditingCategory(null);
+    setName("");
+    setImage("");
+    setError("");
+    setSuccess("");
+  };
+
+  // --------------------------------------------------
+  // Save Category
+  // --------------------------------------------------
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    const trimmedImage = image.trim();
+
+    if (!trimmedName) {
       setError("Category name is required.");
+      return;
+    }
+
+    if (trimmedName.length < 2) {
+      setError("Category name must contain at least 2 characters.");
       return;
     }
 
@@ -227,16 +259,33 @@ export default function AdminCategoriesPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name: name.trim(),
-          image: image.trim() || undefined,
+          name: trimmedName,
+          ...(trimmedImage ? { image: trimmedImage } : {}),
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(data?.message || "Failed to save category.");
+        const serverMessage =
+          typeof data?.message === "string"
+            ? data.message
+            : Array.isArray(data?.message)
+              ? data.message.join(", ")
+              : "";
+
+        if (
+          serverMessage.toLowerCase().includes("unique") ||
+          serverMessage.toLowerCase().includes("p2002") ||
+          serverMessage.toLowerCase().includes("already exists")
+        ) {
+          throw new Error("A category with this name already exists.");
+        }
+
+        throw new Error(serverMessage || "Failed to save category.");
       }
+
+      await fetchCategories();
 
       setSuccess(
         editingCategory
@@ -244,23 +293,29 @@ export default function AdminCategoriesPage() {
           : "Category created successfully.",
       );
 
-      await fetchCategories();
-
       setTimeout(() => {
         setShowModal(false);
+        setEditingCategory(null);
+        setName("");
+        setImage("");
+        setError("");
         setSuccess("");
       }, 700);
     } catch (err) {
-      console.error(err);
+      console.error("Save category error:", err);
 
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong while saving the category.",
+      );
     } finally {
       setSaving(false);
     }
   };
 
   // --------------------------------------------------
-  // Delete category
+  // Delete Category
   // --------------------------------------------------
   const handleDelete = async (category: Category) => {
     const productCount =
@@ -268,7 +323,9 @@ export default function AdminCategoriesPage() {
 
     if (productCount > 0) {
       alert(
-        `Cannot delete "${category.name}" because it contains ${productCount} product(s).`,
+        `Cannot delete "${category.name}" because it contains ${productCount} product${
+          productCount === 1 ? "" : "s"
+        }.`,
       );
       return;
     }
@@ -277,7 +334,9 @@ export default function AdminCategoriesPage() {
       `Are you sure you want to delete "${category.name}"?`,
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     const token = localStorage.getItem("accessToken");
 
@@ -288,6 +347,7 @@ export default function AdminCategoriesPage() {
 
     try {
       setError("");
+      setSuccess("");
 
       const response = await fetch(`${API_URL}/categories/${category.id}`, {
         method: "DELETE",
@@ -296,21 +356,28 @@ export default function AdminCategoriesPage() {
         },
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(data?.message || "Failed to delete category.");
+        const serverMessage =
+          typeof data?.message === "string"
+            ? data.message
+            : Array.isArray(data?.message)
+              ? data.message.join(", ")
+              : "";
+
+        throw new Error(serverMessage || "Failed to delete category.");
       }
 
-      setSuccess("Category deleted successfully.");
-
       await fetchCategories();
+
+      setSuccess("Category deleted successfully.");
 
       setTimeout(() => {
         setSuccess("");
       }, 1500);
     } catch (err) {
-      console.error(err);
+      console.error("Delete category error:", err);
 
       setError(
         err instanceof Error ? err.message : "Failed to delete category.",
@@ -331,21 +398,22 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* Sidebar */}{" "}
+      {/* =========================================================
+          SIDEBAR
+      ========================================================== */}
       <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-slate-200 bg-white lg:block">
-        {" "}
         <div className="flex h-full flex-col">
-          {/* Logo */}{" "}
+          {/* Logo */}
           <div className="flex h-20 items-center border-b border-slate-200 px-6">
-            {" "}
             <div>
-              {" "}
               <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                Shop<span className="text-blue-600">Ease</span>{" "}
+                Shop<span className="text-blue-600">Ease</span>
               </h1>
+
               <p className="text-xs font-medium text-slate-400">Admin Panel</p>
             </div>
           </div>
+
           {/* Navigation */}
           <nav className="flex-1 space-y-2 p-4">
             <Link
@@ -396,7 +464,8 @@ export default function AdminCategoriesPage() {
               View Store
             </Link>
           </nav>
-          {/* Bottom */}
+
+          {/* Bottom Card */}
           <div className="border-t border-slate-200 p-4">
             <div className="rounded-2xl bg-linear-to-br from-blue-600 to-cyan-500 p-4 text-white">
               <p className="text-xs font-medium text-blue-100">ShopEase</p>
@@ -413,9 +482,12 @@ export default function AdminCategoriesPage() {
           </div>
         </div>
       </aside>
-      {/* Main */}
+
+      {/* =========================================================
+          MAIN
+      ========================================================== */}
       <main className="lg:ml-64">
-        {/* Top bar */}
+        {/* Top Bar */}
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="flex min-h-20 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             <div>
@@ -438,21 +510,40 @@ export default function AdminCategoriesPage() {
         </header>
 
         <div className="p-4 sm:p-6 lg:p-8">
-          {/* Messages */}
-          {error && (
-            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
-              {error}
+          {/* =====================================================
+              MESSAGES
+          ====================================================== */}
+          {error && !showModal && (
+            <div className="mb-5 flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+              <span>{error}</span>
+
+              <button
+                onClick={() => setError("")}
+                className="shrink-0 text-red-400 transition hover:text-red-600"
+              >
+                ✕
+              </button>
             </div>
           )}
 
-          {success && (
-            <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-600">
-              {success}
+          {success && !showModal && (
+            <div className="mb-5 flex items-start justify-between gap-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-600">
+              <span>{success}</span>
+
+              <button
+                onClick={() => setSuccess("")}
+                className="shrink-0 text-green-400 transition hover:text-green-600"
+              >
+                ✕
+              </button>
             </div>
           )}
 
-          {/* Stats */}
+          {/* =====================================================
+              STATS
+          ====================================================== */}
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Total Categories */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -471,6 +562,7 @@ export default function AdminCategoriesPage() {
               </div>
             </div>
 
+            {/* Products Assigned */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -490,7 +582,9 @@ export default function AdminCategoriesPage() {
             </div>
           </div>
 
-          {/* Search */}
+          {/* =====================================================
+              SEARCH
+          ====================================================== */}
           <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -507,7 +601,9 @@ export default function AdminCategoriesPage() {
             </div>
           </div>
 
-          {/* Categories */}
+          {/* =====================================================
+              CATEGORY LIST
+          ====================================================== */}
           {loading ? (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {[1, 2, 3, 4, 5, 6].map((item) => (
@@ -524,15 +620,26 @@ export default function AdminCategoriesPage() {
               <h3 className="mt-4 text-xl font-black">No categories found</h3>
 
               <p className="mt-2 text-sm text-slate-500">
-                Try another search or create a new category.
+                {search.trim()
+                  ? "Try another search term."
+                  : "Create your first category to get started."}
               </p>
 
-              <button
-                onClick={openAddModal}
-                className="mt-6 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
-              >
-                + Create Category
-              </button>
+              {search.trim() ? (
+                <button
+                  onClick={() => setSearch("")}
+                  className="mt-6 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Clear Search
+                </button>
+              ) : (
+                <button
+                  onClick={openAddModal}
+                  className="mt-6 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
+                >
+                  + Create Category
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -565,8 +672,8 @@ export default function AdminCategoriesPage() {
                     {/* Content */}
                     <div className="p-5">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-lg font-black text-slate-900">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-lg font-black text-slate-900">
                             {category.name}
                           </h3>
 
@@ -576,7 +683,7 @@ export default function AdminCategoriesPage() {
                           </p>
                         </div>
 
-                        <div className="rounded-xl bg-blue-50 px-3 py-2 text-lg">
+                        <div className="shrink-0 rounded-xl bg-blue-50 px-3 py-2 text-lg">
                           🏷️
                         </div>
                       </div>
@@ -593,6 +700,11 @@ export default function AdminCategoriesPage() {
                         <button
                           onClick={() => handleDelete(category)}
                           disabled={productCount > 0}
+                          title={
+                            productCount > 0
+                              ? "Remove all products from this category before deleting it."
+                              : "Delete category"
+                          }
                           className="flex-1 rounded-xl border border-red-100 px-4 py-2.5 text-sm font-bold text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           🗑️ Delete
@@ -606,11 +718,21 @@ export default function AdminCategoriesPage() {
           )}
         </div>
       </main>
-      {/* Modal */}
+
+      {/* =========================================================
+          ADD / EDIT MODAL
+      ========================================================== */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
-            {/* Modal header */}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !saving) {
+              closeModal();
+            }
+          }}
+        >
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
@@ -623,8 +745,10 @@ export default function AdminCategoriesPage() {
               </div>
 
               <button
-                onClick={() => setShowModal(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg text-slate-500 transition hover:bg-slate-200"
+                type="button"
+                onClick={closeModal}
+                disabled={saving}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg text-slate-500 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 ✕
               </button>
@@ -632,45 +756,64 @@ export default function AdminCategoriesPage() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-5 p-6">
+              {/* Modal Error */}
               {error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
                   {error}
                 </div>
               )}
 
+              {/* Modal Success */}
               {success && (
                 <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-600">
                   {success}
                 </div>
               )}
 
-              {/* Name */}
+              {/* Category Name */}
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
+                <label
+                  htmlFor="category-name"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
                   Category Name
                 </label>
 
                 <input
+                  id="category-name"
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setError("");
+                  }}
                   placeholder="e.g. Fashion"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                  disabled={saving}
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
 
-              {/* Image */}
+              {/* Image URL */}
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
+                <label
+                  htmlFor="category-image"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
                   Image URL
                 </label>
 
                 <input
+                  id="category-image"
                   type="url"
                   value={image}
-                  onChange={(e) => setImage(e.target.value)}
+                  onChange={(e) => {
+                    setImage(e.target.value);
+                    setError("");
+                  }}
                   placeholder="https://example.com/image.jpg"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                  disabled={saving}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
                 />
 
                 <p className="mt-2 text-xs text-slate-400">
@@ -687,7 +830,7 @@ export default function AdminCategoriesPage() {
 
                   <div className="h-40 overflow-hidden rounded-2xl bg-slate-100">
                     <img
-                      src={image}
+                      src={image.trim()}
                       alt="Category preview"
                       className="h-full w-full object-cover"
                       onError={(e) => {
@@ -703,8 +846,9 @@ export default function AdminCategoriesPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="flex-1 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
                 </button>
