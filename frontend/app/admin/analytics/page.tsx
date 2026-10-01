@@ -32,6 +32,27 @@ type Product = {
   image?: string | null;
 };
 
+type Payment = {
+  id: number;
+  amount?: number | string | null;
+  total?: number | string | null;
+  status: string;
+  method?: string | null;
+  paymentMethod?: string | null;
+  type?: string | null;
+  provider?: string | null;
+  createdAt: string;
+  order?: {
+    id: number;
+    total?: number | string | null;
+    user?: {
+      id: number;
+      name: string;
+      email: string;
+    };
+  };
+};
+
 type Period = "7D" | "30D" | "6M" | "1Y";
 
 type IconName =
@@ -55,7 +76,10 @@ type IconName =
   | "calendar"
   | "download"
   | "dollar"
-  | "activity";
+  | "activity"
+  | "credit"
+  | "wallet"
+  | "alert";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const common = {
@@ -252,6 +276,33 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
         </svg>
       );
 
+    case "credit":
+      return (
+        <svg {...common}>
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M3 10h18" />
+          <path d="M7 15h4" />
+        </svg>
+      );
+
+    case "wallet":
+      return (
+        <svg {...common}>
+          <path d="M4 6a2 2 0 0 1 2-2h13v16H6a2 2 0 0 1-2-2V6Z" />
+          <path d="M4 7h15" />
+          <path d="M16 12h3" />
+        </svg>
+      );
+
+    case "alert":
+      return (
+        <svg {...common}>
+          <path d="M10.3 4.2 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </svg>
+      );
+
     default:
       return null;
   }
@@ -261,6 +312,7 @@ export default function AdminAnalyticsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -268,6 +320,8 @@ export default function AdminAnalyticsPage() {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const API_URL = "http://localhost:3001";
 
   const fetchAnalyticsData = async () => {
     try {
@@ -285,15 +339,14 @@ export default function AdminAnalyticsPage() {
         "Content-Type": "application/json",
       };
 
-      const [ordersRes, usersRes, productsRes] = await Promise.all([
-        fetch("http://localhost:3001/admin/orders", {
-          headers,
-        }),
-        fetch("http://localhost:3001/admin/users", {
-          headers,
-        }),
-        fetch("http://localhost:3001/products"),
-      ]);
+      const [ordersRes, usersRes, productsRes, paymentsRes] = await Promise.all(
+        [
+          fetch(`${API_URL}/admin/orders`, { headers }),
+          fetch(`${API_URL}/admin/users`, { headers }),
+          fetch(`${API_URL}/products`),
+          fetch(`${API_URL}/payments/admin/all`, { headers }),
+        ],
+      );
 
       if (ordersRes.ok) {
         const data = await ordersRes.json();
@@ -336,6 +389,26 @@ export default function AdminAnalyticsPage() {
                 : [],
         );
       }
+
+      if (paymentsRes.ok) {
+        const data = await paymentsRes.json();
+
+        setPayments(
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data.payments)
+              ? data.payments
+              : Array.isArray(data.data)
+                ? data.data
+                : [],
+        );
+      } else {
+        console.error(
+          "Payments request failed:",
+          paymentsRes.status,
+          paymentsRes.statusText,
+        );
+      }
     } catch (error) {
       console.error("Analytics error:", error);
     } finally {
@@ -347,13 +420,12 @@ export default function AdminAnalyticsPage() {
     fetchAnalyticsData();
   }, []);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
       maximumFractionDigits: 2,
-    }).format(value);
-  };
+    }).format(Number(value) || 0);
 
   const formatDate = (date: string) => {
     try {
@@ -367,8 +439,72 @@ export default function AdminAnalyticsPage() {
     }
   };
 
+  /*
+   * Payment helpers
+   */
+
+  const getPaymentAmount = (payment: Payment) => {
+    const directAmount = Number(payment.amount);
+
+    if (Number.isFinite(directAmount) && directAmount > 0) {
+      return directAmount;
+    }
+
+    const totalAmount = Number(payment.total);
+
+    if (Number.isFinite(totalAmount) && totalAmount > 0) {
+      return totalAmount;
+    }
+
+    const orderAmount = Number(payment.order?.total);
+
+    if (Number.isFinite(orderAmount) && orderAmount > 0) {
+      return orderAmount;
+    }
+
+    return 0;
+  };
+
+  const getPaymentMethod = (payment: Payment) => {
+    const raw =
+      payment.method ||
+      payment.paymentMethod ||
+      payment.type ||
+      payment.provider ||
+      "UNKNOWN";
+
+    const normalized = String(raw).trim().toUpperCase();
+
+    if (
+      normalized.includes("CASH") ||
+      normalized.includes("COD") ||
+      normalized.includes("DELIVERY")
+    ) {
+      return "CASH_ON_DELIVERY";
+    }
+
+    if (normalized.includes("TELEBIRR")) {
+      return "TELEBIRR";
+    }
+
+    if (
+      normalized.includes("CARD") ||
+      normalized.includes("VISA") ||
+      normalized.includes("MASTERCARD")
+    ) {
+      return "CARD";
+    }
+
+    return normalized || "UNKNOWN";
+  };
+
   const customers = useMemo(
     () => users.filter((user) => user.role === "CUSTOMER"),
+    [users],
+  );
+
+  const admins = useMemo(
+    () => users.filter((user) => user.role === "ADMIN"),
     [users],
   );
 
@@ -377,14 +513,9 @@ export default function AdminAnalyticsPage() {
     [orders],
   );
 
-  const totalRevenue = useMemo(
-    () =>
-      activeOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
-    [activeOrders],
-  );
-
-  const averageOrderValue =
-    activeOrders.length > 0 ? totalRevenue / activeOrders.length : 0;
+  /*
+   * Order status
+   */
 
   const pendingOrders = useMemo(
     () => orders.filter((order) => order.status === "PENDING").length,
@@ -411,6 +542,92 @@ export default function AdminAnalyticsPage() {
     [orders],
   );
 
+  /*
+   * Sales
+   */
+
+  const totalSales = useMemo(
+    () =>
+      activeOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+    [activeOrders],
+  );
+
+  const totalOrders = orders.length;
+
+  const averageOrderValue =
+    activeOrders.length > 0 ? totalSales / activeOrders.length : 0;
+
+  /*
+   * Payment statistics
+   */
+
+  const paidPayments = useMemo(
+    () => payments.filter((payment) => payment.status === "PAID"),
+    [payments],
+  );
+
+  const pendingPayments = useMemo(
+    () => payments.filter((payment) => payment.status === "PENDING"),
+    [payments],
+  );
+
+  const failedPayments = useMemo(
+    () => payments.filter((payment) => payment.status === "FAILED"),
+    [payments],
+  );
+
+  const cancelledPayments = useMemo(
+    () => payments.filter((payment) => payment.status === "CANCELLED"),
+    [payments],
+  );
+
+  const paidRevenue = useMemo(
+    () =>
+      paidPayments.reduce((sum, payment) => sum + getPaymentAmount(payment), 0),
+    [paidPayments],
+  );
+
+  const pendingRevenue = useMemo(
+    () =>
+      pendingPayments.reduce(
+        (sum, payment) => sum + getPaymentAmount(payment),
+        0,
+      ),
+    [pendingPayments],
+  );
+
+  const failedRevenue = useMemo(
+    () =>
+      failedPayments.reduce(
+        (sum, payment) => sum + getPaymentAmount(payment),
+        0,
+      ),
+    [failedPayments],
+  );
+
+  const cashOnDeliveryPayments = useMemo(
+    () =>
+      payments.filter(
+        (payment) => getPaymentMethod(payment) === "CASH_ON_DELIVERY",
+      ),
+    [payments],
+  );
+
+  const telebirrPayments = useMemo(
+    () =>
+      payments.filter((payment) => getPaymentMethod(payment) === "TELEBIRR"),
+    [payments],
+  );
+
+  const cardPayments = useMemo(
+    () => payments.filter((payment) => getPaymentMethod(payment) === "CARD"),
+    [payments],
+  );
+
+  /*
+   * Inventory
+   */
+
   const inStock = useMemo(
     () => products.filter((product) => Number(product.stock || 0) > 0).length,
     [products],
@@ -431,10 +648,9 @@ export default function AdminAnalyticsPage() {
   );
 
   /*
-   * Notification products.
-   * The dropdown shows only the first 4 products in each category,
-   * but the notification badge uses the TOTAL number of affected products.
+   * Notifications
    */
+
   const notificationLowStockProducts = useMemo(
     () =>
       products
@@ -453,12 +669,11 @@ export default function AdminAnalyticsPage() {
     [products],
   );
 
-  /*
-   * FIX:
-   * Count ALL affected inventory products, not only the first 4
-   * displayed in the notification dropdown.
-   */
   const notificationCount = pendingOrders + lowStock + outOfStock;
+
+  /*
+   * Reporting period
+   */
 
   const periodDays = {
     "7D": 7,
@@ -483,25 +698,34 @@ export default function AdminAnalyticsPage() {
     return date;
   }, [period, periodDays]);
 
-  const periodOrders = useMemo(() => {
-    return activeOrders.filter(
-      (order) => new Date(order.createdAt) >= periodStart,
-    );
-  }, [activeOrders, periodStart]);
+  const periodOrders = useMemo(
+    () =>
+      activeOrders.filter((order) => new Date(order.createdAt) >= periodStart),
+    [activeOrders, periodStart],
+  );
 
-  const periodRevenue = useMemo(() => {
-    return periodOrders.reduce(
-      (sum, order) => sum + Number(order.total || 0),
-      0,
-    );
-  }, [periodOrders]);
+  const periodPayments = useMemo(
+    () =>
+      payments.filter((payment) => new Date(payment.createdAt) >= periodStart),
+    [payments, periodStart],
+  );
+
+  const periodPaidRevenue = useMemo(
+    () =>
+      periodPayments
+        .filter((payment) => payment.status === "PAID")
+        .reduce((sum, payment) => sum + getPaymentAmount(payment), 0),
+    [periodPayments],
+  );
 
   const previousPeriodRevenue = useMemo(() => {
     const start = new Date(periodStart);
     const end = new Date(periodStart);
 
     if (period === "7D" || period === "30D") {
-      start.setDate(start.getDate() - (period === "7D" ? 7 : 30));
+      const days = period === "7D" ? 7 : 30;
+
+      start.setDate(start.getDate() - days);
     } else if (period === "6M") {
       start.setMonth(start.getMonth() - 6);
     } else {
@@ -511,6 +735,7 @@ export default function AdminAnalyticsPage() {
     return activeOrders
       .filter((order) => {
         const date = new Date(order.createdAt);
+
         return date >= start && date < end;
       })
       .reduce((sum, order) => sum + Number(order.total || 0), 0);
@@ -518,15 +743,20 @@ export default function AdminAnalyticsPage() {
 
   const revenueChange = useMemo(() => {
     if (previousPeriodRevenue === 0) {
-      return periodRevenue > 0 ? 100 : 0;
+      return periodPaidRevenue > 0 ? 100 : 0;
     }
 
     return (
-      ((periodRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100
+      ((periodPaidRevenue - previousPeriodRevenue) / previousPeriodRevenue) *
+      100
     );
-  }, [periodRevenue, previousPeriodRevenue]);
+  }, [periodPaidRevenue, previousPeriodRevenue]);
 
-  const chartData = useMemo(() => {
+  /*
+   * Revenue chart
+   */
+
+  const revenueChartData = useMemo(() => {
     const now = new Date();
 
     if (period === "7D") {
@@ -537,19 +767,22 @@ export default function AdminAnalyticsPage() {
 
         const key = date.toISOString().slice(0, 10);
 
-        const sales = periodOrders
-          .filter(
-            (order) =>
-              new Date(order.createdAt).toISOString().slice(0, 10) === key,
-          )
-          .reduce((sum, order) => sum + Number(order.total || 0), 0);
+        const revenue = periodPayments
+          .filter((payment) => {
+            if (payment.status !== "PAID") return false;
+
+            return (
+              new Date(payment.createdAt).toISOString().slice(0, 10) === key
+            );
+          })
+          .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
         return {
           key,
           label: date.toLocaleDateString("en-US", {
             weekday: "short",
           }),
-          sales,
+          value: revenue,
         };
       });
     }
@@ -564,18 +797,20 @@ export default function AdminAnalyticsPage() {
 
         start.setDate(start.getDate() - 4);
 
-        const sales = periodOrders
-          .filter((order) => {
-            const date = new Date(order.createdAt);
+        const revenue = periodPayments
+          .filter((payment) => {
+            if (payment.status !== "PAID") return false;
+
+            const date = new Date(payment.createdAt);
 
             return date >= start && date <= end;
           })
-          .reduce((sum, order) => sum + Number(order.total || 0), 0);
+          .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
         return {
-          key: `${index}`,
+          key: String(index),
           label: `${start.getDate()}-${end.getDate()}`,
-          sales,
+          value: revenue,
         };
       });
     }
@@ -591,50 +826,180 @@ export default function AdminAnalyticsPage() {
 
       const key = `${date.getFullYear()}-${date.getMonth()}`;
 
-      const sales = periodOrders
-        .filter((order) => {
-          const orderDate = new Date(order.createdAt);
+      const revenue = periodPayments
+        .filter((payment) => {
+          if (payment.status !== "PAID") return false;
+
+          const paymentDate = new Date(payment.createdAt);
 
           return (
-            orderDate.getFullYear() === date.getFullYear() &&
-            orderDate.getMonth() === date.getMonth()
+            paymentDate.getFullYear() === date.getFullYear() &&
+            paymentDate.getMonth() === date.getMonth()
           );
         })
-        .reduce((sum, order) => sum + Number(order.total || 0), 0);
+        .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
       return {
         key,
         label: date.toLocaleString("en-US", {
           month: "short",
         }),
-        sales,
+        value: revenue,
+      };
+    });
+  }, [period, periodPayments]);
+
+  const maxRevenueChartValue = Math.max(
+    ...revenueChartData.map((item) => item.value),
+    1,
+  );
+
+  /*
+   * Orders chart
+   */
+
+  const orderChartData = useMemo(() => {
+    const now = new Date();
+
+    if (period === "7D") {
+      return Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(now);
+
+        date.setDate(now.getDate() - (6 - index));
+
+        const key = date.toISOString().slice(0, 10);
+
+        const count = periodOrders.filter(
+          (order) =>
+            new Date(order.createdAt).toISOString().slice(0, 10) === key,
+        ).length;
+
+        return {
+          key,
+          label: date.toLocaleDateString("en-US", {
+            weekday: "short",
+          }),
+          value: count,
+        };
+      });
+    }
+
+    if (period === "30D") {
+      return Array.from({ length: 6 }, (_, index) => {
+        const end = new Date(now);
+
+        end.setDate(now.getDate() - (5 - index) * 5);
+
+        const start = new Date(end);
+
+        start.setDate(start.getDate() - 4);
+
+        const count = periodOrders.filter((order) => {
+          const date = new Date(order.createdAt);
+
+          return date >= start && date <= end;
+        }).length;
+
+        return {
+          key: String(index),
+          label: `${start.getDate()}-${end.getDate()}`,
+          value: count,
+        };
+      });
+    }
+
+    const months = period === "1Y" ? 12 : 6;
+
+    return Array.from({ length: months }, (_, index) => {
+      const date = new Date(
+        now.getFullYear(),
+        now.getMonth() - (months - 1 - index),
+        1,
+      );
+
+      const count = periodOrders.filter((order) => {
+        const orderDate = new Date(order.createdAt);
+
+        return (
+          orderDate.getFullYear() === date.getFullYear() &&
+          orderDate.getMonth() === date.getMonth()
+        );
+      }).length;
+
+      return {
+        key: `${date.getFullYear()}-${date.getMonth()}`,
+        label: date.toLocaleString("en-US", {
+          month: "short",
+        }),
+        value: count,
       };
     });
   }, [period, periodOrders]);
 
-  const maxChartValue = Math.max(...chartData.map((item) => item.sales), 1);
+  const maxOrderChartValue = Math.max(
+    ...orderChartData.map((item) => item.value),
+    1,
+  );
 
-  const topProducts = useMemo(() => {
-    return [...products]
-      .sort((a, b) => Number(b.stock || 0) - Number(a.stock || 0))
-      .slice(0, 6);
-  }, [products]);
+  /*
+   * Payment method percentages
+   */
 
-  const recentOrders = useMemo(() => {
-    return [...orders]
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )
-      .slice(0, 6);
-  }, [orders]);
+  const paymentMethodTotal =
+    cashOnDeliveryPayments.length +
+    telebirrPayments.length +
+    cardPayments.length;
+
+  const cashPercentage =
+    paymentMethodTotal > 0
+      ? (cashOnDeliveryPayments.length / paymentMethodTotal) * 100
+      : 0;
+
+  const telebirrPercentage =
+    paymentMethodTotal > 0
+      ? (telebirrPayments.length / paymentMethodTotal) * 100
+      : 0;
+
+  const cardPercentage =
+    paymentMethodTotal > 0
+      ? (cardPayments.length / paymentMethodTotal) * 100
+      : 0;
+
+  /*
+   * Top products
+   */
+
+  const topProducts = useMemo(
+    () =>
+      [...products]
+        .sort((a, b) => Number(b.stock || 0) - Number(a.stock || 0))
+        .slice(0, 6),
+    [products],
+  );
+
+  /*
+   * Recent orders
+   */
+
+  const recentOrders = useMemo(
+    () =>
+      [...orders]
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )
+        .slice(0, 6),
+    [orders],
+  );
+
+  /*
+   * Search
+   */
 
   const searchResults = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return [];
-    }
+    if (!query) return [];
 
     const results: {
       type: string;
@@ -687,8 +1052,23 @@ export default function AdminAnalyticsPage() {
       }
     });
 
+    payments.forEach((payment) => {
+      if (
+        String(payment.id).includes(query) ||
+        payment.status.toLowerCase().includes(query) ||
+        getPaymentMethod(payment).toLowerCase().includes(query)
+      ) {
+        results.push({
+          type: "Payment",
+          name: `Payment #${payment.id}`,
+          detail: `${getPaymentMethod(payment)} • ${payment.status}`,
+          href: "/admin/payments",
+        });
+      }
+    });
+
     return results.slice(0, 8);
-  }, [search, orders, products, customers]);
+  }, [search, orders, products, customers, payments]);
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -709,6 +1089,25 @@ export default function AdminAnalyticsPage() {
 
       default:
         return "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
+    }
+  };
+
+  const getPaymentStatusStyle = (status: string) => {
+    switch (status) {
+      case "PAID":
+        return "bg-emerald-50 text-emerald-700";
+
+      case "PENDING":
+        return "bg-amber-50 text-amber-700";
+
+      case "FAILED":
+        return "bg-rose-50 text-rose-700";
+
+      case "CANCELLED":
+        return "bg-slate-100 text-slate-600";
+
+      default:
+        return "bg-slate-50 text-slate-600";
     }
   };
 
@@ -750,11 +1149,27 @@ export default function AdminAnalyticsPage() {
   const exportReport = () => {
     const rows = [
       ["Metric", "Value"],
-      ["Total Revenue", totalRevenue.toFixed(2)],
-      ["Period Revenue", periodRevenue.toFixed(2)],
-      ["Total Orders", orders.length],
-      ["Period Orders", periodOrders.length],
+      ["Total Sales", totalSales.toFixed(2)],
+      ["Paid Revenue", paidRevenue.toFixed(2)],
+      ["Pending Revenue", pendingRevenue.toFixed(2)],
+      ["Failed Revenue", failedRevenue.toFixed(2)],
+      ["Total Orders", totalOrders],
+      ["Average Order Value", averageOrderValue.toFixed(2)],
+      ["Pending Orders", pendingOrders],
+      ["Confirmed Orders", confirmedOrders],
+      ["Shipped Orders", shippedOrders],
+      ["Delivered Orders", deliveredOrders],
+      ["Cancelled Orders", cancelledOrders],
+      ["Total Payments", payments.length],
+      ["Paid Payments", paidPayments.length],
+      ["Pending Payments", pendingPayments.length],
+      ["Failed Payments", failedPayments.length],
+      ["Cash on Delivery", cashOnDeliveryPayments.length],
+      ["Telebirr", telebirrPayments.length],
+      ["Card", cardPayments.length],
+      ["Total Users", users.length],
       ["Customers", customers.length],
+      ["Admins", admins.length],
       ["Products", products.length],
       ["In Stock", inStock],
       ["Low Stock", lowStock],
@@ -762,7 +1177,9 @@ export default function AdminAnalyticsPage() {
     ];
 
     const csv = rows
-      .map((row) => row.map((value) => `"${value}"`).join(","))
+      .map((row) =>
+        row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","),
+      )
       .join("\n");
 
     const blob = new Blob([csv], {
@@ -770,7 +1187,6 @@ export default function AdminAnalyticsPage() {
     });
 
     const url = URL.createObjectURL(blob);
-
     const link = document.createElement("a");
 
     link.href = url;
@@ -785,8 +1201,6 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-[#f7f8fc] text-slate-900">
-      {/* MOBILE OVERLAY */}
-
       {sidebarOpen && (
         <button
           onClick={() => setSidebarOpen(false)}
@@ -903,7 +1317,8 @@ export default function AdminAnalyticsPage() {
             </div>
 
             <p className="mt-2 text-[11px] leading-5 text-slate-500">
-              Track revenue, orders, customers and inventory performance.
+              Track revenue, payments, orders, customers and inventory
+              performance.
             </p>
 
             <div className="mt-4 flex items-center gap-2">
@@ -964,8 +1379,6 @@ export default function AdminAnalyticsPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* DESKTOP SEARCH */}
-
               <div className="relative hidden lg:block">
                 <div className="flex h-11 w-57.5 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-indigo-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/10">
                   <Icon name="search" size={18} />
@@ -1016,7 +1429,9 @@ export default function AdminAnalyticsPage() {
                                     ? "bag"
                                     : result.type === "Product"
                                       ? "box"
-                                      : "users"
+                                      : result.type === "Payment"
+                                        ? "credit"
+                                        : "users"
                                 }
                                 size={16}
                               />
@@ -1040,9 +1455,7 @@ export default function AdminAnalyticsPage() {
                       </div>
                     ) : (
                       <div className="px-4 py-8 text-center">
-                        <div className="flex justify-center text-slate-300">
-                          <Icon name="search" size={22} />
-                        </div>
+                        <Icon name="search" size={22} />
 
                         <p className="mt-3 text-sm font-bold text-slate-600">
                           No results found
@@ -1053,25 +1466,20 @@ export default function AdminAnalyticsPage() {
                 )}
               </div>
 
-              {/* MOBILE SEARCH */}
-
               <button
                 type="button"
                 onClick={() => setSearchOpen(!searchOpen)}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 lg:hidden"
-                aria-label="Search"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm lg:hidden"
               >
                 <Icon name="search" size={18} />
               </button>
 
-              {/* NOTIFICATION */}
+              {/* NOTIFICATIONS */}
 
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setNotificationsOpen((value) => !value)}
-                  aria-label="Notifications"
-                  aria-expanded={notificationsOpen}
                   className={`relative flex h-11 w-11 items-center justify-center rounded-xl border bg-white shadow-sm transition ${
                     notificationsOpen
                       ? "border-indigo-200 text-indigo-600 ring-4 ring-indigo-500/10"
@@ -1081,7 +1489,7 @@ export default function AdminAnalyticsPage() {
                   <Icon name="bell" size={19} />
 
                   {notificationCount > 0 && (
-                    <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-rose-500 px-1 text-[8px] font-black text-white shadow-sm">
+                    <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-rose-500 px-1 text-[8px] font-black text-white">
                       {notificationCount > 9 ? "9+" : notificationCount}
                     </span>
                   )}
@@ -1097,8 +1505,6 @@ export default function AdminAnalyticsPage() {
                     />
 
                     <div className="absolute right-0 top-14 z-50 w-87.5 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                      {/* HEADER */}
-
                       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
@@ -1110,7 +1516,7 @@ export default function AdminAnalyticsPage() {
                               Notifications
                             </p>
 
-                            <p className="text-[10px] font-medium text-slate-400">
+                            <p className="text-[10px] text-slate-400">
                               {notificationCount === 0
                                 ? "Everything looks good"
                                 : `${notificationCount} item${
@@ -1121,33 +1527,27 @@ export default function AdminAnalyticsPage() {
                         </div>
 
                         <button
-                          type="button"
                           onClick={() => setNotificationsOpen(false)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                          aria-label="Close notifications"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"
                         >
                           <Icon name="x" size={16} />
                         </button>
                       </div>
 
-                      {/* CONTENT */}
-
                       <div className="max-h-105 overflow-y-auto p-2">
-                        {/* PENDING ORDERS */}
-
                         {pendingOrders > 0 && (
                           <Link
                             href="/admin/orders"
                             onClick={() => setNotificationsOpen(false)}
-                            className="group flex items-start gap-3 rounded-xl p-3 transition hover:bg-amber-50"
+                            className="group flex items-start gap-3 rounded-xl p-3 hover:bg-amber-50"
                           >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-white">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
                               <Icon name="clock" size={18} />
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-black text-slate-800">
+                              <div className="flex justify-between gap-2">
+                                <p className="text-xs font-black">
                                   Pending orders
                                 </p>
 
@@ -1156,34 +1556,26 @@ export default function AdminAnalyticsPage() {
                                 </span>
                               </div>
 
-                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                              <p className="mt-1 text-[10px] text-slate-400">
                                 Orders are waiting for confirmation.
-                              </p>
-
-                              <p className="mt-2 text-[10px] font-black text-amber-600">
-                                Review orders →
                               </p>
                             </div>
                           </Link>
                         )}
 
-                        {/* LOW STOCK */}
-
                         {notificationLowStockProducts.length > 0 && (
                           <Link
                             href="/admin/products"
                             onClick={() => setNotificationsOpen(false)}
-                            className="group flex items-start gap-3 rounded-xl p-3 transition hover:bg-orange-50"
+                            className="group flex items-start gap-3 rounded-xl p-3 hover:bg-orange-50"
                           >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 group-hover:bg-white">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
                               <Icon name="box" size={18} />
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-black text-slate-800">
-                                  Low stock
-                                </p>
+                              <div className="flex justify-between">
+                                <p className="text-xs font-black">Low stock</p>
 
                                 <span className="rounded-full bg-orange-100 px-2 py-1 text-[9px] font-black text-orange-700">
                                   {lowStock}
@@ -1194,51 +1586,35 @@ export default function AdminAnalyticsPage() {
                                 {notificationLowStockProducts.map((product) => (
                                   <div
                                     key={product.id}
-                                    className="flex items-center justify-between gap-3"
+                                    className="flex justify-between gap-3"
                                   >
-                                    <span className="truncate text-[10px] font-semibold text-slate-500">
+                                    <span className="truncate text-[10px] text-slate-500">
                                       {product.name}
                                     </span>
 
-                                    <span className="shrink-0 text-[10px] font-black text-orange-600">
+                                    <span className="text-[10px] font-black text-orange-600">
                                       {product.stock} left
                                     </span>
                                   </div>
                                 ))}
                               </div>
-
-                              {lowStock >
-                                notificationLowStockProducts.length && (
-                                <p className="mt-1 text-[9px] font-semibold text-slate-400">
-                                  +
-                                  {lowStock -
-                                    notificationLowStockProducts.length}{" "}
-                                  more low-stock products
-                                </p>
-                              )}
-
-                              <p className="mt-2 text-[10px] font-black text-orange-600">
-                                Manage inventory →
-                              </p>
                             </div>
                           </Link>
                         )}
-
-                        {/* OUT OF STOCK */}
 
                         {notificationOutOfStockProducts.length > 0 && (
                           <Link
                             href="/admin/products"
                             onClick={() => setNotificationsOpen(false)}
-                            className="group flex items-start gap-3 rounded-xl p-3 transition hover:bg-rose-50"
+                            className="group flex items-start gap-3 rounded-xl p-3 hover:bg-rose-50"
                           >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 group-hover:bg-white">
-                              <Icon name="box" size={18} />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                              <Icon name="alert" size={18} />
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-black text-slate-800">
+                              <div className="flex justify-between">
+                                <p className="text-xs font-black">
                                   Out of stock
                                 </p>
 
@@ -1250,38 +1626,18 @@ export default function AdminAnalyticsPage() {
                               <div className="mt-2 space-y-1">
                                 {notificationOutOfStockProducts.map(
                                   (product) => (
-                                    <div
+                                    <p
                                       key={product.id}
-                                      className="flex items-center gap-2"
+                                      className="truncate text-[10px] text-slate-500"
                                     >
-                                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
-
-                                      <span className="truncate text-[10px] font-semibold text-slate-500">
-                                        {product.name}
-                                      </span>
-                                    </div>
+                                      {product.name}
+                                    </p>
                                   ),
                                 )}
                               </div>
-
-                              {outOfStock >
-                                notificationOutOfStockProducts.length && (
-                                <p className="mt-1 text-[9px] font-semibold text-slate-400">
-                                  +
-                                  {outOfStock -
-                                    notificationOutOfStockProducts.length}{" "}
-                                  more out-of-stock products
-                                </p>
-                              )}
-
-                              <p className="mt-2 text-[10px] font-black text-rose-600">
-                                Restock products →
-                              </p>
                             </div>
                           </Link>
                         )}
-
-                        {/* EMPTY */}
 
                         {notificationCount === 0 && (
                           <div className="px-5 py-10 text-center">
@@ -1289,36 +1645,21 @@ export default function AdminAnalyticsPage() {
                               <Icon name="check" size={25} />
                             </div>
 
-                            <p className="mt-4 text-sm font-black text-slate-800">
+                            <p className="mt-4 text-sm font-black">
                               You&apos;re all caught up
                             </p>
 
-                            <p className="mt-1 text-xs leading-5 text-slate-400">
+                            <p className="mt-1 text-xs text-slate-400">
                               There are no pending orders or inventory issues
                               right now.
                             </p>
                           </div>
                         )}
                       </div>
-
-                      {/* FOOTER */}
-
-                      <div className="border-t border-slate-100 bg-slate-50/70 p-3">
-                        <Link
-                          href="/admin/orders"
-                          onClick={() => setNotificationsOpen(false)}
-                          className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[10px] font-black text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-950 hover:text-white hover:ring-slate-950"
-                        >
-                          Open order management
-                          <Icon name="arrow" size={13} />
-                        </Link>
-                      </div>
                     </div>
                   </>
                 )}
               </div>
-
-              {/* REFRESH */}
 
               <button
                 type="button"
@@ -1335,8 +1676,6 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
 
-          {/* MOBILE SEARCH */}
-
           {searchOpen && (
             <div className="mt-3 lg:hidden">
               <div className="flex h-12 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3">
@@ -1351,7 +1690,6 @@ export default function AdminAnalyticsPage() {
                 />
 
                 <button
-                  type="button"
                   onClick={() => {
                     setSearch("");
                     setSearchOpen(false);
@@ -1381,7 +1719,9 @@ export default function AdminAnalyticsPage() {
                                 ? "bag"
                                 : result.type === "Product"
                                   ? "box"
-                                  : "users"
+                                  : result.type === "Payment"
+                                    ? "credit"
+                                    : "users"
                             }
                             size={16}
                           />
@@ -1418,8 +1758,6 @@ export default function AdminAnalyticsPage() {
             <div className="relative overflow-hidden bg-linear-to-br from-indigo-600 via-indigo-600 to-violet-600 px-6 py-8 text-white sm:px-8 lg:px-10 lg:py-10">
               <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
 
-              <div className="absolute -bottom-24 right-32 h-56 w-56 rounded-full bg-violet-300/20 blur-3xl" />
-
               <div className="relative flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
                 <div className="max-w-2xl">
                   <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
@@ -1437,8 +1775,8 @@ export default function AdminAnalyticsPage() {
                   </h2>
 
                   <p className="mt-4 max-w-xl text-sm leading-6 text-white/75 sm:text-base">
-                    Analyze revenue, orders, customers and inventory using your
-                    store&apos;s real data.
+                    Analyze sales, revenue, payments, orders, customers and
+                    inventory using your store&apos;s real data.
                   </p>
                 </div>
 
@@ -1447,18 +1785,18 @@ export default function AdminAnalyticsPage() {
                     <Icon name="dollar" size={19} />
 
                     <p className="mt-4 text-xl font-black">
-                      {formatCurrency(totalRevenue)}
+                      {formatCurrency(paidRevenue)}
                     </p>
 
                     <p className="mt-1 text-[10px] font-semibold text-white/60">
-                      Revenue
+                      Paid revenue
                     </p>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
                     <Icon name="bag" size={19} />
 
-                    <p className="mt-4 text-xl font-black">{orders.length}</p>
+                    <p className="mt-4 text-xl font-black">{totalOrders}</p>
 
                     <p className="mt-1 text-[10px] font-semibold text-white/60">
                       Orders
@@ -1478,12 +1816,12 @@ export default function AdminAnalyticsPage() {
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                    <Icon name="box" size={19} />
+                    <Icon name="credit" size={19} />
 
-                    <p className="mt-4 text-xl font-black">{products.length}</p>
+                    <p className="mt-4 text-xl font-black">{payments.length}</p>
 
                     <p className="mt-1 text-[10px] font-semibold text-white/60">
-                      Products
+                      Payments
                     </p>
                   </div>
                 </div>
@@ -1491,7 +1829,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* PERIOD FILTER */}
+          {/* PERIOD */}
 
           <section className="mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:p-5">
             <div className="flex items-center gap-3">
@@ -1537,24 +1875,23 @@ export default function AdminAnalyticsPage() {
                 className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
               >
                 <Icon name="download" size={15} />
-
                 <span className="hidden sm:inline">Export</span>
               </button>
             </div>
           </section>
 
-          {/* KPI CARDS */}
+          {/* SALES KPI */}
 
           <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-500">
-                    Period Revenue
+                    Total sales
                   </p>
 
-                  <p className="mt-2 text-2xl font-black tracking-tight text-slate-950">
-                    {formatCurrency(periodRevenue)}
+                  <p className="mt-2 text-2xl font-black text-slate-950">
+                    {formatCurrency(totalSales)}
                   </p>
                 </div>
 
@@ -1563,33 +1900,20 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
 
-              <div className="mt-5 flex items-center gap-2">
-                <span
-                  className={`rounded-full px-2 py-1 text-[10px] font-black ${
-                    revenueChange >= 0
-                      ? "bg-emerald-50 text-emerald-600"
-                      : "bg-rose-50 text-rose-600"
-                  }`}
-                >
-                  {revenueChange >= 0 ? "+" : ""}
-                  {revenueChange.toFixed(1)}%
-                </span>
-
-                <span className="text-[10px] font-semibold text-slate-400">
-                  vs previous period
-                </span>
-              </div>
+              <p className="mt-5 text-[10px] font-bold text-slate-400">
+                Active orders excluding cancelled
+              </p>
             </div>
 
-            <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-500">
-                    Period Orders
+                    Total orders
                   </p>
 
-                  <p className="mt-2 text-2xl font-black tracking-tight text-slate-950">
-                    {periodOrders.length}
+                  <p className="mt-2 text-2xl font-black text-slate-950">
+                    {totalOrders}
                   </p>
                 </div>
 
@@ -1599,18 +1923,18 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <p className="mt-5 text-[10px] font-bold text-slate-400">
-                Orders excluding cancelled
+                All order statuses
               </p>
             </div>
 
-            <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-500">
-                    Average Order
+                    Average order value
                   </p>
 
-                  <p className="mt-2 text-2xl font-black tracking-tight text-slate-950">
+                  <p className="mt-2 text-2xl font-black text-slate-950">
                     {formatCurrency(averageOrderValue)}
                   </p>
                 </div>
@@ -1625,61 +1949,74 @@ export default function AdminAnalyticsPage() {
               </p>
             </div>
 
-            <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-500">
-                    Customers
+                    Period paid revenue
                   </p>
 
-                  <p className="mt-2 text-2xl font-black tracking-tight text-slate-950">
-                    {customers.length}
+                  <p className="mt-2 text-2xl font-black text-slate-950">
+                    {formatCurrency(periodPaidRevenue)}
                   </p>
                 </div>
 
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
-                  <Icon name="users" size={22} />
+                  <Icon name="activity" size={22} />
                 </div>
               </div>
 
-              <p className="mt-5 text-[10px] font-bold text-slate-400">
-                Registered customer accounts
-              </p>
+              <div className="mt-5">
+                <span
+                  className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                    revenueChange >= 0
+                      ? "bg-emerald-50 text-emerald-600"
+                      : "bg-rose-50 text-rose-600"
+                  }`}
+                >
+                  {revenueChange >= 0 ? "+" : ""}
+                  {revenueChange.toFixed(1)}%
+                </span>
+
+                <span className="ml-2 text-[10px] font-semibold text-slate-400">
+                  vs previous period
+                </span>
+              </div>
             </div>
           </section>
 
-          {/* REVENUE + STATUS */}
+          {/* REVENUE + ORDERS CHARTS */}
 
-          <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.65fr_1fr]">
-            {/* REVENUE */}
+          <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+            {/* REVENUE CHART */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
-              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-500">
                     Revenue analytics
                   </p>
 
-                  <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                    Sales performance
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    Revenue over time
                   </h2>
 
                   <p className="mt-1 text-xs text-slate-400">
-                    Revenue generated during the selected period
+                    Paid payment revenue
                   </p>
                 </div>
 
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                  <Icon name="activity" size={21} />
+                  <Icon name="chart" size={21} />
                 </div>
               </div>
 
-              <div className="mt-10 flex h-72.5 items-end gap-2 sm:gap-4">
-                {chartData.map((item) => {
+              <div className="mt-8 flex h-70 items-end gap-2 sm:gap-4">
+                {revenueChartData.map((item) => {
                   const height =
-                    item.sales > 0
-                      ? Math.max((item.sales / maxChartValue) * 100, 8)
-                      : 4;
+                    item.value > 0
+                      ? Math.max((item.value / maxRevenueChartValue) * 100, 7)
+                      : 3;
 
                   return (
                     <div
@@ -1694,9 +2031,9 @@ export default function AdminAnalyticsPage() {
                           }}
                         />
 
-                        {item.sales > 0 && (
+                        {item.value > 0 && (
                           <div className="absolute bottom-[calc(100%-8px)] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-[10px] font-bold text-white shadow-xl group-hover:block">
-                            {formatCurrency(item.sales)}
+                            {formatCurrency(item.value)}
                           </div>
                         )}
                       </div>
@@ -1708,40 +2045,298 @@ export default function AdminAnalyticsPage() {
                   );
                 })}
               </div>
+            </div>
 
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-indigo-500" />
+            {/* ORDERS CHART */}
 
-                  <span className="text-xs font-bold text-slate-500">
-                    Revenue
-                  </span>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-500">
+                    Order analytics
+                  </p>
+
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    Orders over time
+                  </h2>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    Active orders during the selected period
+                  </p>
                 </div>
 
-                <span className="text-xs font-semibold text-slate-400">
-                  {period === "7D"
-                    ? "Last 7 days"
-                    : period === "30D"
-                      ? "Last 30 days"
-                      : period === "6M"
-                        ? "Last 6 months"
-                        : "Last 12 months"}
-                </span>
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                  <Icon name="activity" size={21} />
+                </div>
+              </div>
+
+              <div className="mt-8 flex h-70 items-end gap-2 sm:gap-4">
+                {orderChartData.map((item) => {
+                  const height =
+                    item.value > 0
+                      ? Math.max((item.value / maxOrderChartValue) * 100, 7)
+                      : 3;
+
+                  return (
+                    <div
+                      key={item.key}
+                      className="group relative flex h-full min-w-0 flex-1 flex-col justify-end"
+                    >
+                      <div className="relative flex h-full items-end justify-center">
+                        <div
+                          className="w-full max-w-14 rounded-t-xl bg-emerald-100 transition-all duration-500 group-hover:bg-emerald-500"
+                          style={{
+                            height: `${height}%`,
+                          }}
+                        />
+
+                        {item.value > 0 && (
+                          <div className="absolute bottom-[calc(100%-8px)] left-1/2 hidden -translate-x-1/2 rounded-lg bg-slate-950 px-2.5 py-1.5 text-[10px] font-bold text-white shadow-xl group-hover:block">
+                            {item.value}
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="mt-3 truncate text-center text-[10px] font-bold text-slate-400 sm:text-xs">
+                        {item.label}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          {/* REVENUE STATUS */}
+
+          <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">Revenue</p>
+
+              <h2 className="mt-1 text-2xl font-black text-slate-950">
+                Payment revenue
+              </h2>
+
+              <div className="mt-7 space-y-4">
+                <div className="rounded-xl bg-emerald-50 p-4">
+                  <div className="flex justify-between">
+                    <span className="text-xs font-bold text-emerald-700">
+                      Paid
+                    </span>
+
+                    <Icon name="check" size={16} />
+                  </div>
+
+                  <p className="mt-2 text-2xl font-black text-emerald-700">
+                    {formatCurrency(paidRevenue)}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-amber-50 p-4">
+                  <div className="flex justify-between">
+                    <span className="text-xs font-bold text-amber-700">
+                      Pending
+                    </span>
+
+                    <Icon name="clock" size={16} />
+                  </div>
+
+                  <p className="mt-2 text-2xl font-black text-amber-700">
+                    {formatCurrency(pendingRevenue)}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-rose-50 p-4">
+                  <div className="flex justify-between">
+                    <span className="text-xs font-bold text-rose-700">
+                      Failed
+                    </span>
+
+                    <Icon name="x" size={16} />
+                  </div>
+
+                  <p className="mt-2 text-2xl font-black text-rose-700">
+                    {formatCurrency(failedRevenue)}
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* ORDER STATUS */}
+            {/* PAYMENT METHODS */}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
-              <div>
-                <p className="text-sm font-semibold text-slate-500">
-                  Order analytics
-                </p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">
+                Payment analytics
+              </p>
 
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                  Order status
-                </h2>
+              <h2 className="mt-1 text-2xl font-black text-slate-950">
+                Payment methods
+              </h2>
+
+              <div className="mt-7 flex justify-center">
+                <div
+                  className="relative flex h-48 w-48 items-center justify-center rounded-full"
+                  style={{
+                    background:
+                      paymentMethodTotal > 0
+                        ? `conic-gradient(
+                            #4f46e5 0% ${cashPercentage}%,
+                            #8b5cf6 ${cashPercentage}% ${
+                              cashPercentage + telebirrPercentage
+                            }%,
+                            #10b981 ${cashPercentage + telebirrPercentage}% 100%
+                          )`
+                        : "#e2e8f0",
+                  }}
+                >
+                  <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white">
+                    <span className="text-3xl font-black">
+                      {paymentMethodTotal}
+                    </span>
+
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                      Payments
+                    </span>
+                  </div>
+                </div>
               </div>
+
+              <div className="mt-7 space-y-2">
+                {[
+                  {
+                    label: "Cash on Delivery",
+                    value: cashOnDeliveryPayments.length,
+                    color: "bg-indigo-500",
+                    revenue: cashOnDeliveryPayments.reduce(
+                      (sum, payment) => sum + getPaymentAmount(payment),
+                      0,
+                    ),
+                  },
+                  {
+                    label: "Telebirr",
+                    value: telebirrPayments.length,
+                    color: "bg-violet-500",
+                    revenue: telebirrPayments.reduce(
+                      (sum, payment) => sum + getPaymentAmount(payment),
+                      0,
+                    ),
+                  },
+                  {
+                    label: "Card",
+                    value: cardPayments.length,
+                    color: "bg-emerald-500",
+                    revenue: cardPayments.reduce(
+                      (sum, payment) => sum + getPaymentAmount(payment),
+                      0,
+                    ),
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${item.color}`}
+                      />
+
+                      <span className="text-xs font-semibold text-slate-500">
+                        {item.label}
+                      </span>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-xs font-black text-slate-900">
+                        {item.value}
+                      </p>
+
+                      <p className="text-[9px] text-slate-400">
+                        {formatCurrency(item.revenue)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* PAYMENT STATUS */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">
+                Payment status
+              </p>
+
+              <h2 className="mt-1 text-2xl font-black text-slate-950">
+                Payment overview
+              </h2>
+
+              <div className="mt-7 space-y-3">
+                {[
+                  {
+                    label: "Paid",
+                    value: paidPayments.length,
+                    color: "bg-emerald-500",
+                    amount: paidRevenue,
+                  },
+                  {
+                    label: "Pending",
+                    value: pendingPayments.length,
+                    color: "bg-amber-500",
+                    amount: pendingRevenue,
+                  },
+                  {
+                    label: "Failed",
+                    value: failedPayments.length,
+                    color: "bg-rose-500",
+                    amount: failedRevenue,
+                  },
+                  {
+                    label: "Cancelled",
+                    value: cancelledPayments.length,
+                    color: "bg-slate-400",
+                    amount: cancelledPayments.reduce(
+                      (sum, payment) => sum + getPaymentAmount(payment),
+                      0,
+                    ),
+                  },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl bg-slate-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${item.color}`}
+                        />
+
+                        <span className="text-xs font-bold text-slate-600">
+                          {item.label}
+                        </span>
+                      </div>
+
+                      <span className="text-sm font-black text-slate-900">
+                        {item.value}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-lg font-black text-slate-900">
+                      {formatCurrency(item.amount)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ORDER STATUS */}
+
+          <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+              <p className="text-sm font-semibold text-slate-500">
+                Order analytics
+              </p>
+
+              <h2 className="mt-1 text-2xl font-black text-slate-950">
+                Order status distribution
+              </h2>
 
               <div className="mt-8 flex justify-center">
                 <div
@@ -1750,46 +2345,52 @@ export default function AdminAnalyticsPage() {
                     background:
                       orders.length > 0
                         ? `conic-gradient(
-                          #f59e0b 0% ${(pendingOrders / orders.length) * 100}%,
-                          #3b82f6 ${(pendingOrders / orders.length) * 100}% ${
-                            ((pendingOrders + confirmedOrders) /
-                              orders.length) *
-                            100
-                          }%,
-                          #8b5cf6 ${
-                            ((pendingOrders + confirmedOrders) /
-                              orders.length) *
-                            100
-                          }% ${
-                            ((pendingOrders + confirmedOrders + shippedOrders) /
-                              orders.length) *
-                            100
-                          }%,
-                          #10b981 ${
-                            ((pendingOrders + confirmedOrders + shippedOrders) /
-                              orders.length) *
-                            100
-                          }% ${
-                            ((pendingOrders +
-                              confirmedOrders +
-                              shippedOrders +
-                              deliveredOrders) /
-                              orders.length) *
-                            100
-                          }%,
-                          #f43f5e ${
-                            ((pendingOrders +
-                              confirmedOrders +
-                              shippedOrders +
-                              deliveredOrders) /
-                              orders.length) *
-                            100
-                          }% 100%
-                        )`
+                            #f59e0b 0% ${
+                              (pendingOrders / orders.length) * 100
+                            }%,
+                            #3b82f6 ${(pendingOrders / orders.length) * 100}% ${
+                              ((pendingOrders + confirmedOrders) /
+                                orders.length) *
+                              100
+                            }%,
+                            #8b5cf6 ${
+                              ((pendingOrders + confirmedOrders) /
+                                orders.length) *
+                              100
+                            }% ${
+                              ((pendingOrders +
+                                confirmedOrders +
+                                shippedOrders) /
+                                orders.length) *
+                              100
+                            }%,
+                            #10b981 ${
+                              ((pendingOrders +
+                                confirmedOrders +
+                                shippedOrders) /
+                                orders.length) *
+                              100
+                            }% ${
+                              ((pendingOrders +
+                                confirmedOrders +
+                                shippedOrders +
+                                deliveredOrders) /
+                                orders.length) *
+                              100
+                            }%,
+                            #f43f5e ${
+                              ((pendingOrders +
+                                confirmedOrders +
+                                shippedOrders +
+                                deliveredOrders) /
+                                orders.length) *
+                              100
+                            }% 100%
+                          )`
                         : "#e2e8f0",
                   }}
                 >
-                  <div className="flex h-33 w-33 flex-col items-center justify-center rounded-full bg-white shadow-inner">
+                  <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white shadow-inner">
                     <span className="text-4xl font-black text-slate-950">
                       {orders.length}
                     </span>
@@ -1801,7 +2402,7 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
 
-              <div className="mt-8 space-y-2.5">
+              <div className="mt-8 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {[
                   {
                     label: "Pending",
@@ -1831,7 +2432,7 @@ export default function AdminAnalyticsPage() {
                 ].map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5"
+                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3"
                   >
                     <div className="flex items-center gap-2">
                       <span
@@ -1850,13 +2451,101 @@ export default function AdminAnalyticsPage() {
                 ))}
               </div>
             </div>
+
+            {/* CUSTOMERS */}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="text-sm font-semibold text-slate-500">
+                Customer analytics
+              </p>
+
+              <h2 className="mt-1 text-2xl font-black text-slate-950">
+                Customer base
+              </h2>
+
+              <div className="mt-7 grid grid-cols-3 gap-3">
+                <div className="rounded-xl bg-indigo-50 p-4">
+                  <p className="text-[10px] font-bold text-indigo-600">
+                    Total users
+                  </p>
+
+                  <p className="mt-2 text-2xl font-black text-indigo-700">
+                    {users.length}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-violet-50 p-4">
+                  <p className="text-[10px] font-bold text-violet-600">
+                    Customers
+                  </p>
+
+                  <p className="mt-2 text-2xl font-black text-violet-700">
+                    {customers.length}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-orange-50 p-4">
+                  <p className="text-[10px] font-bold text-orange-600">
+                    Admins
+                  </p>
+
+                  <p className="mt-2 text-2xl font-black text-orange-700">
+                    {admins.length}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <div className="mb-2 flex justify-between">
+                  <span className="text-[10px] font-bold text-slate-400">
+                    Customer share
+                  </span>
+
+                  <span className="text-[10px] font-black text-slate-700">
+                    {users.length > 0
+                      ? Math.round((customers.length / users.length) * 100)
+                      : 0}
+                    %
+                  </span>
+                </div>
+
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-indigo-500"
+                    style={{
+                      width: `${
+                        users.length > 0
+                          ? (customers.length / users.length) * 100
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-8 rounded-2xl bg-slate-50 p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
+                    <Icon name="users" size={20} />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-black text-slate-900">
+                      Registered customers
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      Customers with CUSTOMER role
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
 
-          {/* INVENTORY + PERFORMANCE */}
+          {/* INVENTORY */}
 
           <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-            {/* INVENTORY */}
-
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -1864,14 +2553,14 @@ export default function AdminAnalyticsPage() {
                     Inventory analytics
                   </p>
 
-                  <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
                     Stock health
                   </h2>
                 </div>
 
                 <Link
                   href="/admin/products"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-500 transition hover:bg-slate-950 hover:text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-950 hover:text-white"
                 >
                   <Icon name="arrow" size={15} />
                 </Link>
@@ -1921,7 +2610,7 @@ export default function AdminAnalyticsPage() {
 
                 <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className="h-full rounded-full bg-linear-to-r from-emerald-400 to-emerald-600 transition-all"
+                    className="h-full rounded-full bg-emerald-500 transition-all"
                     style={{
                       width: `${
                         products.length > 0
@@ -1989,22 +2678,18 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            {/* STORE PERFORMANCE */}
+            {/* KEY METRICS */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div>
-                <p className="text-sm font-semibold text-slate-500">
-                  Store performance
-                </p>
+              <p className="text-sm font-semibold text-slate-500">
+                Store performance
+              </p>
 
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                  Key metrics
-                </h2>
-              </div>
+              <h2 className="mt-1 text-2xl font-black text-slate-950">
+                Key metrics
+              </h2>
 
               <div className="mt-7 space-y-5">
-                {/* DELIVERY */}
-
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -2038,8 +2723,6 @@ export default function AdminAnalyticsPage() {
                     />
                   </div>
                 </div>
-
-                {/* FULFILLMENT */}
 
                 <div>
                   <div className="mb-2 flex items-center justify-between">
@@ -2081,22 +2764,25 @@ export default function AdminAnalyticsPage() {
                   </div>
                 </div>
 
-                {/* CUSTOMER BASE */}
-
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
-                        <Icon name="users" size={15} />
+                        <Icon name="credit" size={15} />
                       </span>
 
                       <span className="text-xs font-bold text-slate-600">
-                        Customer base
+                        Payment success
                       </span>
                     </div>
 
                     <span className="text-sm font-black text-slate-900">
-                      {customers.length}
+                      {payments.length > 0
+                        ? Math.round(
+                            (paidPayments.length / payments.length) * 100,
+                          )
+                        : 0}
+                      %
                     </span>
                   </div>
 
@@ -2104,13 +2790,15 @@ export default function AdminAnalyticsPage() {
                     <div
                       className="h-full rounded-full bg-violet-500"
                       style={{
-                        width: `${Math.min(customers.length * 5, 100)}%`,
+                        width: `${
+                          payments.length > 0
+                            ? (paidPayments.length / payments.length) * 100
+                            : 0
+                        }%`,
                       }}
                     />
                   </div>
                 </div>
-
-                {/* INVENTORY HEALTH */}
 
                 <div>
                   <div className="mb-2 flex items-center justify-between">
@@ -2148,31 +2836,23 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-8 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-slate-50 p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Pending
+                <div className="rounded-2xl bg-amber-50 p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                    Pending orders
                   </p>
 
-                  <p className="mt-2 text-2xl font-black text-slate-950">
+                  <p className="mt-2 text-2xl font-black text-amber-700">
                     {pendingOrders}
-                  </p>
-
-                  <p className="mt-1 text-[10px] font-semibold text-amber-600">
-                    Need attention
                   </p>
                 </div>
 
-                <div className="rounded-2xl bg-slate-50 p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="rounded-2xl bg-emerald-50 p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
                     Delivered
                   </p>
 
-                  <p className="mt-2 text-2xl font-black text-slate-950">
+                  <p className="mt-2 text-2xl font-black text-emerald-700">
                     {deliveredOrders}
-                  </p>
-
-                  <p className="mt-1 text-[10px] font-semibold text-emerald-600">
-                    Completed
                   </p>
                 </div>
               </div>
@@ -2299,6 +2979,82 @@ export default function AdminAnalyticsPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </section>
+
+          {/* PAYMENT SNAPSHOT */}
+
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-sm font-semibold text-slate-500">
+                  Payment activity
+                </p>
+
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  Latest payments
+                </h2>
+              </div>
+
+              <Link
+                href="/admin/payments"
+                className="flex w-fit items-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-950 hover:text-white"
+              >
+                Manage payments
+                <Icon name="arrow" size={14} />
+              </Link>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl bg-emerald-50 p-4">
+                <p className="text-[10px] font-bold text-emerald-600">Paid</p>
+
+                <p className="mt-2 text-2xl font-black text-emerald-700">
+                  {paidPayments.length}
+                </p>
+
+                <p className="mt-1 text-[10px] text-emerald-600">
+                  {formatCurrency(paidRevenue)}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-amber-50 p-4">
+                <p className="text-[10px] font-bold text-amber-600">Pending</p>
+
+                <p className="mt-2 text-2xl font-black text-amber-700">
+                  {pendingPayments.length}
+                </p>
+
+                <p className="mt-1 text-[10px] text-amber-600">
+                  {formatCurrency(pendingRevenue)}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-rose-50 p-4">
+                <p className="text-[10px] font-bold text-rose-600">Failed</p>
+
+                <p className="mt-2 text-2xl font-black text-rose-700">
+                  {failedPayments.length}
+                </p>
+
+                <p className="mt-1 text-[10px] text-rose-600">
+                  {formatCurrency(failedRevenue)}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-indigo-50 p-4">
+                <p className="text-[10px] font-bold text-indigo-600">
+                  Total payments
+                </p>
+
+                <p className="mt-2 text-2xl font-black text-indigo-700">
+                  {payments.length}
+                </p>
+
+                <p className="mt-1 text-[10px] text-indigo-600">
+                  All payment records
+                </p>
+              </div>
             </div>
           </section>
 
