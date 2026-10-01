@@ -1,15 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 
 type Payment = {
   id: number;
   orderId: number;
   amount: number;
   method: string;
-  status: "PENDING" | "PAID" | "FAILED" | "CANCELLED";
+  status: PaymentStatus;
   transactionId?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -23,6 +27,18 @@ type Order = {
   payment?: Payment | null;
 };
 
+function getToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return localStorage.getItem("accessToken") || localStorage.getItem("token");
+}
+
+async function getResponseData(response: Response) {
+  return response.json().catch(() => ({}));
+}
+
 function PaymentPageContent() {
   const searchParams = useSearchParams();
 
@@ -30,14 +46,27 @@ function PaymentPageContent() {
 
   const [payment, setPayment] = useState<Payment | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const loadPayment = async () => {
+  // =========================================================
+  // LOAD PAYMENT + ORDER
+  // =========================================================
+  const loadPayment = useCallback(async () => {
     if (!orderId) {
       setError("No order was selected.");
+      setLoading(false);
+      return;
+    }
+
+    const numericOrderId = Number(orderId);
+
+    if (!Number.isInteger(numericOrderId) || numericOrderId <= 0) {
+      setError("Invalid order ID.");
       setLoading(false);
       return;
     }
@@ -45,69 +74,106 @@ function PaymentPageContent() {
     try {
       setLoading(true);
       setError("");
+      setSuccess("");
 
-      const token =
-        localStorage.getItem("accessToken") || localStorage.getItem("token");
+      const token = getToken();
 
       if (!token) {
         setError("Please login to view your payment.");
-        setLoading(false);
         return;
       }
 
-      const response = await fetch(
-        `http://localhost:3001/payments/order/${orderId}`,
+      // -------------------------------------------------------
+      // LOAD PAYMENT
+      // -------------------------------------------------------
+      const paymentResponse = await fetch(
+        `${API_URL}/payments/order/${numericOrderId}`,
         {
+          method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
+          cache: "no-store",
         },
       );
 
-      const data = await response.json().catch(() => ({}));
+      const paymentData = await getResponseData(paymentResponse);
 
-      if (response.status === 401) {
+      if (paymentResponse.status === 401) {
         throw new Error("Your session has expired. Please login again.");
       }
 
-      if (!response.ok) {
-        throw new Error(data?.message || "Unable to load payment.");
+      if (paymentResponse.status === 403) {
+        throw new Error("You do not have permission to view this payment.");
       }
 
-      setPayment(data);
+      if (paymentResponse.status === 404) {
+        throw new Error(
+          paymentData?.message || "Payment was not found for this order.",
+        );
+      }
 
-      const orderResponse = await fetch(
-        `http://localhost:3001/orders/${orderId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      if (!paymentResponse.ok) {
+        throw new Error(
+          paymentData?.message || "Unable to load payment information.",
+        );
+      }
+
+      // -------------------------------------------------------
+      // VERIFY PAYMENT RESPONSE
+      // -------------------------------------------------------
+      if (!paymentData || !paymentData.id) {
+        throw new Error("The server returned an invalid payment response.");
+      }
+
+      setPayment(paymentData);
+
+      // -------------------------------------------------------
+      // LOAD ORDER
+      // -------------------------------------------------------
+      const orderResponse = await fetch(`${API_URL}/orders/${numericOrderId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
         },
-      );
+        cache: "no-store",
+      });
 
-      const orderData = await orderResponse.json().catch(() => ({}));
+      const orderData = await getResponseData(orderResponse);
 
-      if (orderResponse.ok) {
-        setOrder(orderData);
+      if (orderResponse.status === 401) {
+        throw new Error("Your session has expired. Please login again.");
       }
-    } catch (err: any) {
-      setError(err?.message || "Unable to load payment information.");
+
+      if (orderResponse.ok && orderData?.id) {
+        setOrder(orderData);
+      } else {
+        // Payment can still be displayed even if the
+        // additional order request fails.
+        setOrder(null);
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Unable to load payment information.";
+
+      setError(message);
+      setPayment(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
 
   useEffect(() => {
     loadPayment();
-  }, [orderId]);
+  }, [loadPayment]);
 
-  /*
-
-* DEVELOPMENT / TEST PAYMENT STATUS
-*
-* In a real payment system, the customer should NOT directly
-* mark a payment as PAID. These buttons are for project testing.
-  */
+  // =========================================================
+  // UPDATE PAYMENT STATUS
+  // =========================================================
   const updatePaymentStatus = async (status: "PAID" | "FAILED") => {
     if (!payment) {
       return;
@@ -118,76 +184,115 @@ function PaymentPageContent() {
       setError("");
       setSuccess("");
 
-      const token =
-        localStorage.getItem("accessToken") || localStorage.getItem("token");
+      const token = getToken();
 
       if (!token) {
         throw new Error("Please login again.");
       }
 
-      const response = await fetch(
-        `http://localhost:3001/payments/${payment.id}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            status,
-          }),
+      const response = await fetch(`${API_URL}/payments/${payment.id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({
+          status,
+        }),
+      });
 
-      const data = await response.json().catch(() => ({}));
+      const data = await getResponseData(response);
+
+      if (response.status === 401) {
+        throw new Error("Your session has expired. Please login again.");
+      }
+
+      if (response.status === 403) {
+        throw new Error("You do not have permission to update this payment.");
+      }
 
       if (!response.ok) {
-        throw new Error(data?.message || "Unable to update payment.");
+        throw new Error(data?.message || "Unable to update payment status.");
       }
 
       setPayment(data);
 
-      setSuccess(
-        status === "PAID"
-          ? "Payment marked as paid successfully."
-          : "Payment marked as failed.",
-      );
+      if (status === "PAID") {
+        setSuccess(
+          "Payment marked as paid successfully. Your order is now confirmed.",
+        );
+      } else {
+        setSuccess("Payment marked as failed.");
+      }
 
+      // Reload payment and order so the order status
+      // is also immediately updated on the page.
       await loadPayment();
-    } catch (err: any) {
-      setError(err?.message || "Unable to update payment.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Unable to update payment.";
+
+      setError(message);
     } finally {
       setUpdating(false);
     }
   };
 
+  // =========================================================
+  // PAYMENT METHOD
+  // =========================================================
   const getPaymentMethod = (method?: string) => {
     switch (method) {
       case "CASH_ON_DELIVERY":
         return "Cash on Delivery";
+
       case "TELEBIRR":
         return "Telebirr";
+
       case "CARD":
         return "Credit / Debit Card";
+
+      case "Cash on Delivery":
+        return "Cash on Delivery";
+
+      case "Telebirr":
+        return "Telebirr";
+
+      case "Credit / Debit Card":
+        return "Credit / Debit Card";
+
       default:
         return method || "Unknown";
     }
   };
 
+  // =========================================================
+  // PAYMENT ICON
+  // =========================================================
   const getPaymentIcon = (method?: string) => {
     switch (method) {
       case "CASH_ON_DELIVERY":
+      case "Cash on Delivery":
         return "💵";
+
       case "TELEBIRR":
+      case "Telebirr":
         return "📱";
+
       case "CARD":
+      case "Credit / Debit Card":
         return "💳";
+
       default:
         return "💰";
     }
   };
 
-  const getStatusInfo = (status?: Payment["status"]) => {
+  // =========================================================
+  // PAYMENT STATUS
+  // =========================================================
+  const getStatusInfo = (status?: PaymentStatus) => {
     switch (status) {
       case "PAID":
         return {
@@ -216,6 +321,7 @@ function PaymentPageContent() {
           iconClass: "bg-slate-200 text-slate-600",
         };
 
+      case "PENDING":
       default:
         return {
           label: "Pending",
@@ -227,46 +333,28 @@ function PaymentPageContent() {
     }
   };
 
+  // =========================================================
+  // LOADING
+  // =========================================================
   if (loading) {
-    return (
-      <main className="min-h-screen bg-[#f6f9fc]">
-        {" "}
-        <header className="border-b border-sky-100 bg-white">
-          {" "}
-          <div className="mx-auto max-w-7xl px-5 py-4 lg:px-8">
-            {" "}
-            <Link
-              href="/"
-              className="text-2xl font-black tracking-tight text-slate-900"
-            >
-              Shop<span className="text-blue-600">Ease</span>{" "}
-            </Link>{" "}
-          </div>{" "}
-        </header>
-        <div className="flex min-h-[70vh] items-center justify-center px-5">
-          <div className="text-center">
-            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-sky-100 border-t-blue-600" />
-            <p className="mt-5 font-bold text-slate-600">Loading payment...</p>
-          </div>
-        </div>
-      </main>
-    );
+    return <PaymentLoading />;
   }
 
+  // =========================================================
+  // ERROR
+  // =========================================================
   if (error && !payment) {
     return (
       <main className="min-h-screen bg-[#f6f9fc]">
-        {" "}
         <header className="border-b border-sky-100 bg-white">
-          {" "}
           <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-            {" "}
             <Link
               href="/"
               className="text-2xl font-black tracking-tight text-slate-900"
             >
-              Shop<span className="text-blue-600">Ease</span>{" "}
+              Shop<span className="text-blue-600">Ease</span>
             </Link>
+
             <Link
               href="/orders"
               className="rounded-xl bg-sky-50 px-4 py-2 text-sm font-bold text-blue-700"
@@ -275,8 +363,9 @@ function PaymentPageContent() {
             </Link>
           </div>
         </header>
+
         <div className="mx-auto max-w-xl px-5 py-24 text-center">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-3xl text-red-600">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-3xl font-black text-red-600">
             !
           </div>
 
@@ -286,8 +375,13 @@ function PaymentPageContent() {
 
           <p className="mt-3 text-slate-500">{error}</p>
 
+          <p className="mt-3 text-xs text-slate-400">
+            Order ID: {orderId || "Not provided"}
+          </p>
+
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={loadPayment}
               className="rounded-xl bg-blue-600 px-6 py-3 font-bold text-white transition hover:bg-indigo-600"
             >
@@ -308,19 +402,20 @@ function PaymentPageContent() {
 
   const statusInfo = getStatusInfo(payment?.status);
 
+  // =========================================================
+  // PAYMENT PAGE
+  // =========================================================
   return (
     <main className="min-h-screen bg-[#f6f9fc] text-slate-900">
-      {" "}
       <header className="border-b border-sky-100 bg-white">
-        {" "}
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-          {" "}
           <Link
             href="/"
             className="text-2xl font-black tracking-tight text-slate-900"
           >
-            Shop<span className="text-blue-600">Ease</span>{" "}
+            Shop<span className="text-blue-600">Ease</span>
           </Link>
+
           <Link
             href="/orders"
             className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
@@ -329,6 +424,7 @@ function PaymentPageContent() {
           </Link>
         </div>
       </header>
+
       <section className="bg-linear-to-br from-sky-100 via-blue-50 to-indigo-100">
         <div className="mx-auto max-w-5xl px-5 py-12 lg:px-8">
           <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-600">
@@ -344,6 +440,7 @@ function PaymentPageContent() {
           </p>
         </div>
       </section>
+
       <div className="mx-auto max-w-5xl px-5 py-10 lg:px-8 lg:py-14">
         {success && (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
@@ -359,6 +456,7 @@ function PaymentPageContent() {
 
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
           <div className="space-y-6">
+            {/* PAYMENT CARD */}
             <section className="overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-sm">
               <div className="bg-linear-to-br from-sky-500 via-blue-600 to-indigo-600 p-7 text-white sm:p-8">
                 <div className="flex items-start justify-between gap-5">
@@ -379,6 +477,7 @@ function PaymentPageContent() {
               </div>
 
               <div className="p-6 sm:p-8">
+                {/* STATUS */}
                 <div
                   className={`rounded-2xl border p-5 ${statusInfo.className}`}
                 >
@@ -403,6 +502,7 @@ function PaymentPageContent() {
                   </div>
                 </div>
 
+                {/* PAYMENT INFORMATION */}
                 <div className="mt-7">
                   <h2 className="text-lg font-black text-slate-900">
                     Payment information
@@ -447,6 +547,7 @@ function PaymentPageContent() {
               </div>
             </section>
 
+            {/* DEVELOPMENT PAYMENT TESTING */}
             {payment?.status === "PENDING" && (
               <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-7">
                 <div className="flex gap-4">
@@ -490,6 +591,7 @@ function PaymentPageContent() {
             )}
           </div>
 
+          {/* ORDER SUMMARY */}
           <aside className="lg:sticky lg:top-6 lg:self-start">
             <div className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
               <p className="text-xs font-black uppercase tracking-wider text-blue-600">
@@ -553,6 +655,7 @@ function PaymentPageContent() {
           </aside>
         </div>
       </div>
+
       <footer className="border-t border-sky-100 bg-white py-8">
         <div className="mx-auto max-w-5xl px-5 text-center text-sm text-slate-400 lg:px-8">
           © {new Date().getFullYear()} ShopEase. Secure payment experience.
@@ -562,11 +665,14 @@ function PaymentPageContent() {
   );
 }
 
+// =========================================================
+// PAYMENT DETAIL COMPONENT
+// =========================================================
 function PaymentDetail({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-5 px-4 py-4">
-      {" "}
       <span className="text-sm font-medium text-slate-500">{label}</span>
+
       <span className="text-right text-sm font-black text-slate-900">
         {value}
       </span>
@@ -574,22 +680,23 @@ function PaymentDetail({ label, value }: { label: string; value: string }) {
   );
 }
 
+// =========================================================
+// LOADING COMPONENT
+// =========================================================
 function PaymentLoading() {
   return (
     <main className="min-h-screen bg-[#f6f9fc]">
-      {" "}
       <header className="border-b border-sky-100 bg-white">
-        {" "}
         <div className="mx-auto max-w-7xl px-5 py-4 lg:px-8">
-          {" "}
           <Link
             href="/"
             className="text-2xl font-black tracking-tight text-slate-900"
           >
-            Shop<span className="text-blue-600">Ease</span>{" "}
-          </Link>{" "}
-        </div>{" "}
+            Shop<span className="text-blue-600">Ease</span>
+          </Link>
+        </div>
       </header>
+
       <div className="flex min-h-[70vh] items-center justify-center px-5">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-sky-100 border-t-blue-600" />
@@ -601,11 +708,13 @@ function PaymentLoading() {
   );
 }
 
+// =========================================================
+// MAIN PAGE
+// =========================================================
 export default function PaymentPage() {
   return (
     <Suspense fallback={<PaymentLoading />}>
-      {" "}
-      <PaymentPageContent />{" "}
+      <PaymentPageContent />
     </Suspense>
   );
 }

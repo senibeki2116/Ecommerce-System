@@ -33,8 +33,11 @@ type ReviewResponse = {
   productId: number;
   totalReviews: number;
   averageRating: number;
+  sort?: string;
   reviews: Review[];
 };
+
+type ReviewSort = "newest" | "oldest" | "highest" | "lowest";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -52,31 +55,45 @@ export default function ProductDetailsPage() {
   const [added, setAdded] = useState(false);
   const [buying, setBuying] = useState(false);
 
-  // Reviews
+  // =========================================================
+  // REVIEWS
+  // =========================================================
+
   const [reviews, setReviews] = useState<Review[]>([]);
   const [averageRating, setAverageRating] = useState(0);
   const [totalReviews, setTotalReviews] = useState(0);
   const [reviewsLoading, setReviewsLoading] = useState(true);
 
-  // Review form
+  // Review sorting
+  const [reviewSort, setReviewSort] = useState<ReviewSort>("newest");
+
+  // =========================================================
+  // REVIEW FORM
+  // =========================================================
+
   const [selectedRating, setSelectedRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewError, setReviewError] = useState("");
 
-  // Edit/Delete review state
+  // =========================================================
+  // EDIT / DELETE REVIEW
+  // =========================================================
+
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
+
   const [editRating, setEditRating] = useState(0);
   const [editComment, setEditComment] = useState("");
   const [reviewActionLoading, setReviewActionLoading] = useState(false);
+
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   const id = params.id as string;
 
-  // =========================
+  // =========================================================
   // FETCH PRODUCT
-  // =========================
+  // =========================================================
 
   useEffect(() => {
     if (!id) return;
@@ -93,6 +110,7 @@ export default function ProductDetailsPage() {
         }
 
         const data = await response.json();
+
         setProduct(data);
       } catch (err) {
         console.error(err);
@@ -105,9 +123,9 @@ export default function ProductDetailsPage() {
     fetchProduct();
   }, [id]);
 
-  // =========================
+  // =========================================================
   // FETCH REVIEWS
-  // =========================
+  // =========================================================
 
   useEffect(() => {
     if (!id) return;
@@ -116,7 +134,9 @@ export default function ProductDetailsPage() {
       try {
         setReviewsLoading(true);
 
-        const response = await fetch(`${API_URL}/reviews/product/${id}`);
+        const response = await fetch(
+          `${API_URL}/reviews/product/${id}?sort=${reviewSort}`,
+        );
 
         if (!response.ok) {
           throw new Error("Unable to load reviews");
@@ -135,11 +155,11 @@ export default function ProductDetailsPage() {
     };
 
     fetchReviews();
-  }, [id]);
+  }, [id, reviewSort]);
 
-  // =========================
+  // =========================================================
   // QUANTITY
-  // =========================
+  // =========================================================
 
   const increaseQuantity = () => {
     if (!product) return;
@@ -155,9 +175,9 @@ export default function ProductDetailsPage() {
     }
   };
 
-  // =========================
+  // =========================================================
   // ADD TO CART
-  // =========================
+  // =========================================================
 
   const addProductToCart = () => {
     if (!product || product.stock <= 0) return;
@@ -173,9 +193,9 @@ export default function ProductDetailsPage() {
     }, 2500);
   };
 
-  // =========================
+  // =========================================================
   // BUY NOW
-  // =========================
+  // =========================================================
 
   const buyNow = () => {
     if (!product || product.stock <= 0) return;
@@ -189,12 +209,13 @@ export default function ProductDetailsPage() {
     router.push("/checkout");
   };
 
-  // =========================
+  // =========================================================
   // CURRENT USER
-  // =========================
+  // =========================================================
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
+
     if (!token) {
       setCurrentUserId(null);
       return;
@@ -202,35 +223,48 @@ export default function ProductDetailsPage() {
 
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
+
       const userId = Number(payload.sub ?? payload.userId ?? payload.id);
+
       setCurrentUserId(Number.isFinite(userId) ? userId : null);
     } catch (error) {
       console.error("Unable to read logged-in user:", error);
+
       setCurrentUserId(null);
     }
   }, []);
 
-  // =========================
+  // =========================================================
   // REFRESH REVIEWS
-  // =========================
+  // =========================================================
 
   const refreshReviews = async () => {
     try {
-      const response = await fetch(`${API_URL}/reviews/product/${id}`);
-      if (!response.ok) throw new Error("Unable to refresh reviews");
+      setReviewsLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/reviews/product/${id}?sort=${reviewSort}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to refresh reviews");
+      }
 
       const data: ReviewResponse = await response.json();
+
       setReviews(data.reviews || []);
       setAverageRating(data.averageRating || 0);
       setTotalReviews(data.totalReviews || 0);
     } catch (error) {
       console.error("Review refresh error:", error);
+    } finally {
+      setReviewsLoading(false);
     }
   };
 
-  // =========================
+  // =========================================================
   // EDIT REVIEW
-  // =========================
+  // =========================================================
 
   const startEditingReview = (review: Review) => {
     setEditingReviewId(review.id);
@@ -289,10 +323,13 @@ export default function ProductDetailsPage() {
       }
 
       await refreshReviews();
+
       cancelEditingReview();
+
       setReviewMessage("Your review was updated successfully! ⭐");
     } catch (error) {
       console.error("Update review error:", error);
+
       setReviewError(
         error instanceof Error ? error.message : "Unable to update review.",
       );
@@ -301,9 +338,9 @@ export default function ProductDetailsPage() {
     }
   };
 
-  // =========================
+  // =========================================================
   // DELETE REVIEW
-  // =========================
+  // =========================================================
 
   const deleteReview = async (reviewId: number) => {
     const confirmed = window.confirm(
@@ -343,9 +380,11 @@ export default function ProductDetailsPage() {
       }
 
       await refreshReviews();
+
       setReviewMessage("Your review was deleted successfully.");
     } catch (error) {
       console.error("Delete review error:", error);
+
       setReviewError(
         error instanceof Error ? error.message : "Unable to delete review.",
       );
@@ -354,9 +393,9 @@ export default function ProductDetailsPage() {
     }
   };
 
-  // =========================
+  // =========================================================
   // SUBMIT REVIEW
-  // =========================
+  // =========================================================
 
   const submitReview = async () => {
     setReviewMessage("");
@@ -424,9 +463,9 @@ export default function ProductDetailsPage() {
     }
   };
 
-  // =========================
+  // =========================================================
   // STAR DISPLAY
-  // =========================
+  // =========================================================
 
   const renderStars = (rating: number, size = "text-lg") => {
     return (
@@ -445,9 +484,9 @@ export default function ProductDetailsPage() {
     );
   };
 
-  // =========================
+  // =========================================================
   // IMAGE
-  // =========================
+  // =========================================================
 
   const getImage = () => {
     if (product?.image && product.image.trim() !== "") {
@@ -457,9 +496,9 @@ export default function ProductDetailsPage() {
     return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80";
   };
 
-  // =========================
+  // =========================================================
   // LOADING
-  // =========================
+  // =========================================================
 
   if (loading) {
     return (
@@ -483,9 +522,9 @@ export default function ProductDetailsPage() {
     );
   }
 
-  // =========================
+  // =========================================================
   // ERROR
-  // =========================
+  // =========================================================
 
   if (error || !product) {
     return (
@@ -526,7 +565,10 @@ export default function ProductDetailsPage() {
       <Navbar />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Breadcrumb */}
+        {/* ================================================= */}
+        {/* BREADCRUMB */}
+        {/* ================================================= */}
+
         <div className="mb-8 flex flex-wrap items-center gap-2 text-sm">
           <Link
             href="/"
@@ -551,15 +593,17 @@ export default function ProductDetailsPage() {
           </span>
         </div>
 
-        {/* ========================= */}
+        {/* ================================================= */}
         {/* PRODUCT */}
-        {/* ========================= */}
+        {/* ================================================= */}
 
         <section className="overflow-hidden rounded-4xl bg-white shadow-xl shadow-slate-200/60">
           <div className="grid lg:grid-cols-2">
             {/* IMAGE */}
+
             <div className="relative min-h-105 bg-linear-to-br from-slate-100 via-white to-blue-50 p-6 sm:p-10 lg:min-h-162.5">
               <div className="absolute -left-20 -top-20 h-56 w-56 rounded-full bg-blue-100/50 blur-3xl" />
+
               <div className="absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-purple-100/50 blur-3xl" />
 
               <Link
@@ -599,6 +643,7 @@ export default function ProductDetailsPage() {
             </div>
 
             {/* DETAILS */}
+
             <div className="flex flex-col p-6 sm:p-10 lg:p-14">
               <div className="mb-5">
                 <span className="inline-flex items-center rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-blue-600">
@@ -611,6 +656,7 @@ export default function ProductDetailsPage() {
               </h1>
 
               {/* REAL RATING */}
+
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 {reviewsLoading ? (
                   <span className="text-sm text-slate-400">
@@ -647,6 +693,7 @@ export default function ProductDetailsPage() {
               </div>
 
               {/* PRICE */}
+
               <div className="mt-8">
                 <div className="flex flex-wrap items-end gap-3">
                   <span className="text-4xl font-black text-blue-600 sm:text-5xl">
@@ -670,6 +717,7 @@ export default function ProductDetailsPage() {
               <div className="my-8 h-px bg-slate-100" />
 
               {/* DESCRIPTION */}
+
               <div>
                 <h2 className="text-lg font-black text-slate-900">
                   Product Description
@@ -682,12 +730,15 @@ export default function ProductDetailsPage() {
               </div>
 
               {/* FEATURES */}
+
               <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-xl">🚚</div>
+
                   <p className="mt-2 text-xs font-black text-slate-800">
                     Fast Delivery
                   </p>
+
                   <p className="mt-1 text-[11px] text-slate-500">
                     Quick & secure
                   </p>
@@ -695,9 +746,11 @@ export default function ProductDetailsPage() {
 
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-xl">🛡️</div>
+
                   <p className="mt-2 text-xs font-black text-slate-800">
                     Secure Payment
                   </p>
+
                   <p className="mt-1 text-[11px] text-slate-500">
                     100% protected
                   </p>
@@ -705,9 +758,11 @@ export default function ProductDetailsPage() {
 
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-xl">↩️</div>
+
                   <p className="mt-2 text-xs font-black text-slate-800">
                     Easy Returns
                   </p>
+
                   <p className="mt-1 text-[11px] text-slate-500">
                     Shop with confidence
                   </p>
@@ -715,6 +770,7 @@ export default function ProductDetailsPage() {
               </div>
 
               {/* QUANTITY */}
+
               <div className="mt-8">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm font-black text-slate-800">
@@ -750,6 +806,7 @@ export default function ProductDetailsPage() {
               </div>
 
               {/* TOTAL */}
+
               <div className="mt-6 flex items-center justify-between rounded-2xl bg-blue-50 px-5 py-4">
                 <span className="text-sm font-bold text-slate-600">Total</span>
 
@@ -759,6 +816,7 @@ export default function ProductDetailsPage() {
               </div>
 
               {/* BUTTONS */}
+
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <button
                   onClick={addProductToCart}
@@ -794,6 +852,7 @@ export default function ProductDetailsPage() {
               </div>
 
               {/* CART */}
+
               <Link
                 href="/cart"
                 className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-3.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
@@ -814,13 +873,14 @@ export default function ProductDetailsPage() {
           </div>
         </section>
 
-        {/* ========================= */}
+        {/* ================================================= */}
         {/* REVIEWS SECTION */}
-        {/* ========================= */}
+        {/* ================================================= */}
 
         <section className="mt-8 rounded-4xl bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-8 lg:p-10">
           <div className="flex flex-col gap-8 lg:flex-row">
             {/* RATING SUMMARY */}
+
             <div className="lg:w-80 lg:border-r lg:border-slate-100 lg:pr-10">
               <div className="text-center lg:text-left">
                 <p className="text-sm font-black uppercase tracking-wider text-slate-400">
@@ -842,7 +902,8 @@ export default function ProductDetailsPage() {
                 </div>
               </div>
 
-              {/* Rating bars */}
+              {/* RATING BARS */}
+
               <div className="mt-8 space-y-3">
                 {[5, 4, 3, 2, 1].map((star) => {
                   const count = reviews.filter(
@@ -877,8 +938,10 @@ export default function ProductDetailsPage() {
             </div>
 
             {/* REVIEW FORM + REVIEWS */}
+
             <div className="flex-1">
               {/* WRITE REVIEW */}
+
               <div className="rounded-3xl bg-linear-to-br from-blue-50 to-slate-50 p-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -897,6 +960,7 @@ export default function ProductDetailsPage() {
                 </div>
 
                 {/* STAR SELECTOR */}
+
                 <div className="mt-6">
                   <p className="mb-3 text-sm font-black text-slate-700">
                     Your Rating
@@ -926,6 +990,7 @@ export default function ProductDetailsPage() {
                 </div>
 
                 {/* COMMENT */}
+
                 <div className="mt-6">
                   <label className="mb-2 block text-sm font-black text-slate-700">
                     Your Review
@@ -941,6 +1006,7 @@ export default function ProductDetailsPage() {
                 </div>
 
                 {/* MESSAGES */}
+
                 {reviewError && (
                   <div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
                     {reviewError}
@@ -954,6 +1020,7 @@ export default function ProductDetailsPage() {
                 )}
 
                 {/* SUBMIT */}
+
                 <button
                   type="button"
                   onClick={submitReview}
@@ -964,17 +1031,52 @@ export default function ProductDetailsPage() {
                 </button>
               </div>
 
+              {/* ================================================= */}
               {/* REVIEWS LIST */}
-              <div className="mt-10">
-                <div className="mb-5 flex items-center justify-between">
-                  <h2 className="text-xl font-black text-slate-900">
-                    Customer Reviews
-                  </h2>
+              {/* ================================================= */}
 
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
-                    {totalReviews}
-                  </span>
+              <div className="mt-10">
+                <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-black text-slate-900">
+                      Customer Reviews
+                    </h2>
+
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+                      {totalReviews}
+                    </span>
+                  </div>
+
+                  {/* SORT DROPDOWN */}
+
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="review-sort"
+                      className="text-sm font-bold text-slate-500"
+                    >
+                      Sort:
+                    </label>
+
+                    <select
+                      id="review-sort"
+                      value={reviewSort}
+                      onChange={(event) =>
+                        setReviewSort(event.target.value as ReviewSort)
+                      }
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                    >
+                      <option value="newest">Newest</option>
+
+                      <option value="oldest">Oldest</option>
+
+                      <option value="highest">Highest Rating</option>
+
+                      <option value="lowest">Lowest Rating</option>
+                    </select>
+                  </div>
                 </div>
+
+                {/* REVIEWS */}
 
                 {reviewsLoading ? (
                   <div className="rounded-2xl bg-slate-50 p-8 text-center">
@@ -1040,6 +1142,8 @@ export default function ProductDetailsPage() {
                             </div>
                           ) : null}
                         </div>
+
+                        {/* EDIT MODE */}
 
                         {editingReviewId === review.id ? (
                           <div className="mt-5 rounded-2xl bg-slate-50 p-4">
@@ -1141,7 +1245,10 @@ export default function ProductDetailsPage() {
           </div>
         </section>
 
+        {/* ================================================= */}
         {/* BOTTOM INFORMATION */}
+        {/* ================================================= */}
+
         <section className="mt-8 grid gap-5 md:grid-cols-3">
           <div className="rounded-2xl bg-white p-6 shadow-sm">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-2xl">
@@ -1187,7 +1294,10 @@ export default function ProductDetailsPage() {
           </div>
         </section>
 
+        {/* ================================================= */}
         {/* CONTINUE SHOPPING */}
+        {/* ================================================= */}
+
         <div className="mt-10 flex justify-center pb-8">
           <Link
             href="/products"

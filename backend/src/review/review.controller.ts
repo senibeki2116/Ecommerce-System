@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -20,7 +21,9 @@ import { JwtAuthGuard } from '../auth/jwt-auth/jwt-auth.guard';
 export class ReviewController {
   constructor(private readonly reviewService: ReviewService) {}
 
-  // Create review
+  // =========================================================
+  // CREATE REVIEW
+  // =========================================================
   @UseGuards(JwtAuthGuard)
   @Post(':productId')
   create(
@@ -31,13 +34,20 @@ export class ReviewController {
     return this.reviewService.create(req.user.id, productId, createReviewDto);
   }
 
-  // Get reviews for a product
+  // =========================================================
+  // GET REVIEWS FOR A PRODUCT
+  // =========================================================
   @Get('product/:productId')
-  findByProduct(@Param('productId', ParseIntPipe) productId: number) {
-    return this.reviewService.findByProduct(productId);
+  findByProduct(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Query('sort') sort?: string,
+  ) {
+    return this.reviewService.findByProduct(productId, sort || 'newest');
   }
 
-  // Get current user's review for a product
+  // =========================================================
+  // GET CURRENT USER'S REVIEW
+  // =========================================================
   @UseGuards(JwtAuthGuard)
   @Get('my/:productId')
   findUserReview(
@@ -47,7 +57,9 @@ export class ReviewController {
     return this.reviewService.findUserReview(req.user.id, productId);
   }
 
-  // Update review
+  // =========================================================
+  // UPDATE REVIEW
+  // =========================================================
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
   update(
@@ -58,7 +70,9 @@ export class ReviewController {
     return this.reviewService.update(req.user.id, reviewId, updateReviewDto);
   }
 
-  // Delete review
+  // =========================================================
+  // DELETE REVIEW
+  // =========================================================
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   remove(@Req() req: any, @Param('id', ParseIntPipe) reviewId: number) {

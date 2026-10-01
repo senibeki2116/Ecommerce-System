@@ -16,15 +16,13 @@ export class PaymentsService {
   constructor(private prisma: PrismaService) {}
 
   // =========================================================
-  // CUSTOMER - GET ONE PAYMENT
+  // GET ONE PAYMENT
   // =========================================================
-
   async findOne(paymentId: number) {
     const payment = await this.prisma.payment.findUnique({
       where: {
         id: paymentId,
       },
-
       include: {
         order: {
           include: {
@@ -35,7 +33,6 @@ export class PaymentsService {
                 email: true,
               },
             },
-
             items: {
               include: {
                 product: true,
@@ -54,10 +51,13 @@ export class PaymentsService {
   }
 
   // =========================================================
-  // CUSTOMER - GET PAYMENT BY ORDER
+  // GET PAYMENT BY ORDER
+  //
+  // If the order does not have a payment record yet,
+  // automatically create one.
   // =========================================================
-
   async findByOrder(userId: number, orderId: number) {
+    // First make sure the order belongs to the logged-in user.
     const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
@@ -69,27 +69,57 @@ export class PaymentsService {
       throw new NotFoundException('Order not found');
     }
 
-    const payment = await this.prisma.payment.findUnique({
+    // Try to find the existing payment.
+    let payment = await this.prisma.payment.findUnique({
       where: {
         orderId,
       },
-
       include: {
         order: true,
       },
     });
 
+    // =======================================================
+    // CREATE MISSING PAYMENT
+    // =======================================================
     if (!payment) {
-      throw new NotFoundException('Payment not found for this order');
+      let paymentMethodEnum: 'CASH_ON_DELIVERY' | 'TELEBIRR' | 'CARD';
+
+      switch (order.paymentMethod) {
+        case 'Telebirr':
+          paymentMethodEnum = 'TELEBIRR';
+          break;
+
+        case 'Credit / Debit Card':
+          paymentMethodEnum = 'CARD';
+          break;
+
+        case 'Cash on Delivery':
+        default:
+          paymentMethodEnum = 'CASH_ON_DELIVERY';
+          break;
+      }
+
+      payment = await this.prisma.payment.create({
+        data: {
+          orderId: order.id,
+          amount: order.total,
+          method: paymentMethodEnum,
+          status: 'PENDING',
+          transactionId: null,
+        },
+        include: {
+          order: true,
+        },
+      });
     }
 
     return payment;
   }
 
   // =========================================================
-  // CUSTOMER - UPDATE PAYMENT STATUS
+  // UPDATE USER PAYMENT STATUS
   // =========================================================
-
   async updateStatus(
     userId: number,
     paymentId: number,
@@ -99,7 +129,6 @@ export class PaymentsService {
       where: {
         id: paymentId,
       },
-
       include: {
         order: true,
       },
@@ -109,29 +138,33 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
+    // Make sure the payment belongs to the logged-in user.
     if (payment.order.userId !== userId) {
       throw new NotFoundException('Payment not found');
     }
 
+    // Do not allow changing an already paid payment.
     if (payment.status === 'PAID') {
       throw new BadRequestException('A paid payment cannot be changed');
     }
 
+    // Do not allow changing a cancelled payment.
     if (payment.status === 'CANCELLED') {
       throw new BadRequestException('A cancelled payment cannot be changed');
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Update payment.
       const updatedPayment = await tx.payment.update({
         where: {
           id: paymentId,
         },
-
         data: {
           status: dto.status,
         },
       });
 
+      // Determine corresponding order status.
       let orderStatus = payment.order.status;
 
       if (dto.status === PaymentStatusDto.PAID) {
@@ -146,11 +179,11 @@ export class PaymentsService {
         orderStatus = 'CANCELLED';
       }
 
+      // Update order.
       await tx.order.update({
         where: {
           id: payment.orderId,
         },
-
         data: {
           status: orderStatus,
         },
@@ -163,15 +196,13 @@ export class PaymentsService {
   }
 
   // =========================================================
-  // ADMIN - GET ALL PAYMENTS
+  // GET ALL PAYMENTS - ADMIN
   // =========================================================
-
   async getAllPayments() {
     return this.prisma.payment.findMany({
       orderBy: {
         createdAt: 'desc',
       },
-
       include: {
         order: {
           include: {
@@ -182,7 +213,6 @@ export class PaymentsService {
                 email: true,
               },
             },
-
             items: {
               include: {
                 product: true,
@@ -195,15 +225,13 @@ export class PaymentsService {
   }
 
   // =========================================================
-  // ADMIN - GET ONE PAYMENT
+  // GET ONE PAYMENT - ADMIN
   // =========================================================
-
   async getAdminPayment(paymentId: number) {
     const payment = await this.prisma.payment.findUnique({
       where: {
         id: paymentId,
       },
-
       include: {
         order: {
           include: {
@@ -214,7 +242,6 @@ export class PaymentsService {
                 email: true,
               },
             },
-
             items: {
               include: {
                 product: true,
@@ -233,9 +260,8 @@ export class PaymentsService {
   }
 
   // =========================================================
-  // ADMIN - UPDATE PAYMENT STATUS
+  // UPDATE PAYMENT STATUS - ADMIN
   // =========================================================
-
   async updateAdminPaymentStatus(
     paymentId: number,
     dto: UpdatePaymentStatusDto,
@@ -244,7 +270,6 @@ export class PaymentsService {
       where: {
         id: paymentId,
       },
-
       include: {
         order: true,
       },
@@ -254,15 +279,18 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
+    // Do not allow changing already paid payments.
     if (payment.status === 'PAID') {
       throw new BadRequestException('A paid payment cannot be changed');
     }
 
+    // Do not allow changing cancelled payments.
     if (payment.status === 'CANCELLED') {
       throw new BadRequestException('A cancelled payment cannot be changed');
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Determine corresponding order status.
       let orderStatus = payment.order.status;
 
       if (dto.status === PaymentStatusDto.PAID) {
@@ -277,15 +305,14 @@ export class PaymentsService {
         orderStatus = 'CANCELLED';
       }
 
+      // Update payment.
       const updatedPayment = await tx.payment.update({
         where: {
           id: paymentId,
         },
-
         data: {
           status: dto.status,
         },
-
         include: {
           order: {
             include: {
@@ -301,11 +328,11 @@ export class PaymentsService {
         },
       });
 
+      // Update order.
       await tx.order.update({
         where: {
           id: payment.orderId,
         },
-
         data: {
           status: orderStatus,
         },

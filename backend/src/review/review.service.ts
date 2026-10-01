@@ -13,46 +13,76 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 export class ReviewService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Create a review
+  // =========================================================
+  // CREATE REVIEW
+  // =========================================================
   async create(
     userId: number,
     productId: number,
     createReviewDto: CreateReviewDto,
   ) {
-    // Check product
+    // -------------------------------------------------------
+    // CHECK IF PRODUCT EXISTS
+    // -------------------------------------------------------
     const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+      where: {
+        id: productId,
+      },
     });
 
     if (!product) {
       throw new NotFoundException('Product not found');
     }
 
-    // Check if the user purchased this product
+    // -------------------------------------------------------
+    // CHECK IF USER PURCHASED AND RECEIVED THE PRODUCT
+    // -------------------------------------------------------
     const purchasedProduct = await this.prisma.orderItem.findFirst({
       where: {
-        productId,
+        productId: productId,
         order: {
-          userId,
-          status: {
-            not: 'CANCELLED',
+          userId: userId,
+          status: 'DELIVERED',
+        },
+      },
+      include: {
+        order: {
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+          },
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
           },
         },
       },
     });
 
+    // Debug information
+    console.log('========== REVIEW DEBUG ==========');
+    console.log('userId:', userId);
+    console.log('productId:', productId);
+    console.log('purchasedProduct:', purchasedProduct);
+    console.log('===================================');
+
     if (!purchasedProduct) {
       throw new ForbiddenException(
-        'You can only review products you have purchased',
+        'You can only review products you have purchased and received',
       );
     }
 
-    // Check if user already reviewed this product
+    // -------------------------------------------------------
+    // CHECK IF USER ALREADY REVIEWED THIS PRODUCT
+    // -------------------------------------------------------
     const existingReview = await this.prisma.review.findUnique({
       where: {
         userId_productId: {
-          userId,
-          productId,
+          userId: userId,
+          productId: productId,
         },
       },
     });
@@ -61,13 +91,15 @@ export class ReviewService {
       throw new ConflictException('You have already reviewed this product');
     }
 
-    // Create review
-    return this.prisma.review.create({
+    // -------------------------------------------------------
+    // CREATE REVIEW
+    // -------------------------------------------------------
+    const review = await this.prisma.review.create({
       data: {
         rating: createReviewDto.rating,
         comment: createReviewDto.comment,
-        userId,
-        productId,
+        userId: userId,
+        productId: productId,
       },
       include: {
         user: {
@@ -78,20 +110,66 @@ export class ReviewService {
         },
       },
     });
+
+    return review;
   }
 
-  // Get all reviews for a product
-  async findByProduct(productId: number) {
+  // =========================================================
+  // GET ALL REVIEWS FOR A PRODUCT
+  // =========================================================
+  async findByProduct(productId: number, sort: string = 'newest') {
+    // -------------------------------------------------------
+    // CHECK IF PRODUCT EXISTS
+    // -------------------------------------------------------
     const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+      where: {
+        id: productId,
+      },
     });
 
     if (!product) {
       throw new NotFoundException('Product not found');
     }
 
+    // -------------------------------------------------------
+    // DETERMINE SORT ORDER
+    // -------------------------------------------------------
+    let orderBy: { createdAt: 'asc' | 'desc' } | { rating: 'asc' | 'desc' };
+
+    switch (sort) {
+      case 'oldest':
+        orderBy = {
+          createdAt: 'asc',
+        };
+        break;
+
+      case 'highest':
+        orderBy = {
+          rating: 'desc',
+        };
+        break;
+
+      case 'lowest':
+        orderBy = {
+          rating: 'asc',
+        };
+        break;
+
+      case 'newest':
+      default:
+        orderBy = {
+          createdAt: 'desc',
+        };
+        break;
+    }
+
+    // -------------------------------------------------------
+    // GET REVIEWS
+    // -------------------------------------------------------
     const reviews = await this.prisma.review.findMany({
-      where: { productId },
+      where: {
+        productId: productId,
+      },
       include: {
         user: {
           select: {
@@ -100,33 +178,43 @@ export class ReviewService {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy,
     });
 
+    // -------------------------------------------------------
+    // CALCULATE TOTAL REVIEWS
+    // -------------------------------------------------------
     const totalReviews = reviews.length;
 
+    // -------------------------------------------------------
+    // CALCULATE AVERAGE RATING
+    // -------------------------------------------------------
     const averageRating =
       totalReviews > 0
         ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
         : 0;
 
+    // -------------------------------------------------------
+    // RETURN RESPONSE
+    // -------------------------------------------------------
     return {
       productId,
       totalReviews,
       averageRating: Number(averageRating.toFixed(1)),
+      sort,
       reviews,
     };
   }
 
-  // Get user's review for a product
+  // =========================================================
+  // GET CURRENT USER'S REVIEW FOR A PRODUCT
+  // =========================================================
   async findUserReview(userId: number, productId: number) {
     const review = await this.prisma.review.findUnique({
       where: {
         userId_productId: {
-          userId,
-          productId,
+          userId: userId,
+          productId: productId,
         },
       },
       include: {
@@ -146,26 +234,41 @@ export class ReviewService {
     return review;
   }
 
-  // Update review
+  // =========================================================
+  // UPDATE REVIEW
+  // =========================================================
   async update(
     userId: number,
     reviewId: number,
     updateReviewDto: UpdateReviewDto,
   ) {
+    // -------------------------------------------------------
+    // FIND REVIEW
+    // -------------------------------------------------------
     const review = await this.prisma.review.findUnique({
-      where: { id: reviewId },
+      where: {
+        id: reviewId,
+      },
     });
 
     if (!review) {
       throw new NotFoundException('Review not found');
     }
 
+    // -------------------------------------------------------
+    // MAKE SURE USER OWNS THE REVIEW
+    // -------------------------------------------------------
     if (review.userId !== userId) {
       throw new ForbiddenException('You can only edit your own review');
     }
 
+    // -------------------------------------------------------
+    // UPDATE REVIEW
+    // -------------------------------------------------------
     return this.prisma.review.update({
-      where: { id: reviewId },
+      where: {
+        id: reviewId,
+      },
       data: {
         rating: updateReviewDto.rating,
         comment: updateReviewDto.comment,
@@ -181,22 +284,37 @@ export class ReviewService {
     });
   }
 
-  // Delete review
+  // =========================================================
+  // DELETE REVIEW
+  // =========================================================
   async remove(userId: number, reviewId: number) {
+    // -------------------------------------------------------
+    // FIND REVIEW
+    // -------------------------------------------------------
     const review = await this.prisma.review.findUnique({
-      where: { id: reviewId },
+      where: {
+        id: reviewId,
+      },
     });
 
     if (!review) {
       throw new NotFoundException('Review not found');
     }
 
+    // -------------------------------------------------------
+    // MAKE SURE USER OWNS THE REVIEW
+    // -------------------------------------------------------
     if (review.userId !== userId) {
       throw new ForbiddenException('You can only delete your own review');
     }
 
+    // -------------------------------------------------------
+    // DELETE REVIEW
+    // -------------------------------------------------------
     await this.prisma.review.delete({
-      where: { id: reviewId },
+      where: {
+        id: reviewId,
+      },
     });
 
     return {
