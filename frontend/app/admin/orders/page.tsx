@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+
+const API_URL = "http://localhost:3001";
+
+type OrderStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED";
 
 type Product = {
   id: number;
@@ -13,7 +22,7 @@ type OrderItem = {
   id: number;
   quantity: number;
   price: number;
-  product: Product;
+  product?: Product;
 };
 
 type User = {
@@ -26,11 +35,11 @@ type User = {
 type Order = {
   id: number;
   userId?: number;
-  status: string;
-  subtotal?: number;
-  shipping?: number;
-  tax?: number;
-  discount?: number;
+  status: OrderStatus;
+  subtotal?: number | null;
+  shipping?: number | null;
+  tax?: number | null;
+  discount?: number | null;
   total: number;
 
   firstName?: string | null;
@@ -49,10 +58,81 @@ type Order = {
   updatedAt?: string;
 
   user?: User;
-  items: OrderItem[];
+  items?: OrderItem[];
 };
 
-const statuses = ["PENDING", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"];
+const statuses: OrderStatus[] = [
+  "PENDING",
+  "CONFIRMED",
+  "SHIPPED",
+  "DELIVERED",
+  "CANCELLED",
+];
+
+const statusStyles: Record<OrderStatus, string> = {
+  PENDING: "border-amber-200 bg-amber-50 text-amber-700",
+  CONFIRMED: "border-blue-200 bg-blue-50 text-blue-700",
+  SHIPPED: "border-sky-200 bg-sky-50 text-sky-700",
+  DELIVERED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  CANCELLED: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+const statusDots: Record<OrderStatus, string> = {
+  PENDING: "bg-amber-500",
+  CONFIRMED: "bg-blue-500",
+  SHIPPED: "bg-sky-500",
+  DELIVERED: "bg-emerald-500",
+  CANCELLED: "bg-rose-500",
+};
+
+const statusCardStyles: Record<
+  OrderStatus,
+  {
+    bg: string;
+    iconBg: string;
+    text: string;
+    icon: string;
+  }
+> = {
+  PENDING: {
+    bg: "bg-amber-50",
+    iconBg: "bg-amber-100",
+    text: "text-amber-700",
+    icon: "⏳",
+  },
+  CONFIRMED: {
+    bg: "bg-blue-50",
+    iconBg: "bg-blue-100",
+    text: "text-blue-700",
+    icon: "✓",
+  },
+  SHIPPED: {
+    bg: "bg-sky-50",
+    iconBg: "bg-sky-100",
+    text: "text-sky-700",
+    icon: "🚚",
+  },
+  DELIVERED: {
+    bg: "bg-emerald-50",
+    iconBg: "bg-emerald-100",
+    text: "text-emerald-700",
+    icon: "✓",
+  },
+  CANCELLED: {
+    bg: "bg-rose-50",
+    iconBg: "bg-rose-100",
+    text: "text-rose-700",
+    icon: "×",
+  },
+};
+
+const statusLabels: Record<OrderStatus, string> = {
+  PENDING: "Pending",
+  CONFIRMED: "Confirmed",
+  SHIPPED: "Shipped",
+  DELIVERED: "Delivered",
+  CANCELLED: "Cancelled",
+};
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -60,24 +140,28 @@ export default function AdminOrdersPage() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | OrderStatus>("ALL");
 
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const fetchOrders = async () => {
+  // =========================================================
+  // FETCH ORDERS
+  // =========================================================
+
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
-      const token = localStorage.getItem("accessToken");
+      const token =
+        localStorage.getItem("accessToken") || localStorage.getItem("token");
 
       if (!token) {
-        setError("Please login as an admin first.");
-        return;
+        throw new Error("Please login as an admin first.");
       }
 
-      const response = await fetch("http://localhost:3001/admin/orders", {
+      const response = await fetch(`${API_URL}/admin/orders`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -97,19 +181,35 @@ export default function AdminOrdersPage() {
 
       const data = await response.json();
 
-      setOrders(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      setError(err.message || "Could not load orders.");
+      let orderList: Order[] = [];
+
+      if (Array.isArray(data)) {
+        orderList = data;
+      } else if (Array.isArray(data?.orders)) {
+        orderList = data.orders;
+      } else if (Array.isArray(data?.data)) {
+        orderList = data.data;
+      }
+
+      setOrders(orderList);
+    } catch (err) {
+      console.error("Failed to load orders:", err);
+
+      setError(err instanceof Error ? err.message : "Could not load orders.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
-  const getAvailableStatuses = (currentStatus: string) => {
+  // =========================================================
+  // AVAILABLE STATUS TRANSITIONS
+  // =========================================================
+
+  const getAvailableStatuses = (currentStatus: OrderStatus): OrderStatus[] => {
     switch (currentStatus) {
       case "PENDING":
         return ["PENDING", "CONFIRMED", "CANCELLED"];
@@ -131,8 +231,13 @@ export default function AdminOrdersPage() {
     }
   };
 
-  const updateStatus = async (orderId: number, newStatus: string) => {
-    const token = localStorage.getItem("accessToken");
+  // =========================================================
+  // UPDATE STATUS
+  // =========================================================
+
+  const updateStatus = async (orderId: number, newStatus: OrderStatus) => {
+    const token =
+      localStorage.getItem("accessToken") || localStorage.getItem("token");
 
     if (!token) {
       setError("Please login as an admin first.");
@@ -144,7 +249,7 @@ export default function AdminOrdersPage() {
       setError("");
 
       const response = await fetch(
-        `http://localhost:3001/admin/orders/${orderId}/status`,
+        `${API_URL}/admin/orders/${orderId}/status`,
         {
           method: "PATCH",
           headers: {
@@ -165,36 +270,37 @@ export default function AdminOrdersPage() {
         throw new Error("You do not have permission to update orders.");
       }
 
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const message = await response.text();
-
-        let readableMessage = "Failed to update order.";
-
-        try {
-          const parsed = JSON.parse(message);
-          readableMessage = parsed.message || readableMessage;
-        } catch {
-          if (message) {
-            readableMessage = message;
-          }
-        }
-
-        throw new Error(readableMessage);
+        throw new Error(data?.message || "Failed to update order.");
       }
 
-      const updatedOrder = await response.json();
+      const updatedOrder = data as Order;
 
       setOrders((currentOrders) =>
         currentOrders.map((order) =>
-          order.id === orderId ? updatedOrder : order,
+          order.id === orderId
+            ? {
+                ...order,
+                ...updatedOrder,
+                status: newStatus,
+              }
+            : order,
         ),
       );
-    } catch (err: any) {
-      setError(err.message || "Could not update order.");
+    } catch (err) {
+      console.error("Failed to update order:", err);
+
+      setError(err instanceof Error ? err.message : "Could not update order.");
     } finally {
       setUpdatingId(null);
     }
   };
+
+  // =========================================================
+  // FILTERED ORDERS
+  // =========================================================
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -219,73 +325,46 @@ export default function AdminOrdersPage() {
     });
   }, [orders, search, statusFilter]);
 
-  const totalRevenue = orders
-    .filter((order) => order.status !== "CANCELLED")
-    .reduce((sum, order) => sum + Number(order.total || 0), 0);
+  // =========================================================
+  // STATISTICS
+  // =========================================================
 
-  const pendingCount = orders.filter(
-    (order) => order.status === "PENDING",
-  ).length;
+  const statistics = useMemo(() => {
+    const totalRevenue = orders
+      .filter((order) => order.status !== "CANCELLED")
+      .reduce((sum, order) => sum + Number(order.total || 0), 0);
 
-  const confirmedCount = orders.filter(
-    (order) => order.status === "CONFIRMED",
-  ).length;
+    const pending = orders.filter((order) => order.status === "PENDING").length;
 
-  const shippedCount = orders.filter(
-    (order) => order.status === "SHIPPED",
-  ).length;
+    const confirmed = orders.filter(
+      (order) => order.status === "CONFIRMED",
+    ).length;
 
-  const deliveredCount = orders.filter(
-    (order) => order.status === "DELIVERED",
-  ).length;
+    const shipped = orders.filter((order) => order.status === "SHIPPED").length;
 
-  const cancelledCount = orders.filter(
-    (order) => order.status === "CANCELLED",
-  ).length;
+    const delivered = orders.filter(
+      (order) => order.status === "DELIVERED",
+    ).length;
 
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return "bg-amber-50 text-amber-700 border-amber-200";
+    const cancelled = orders.filter(
+      (order) => order.status === "CANCELLED",
+    ).length;
 
-      case "CONFIRMED":
-        return "bg-sky-50 text-sky-700 border-sky-200";
+    return {
+      totalOrders: orders.length,
+      totalRevenue,
+      pending,
+      confirmed,
+      shipped,
+      delivered,
+      cancelled,
+      activeOrders: pending + confirmed + shipped,
+    };
+  }, [orders]);
 
-      case "SHIPPED":
-        return "bg-indigo-50 text-indigo-700 border-indigo-200";
-
-      case "DELIVERED":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200";
-
-      case "CANCELLED":
-        return "bg-rose-50 text-rose-700 border-rose-200";
-
-      default:
-        return "bg-slate-50 text-slate-700 border-slate-200";
-    }
-  };
-
-  const getStatusDot = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return "bg-amber-500";
-
-      case "CONFIRMED":
-        return "bg-sky-500";
-
-      case "SHIPPED":
-        return "bg-indigo-500";
-
-      case "DELIVERED":
-        return "bg-emerald-500";
-
-      case "CANCELLED":
-        return "bg-rose-500";
-
-      default:
-        return "bg-slate-400";
-    }
-  };
+  // =========================================================
+  // CUSTOMER HELPERS
+  // =========================================================
 
   const getCustomerName = (order: Order) => {
     const name = `${order.firstName || ""} ${order.lastName || ""}`.trim();
@@ -294,65 +373,124 @@ export default function AdminOrdersPage() {
   };
 
   const getCustomerEmail = (order: Order) => {
-    return order.email || order.user?.email || "No email";
+    return order.email || order.user?.email || "No email provided";
   };
 
-  const statusCards = [
+  const getItems = (order: Order) => {
+    return order.items || [];
+  };
+
+  // =========================================================
+  // FORMATTERS
+  // =========================================================
+
+  const formatCurrency = (value?: number | null) => {
+    return `$${Number(value || 0).toFixed(2)}`;
+  };
+
+  const formatDate = (value: string) => {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const formatTime = (value: string) => {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // =========================================================
+  // STATUS CARDS
+  // =========================================================
+
+  const statusCards: {
+    label: string;
+    value: number;
+    status: OrderStatus;
+  }[] = [
     {
       label: "Pending",
-      value: pendingCount,
+      value: statistics.pending,
       status: "PENDING",
-      icon: "⏳",
-      bg: "bg-amber-50",
-      iconBg: "bg-amber-100",
-      text: "text-amber-700",
     },
     {
       label: "Confirmed",
-      value: confirmedCount,
+      value: statistics.confirmed,
       status: "CONFIRMED",
-      icon: "✓",
-      bg: "bg-sky-50",
-      iconBg: "bg-sky-100",
-      text: "text-sky-700",
     },
     {
       label: "Shipped",
-      value: shippedCount,
+      value: statistics.shipped,
       status: "SHIPPED",
-      icon: "🚚",
-      bg: "bg-indigo-50",
-      iconBg: "bg-indigo-100",
-      text: "text-indigo-700",
     },
     {
       label: "Delivered",
-      value: deliveredCount,
+      value: statistics.delivered,
       status: "DELIVERED",
-      icon: "✓",
-      bg: "bg-emerald-50",
-      iconBg: "bg-emerald-100",
-      text: "text-emerald-700",
     },
     {
       label: "Cancelled",
-      value: cancelledCount,
+      value: statistics.cancelled,
       status: "CANCELLED",
-      icon: "×",
-      bg: "bg-rose-50",
-      iconBg: "bg-rose-100",
-      text: "text-rose-700",
     },
   ];
 
+  // =========================================================
+  // LOADING
+  // =========================================================
+
+  if (loading && orders.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-350">
+          <div className="h-10 w-64 animate-pulse rounded-xl bg-slate-200" />
+
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((item) => (
+              <div
+                key={item}
+                className="h-32 animate-pulse rounded-2xl bg-white shadow-sm"
+              />
+            ))}
+          </div>
+
+          <div className="mt-6 h-96 animate-pulse rounded-2xl bg-white shadow-sm" />
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
+  // PAGE
+  // =========================================================
+
   return (
     <div className="min-h-screen bg-[#f7f8fc] text-slate-900">
-      {/* Sidebar */}
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
+
       <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-slate-200 bg-white lg:block">
         {/* Logo */}
         <div className="border-b border-slate-100 px-6 py-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br from-indigo-600 to-violet-600 text-xl font-bold text-white shadow-lg shadow-indigo-200">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br from-blue-700 to-blue-500 text-xl font-bold text-white shadow-lg shadow-blue-200">
               S
             </div>
 
@@ -372,7 +510,7 @@ export default function AdminOrdersPage() {
         <nav className="space-y-1.5 p-4">
           <Link
             href="/admin"
-            className="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
           >
             <span className="text-lg">📊</span>
             Dashboard
@@ -380,49 +518,74 @@ export default function AdminOrdersPage() {
 
           <Link
             href="/admin/orders"
-            className="flex items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 shadow-sm"
+            className="flex items-center gap-3 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700"
           >
             <span className="text-lg">📦</span>
             Orders
-            {pendingCount > 0 && (
-              <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                {pendingCount}
+            {statistics.pending > 0 && (
+              <span className="ml-auto rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white">
+                {statistics.pending}
               </span>
             )}
           </Link>
 
           <Link
             href="/admin/products"
-            className="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
           >
             <span className="text-lg">🛍️</span>
             Products
           </Link>
 
           <Link
+            href="/admin/categories"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
+          >
+            <span className="text-lg">🏷️</span>
+            Categories
+          </Link>
+
+          <Link
             href="/admin/users"
-            className="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
           >
             <span className="text-lg">👥</span>
             Customers
+          </Link>
+
+          <Link
+            href="/admin/analytics"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
+          >
+            <span className="text-lg">📈</span>
+            Analytics
+          </Link>
+
+          <Link
+            href="/admin/payments"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
+          >
+            <span className="text-lg">💳</span>
+            Payments
           </Link>
 
           <div className="my-5 border-t border-slate-100" />
 
           <Link
             href="/"
-            className="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
           >
             <span className="text-lg">🏠</span>
             View Store
           </Link>
         </nav>
 
-        {/* Sidebar bottom */}
+        {/* System status */}
         <div className="absolute bottom-5 left-4 right-4">
-          <div className="rounded-2xl border border-indigo-100 bg-linear-to-br from-indigo-50 to-violet-50 p-4">
+          <div className="rounded-2xl border border-blue-100 bg-linear-to-br from-blue-50 to-sky-50 p-4">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-300" />
+
               <span className="text-xs font-bold text-slate-700">
                 System Online
               </span>
@@ -435,15 +598,20 @@ export default function AdminOrdersPage() {
         </div>
       </aside>
 
-      {/* Main */}
+      {/* =====================================================
+          MAIN
+      ===================================================== */}
+
       <main className="lg:ml-64">
         {/* Header */}
         <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 px-5 py-4 shadow-sm backdrop-blur md:px-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
-                <span className="text-indigo-600">Admin Panel</span>
+                <span className="text-blue-600">Admin Panel</span>
+
                 <span className="text-slate-300">/</span>
+
                 <span className="text-slate-400">Orders</span>
               </div>
 
@@ -459,7 +627,7 @@ export default function AdminOrdersPage() {
             <button
               onClick={fetchOrders}
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-5 py-3 text-sm font-bold text-indigo-700 shadow-sm transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 shadow-sm transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className={`text-lg ${loading ? "animate-spin" : ""}`}>
                 ↻
@@ -470,11 +638,14 @@ export default function AdminOrdersPage() {
         </header>
 
         <div className="p-5 md:p-8">
-          {/* Page Intro */}
-          <section className="mb-7 overflow-hidden rounded-3xl border border-indigo-100 bg-linear-to-r from-indigo-50 via-white to-violet-50 p-6 shadow-sm md:p-7">
+          {/* =================================================
+              INTRO
+          ================================================= */}
+
+          <section className="mb-7 overflow-hidden rounded-3xl border border-blue-100 bg-linear-to-r from-blue-50 via-white to-sky-50 p-6 shadow-sm md:p-7">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 shadow-sm">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-bold text-blue-600 shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   Live Order Overview
                 </div>
@@ -489,25 +660,29 @@ export default function AdminOrdersPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-white bg-white/80 px-6 py-4 shadow-sm">
+              <div className="rounded-2xl border border-white bg-white/90 px-6 py-4 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   Active Orders
                 </p>
 
-                <p className="mt-1 text-3xl font-extrabold text-indigo-600">
-                  {pendingCount + confirmedCount + shippedCount}
+                <p className="mt-1 text-3xl font-extrabold text-blue-600">
+                  {statistics.activeOrders}
                 </p>
               </div>
             </div>
           </section>
 
-          {/* Error */}
+          {/* =================================================
+              ERROR
+          ================================================= */}
+
           {error && (
             <div className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 shadow-sm">
               <span className="text-lg">⚠️</span>
 
               <div className="flex-1">
                 <p className="font-bold">Something went wrong</p>
+
                 <p className="mt-1">{error}</p>
               </div>
 
@@ -520,16 +695,19 @@ export default function AdminOrdersPage() {
             </div>
           )}
 
-          {/* Stats */}
+          {/* =================================================
+              STATISTICS
+          ================================================= */}
+
           <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {/* Total Orders */}
-            <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
+            <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
               <div className="flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-xl">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-xl">
                   📦
                 </div>
 
-                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-extrabold text-indigo-600">
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-extrabold text-blue-600">
                   ORDERS
                 </span>
               </div>
@@ -539,7 +717,7 @@ export default function AdminOrdersPage() {
               </p>
 
               <p className="mt-1 text-3xl font-extrabold text-slate-900">
-                {orders.length}
+                {statistics.totalOrders}
               </p>
             </div>
 
@@ -560,7 +738,7 @@ export default function AdminOrdersPage() {
               </p>
 
               <p className="mt-1 text-2xl font-extrabold text-emerald-600">
-                ${totalRevenue.toFixed(2)}
+                {formatCurrency(statistics.totalRevenue)}
               </p>
             </div>
 
@@ -579,52 +757,51 @@ export default function AdminOrdersPage() {
               <p className="mt-5 text-sm font-medium text-slate-500">Waiting</p>
 
               <p className="mt-1 text-3xl font-extrabold text-amber-600">
-                {pendingCount}
+                {statistics.pending}
               </p>
             </div>
 
             {/* Shipped */}
-            <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-xl">
-                  🚚
-                </div>
-
-                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-extrabold text-indigo-600">
-                  SHIPPING
-                </span>
+            <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-xl">
+                🚚
               </div>
+
+              <span className="mt-3 inline-block rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-extrabold text-sky-600">
+                SHIPPING
+              </span>
 
               <p className="mt-5 text-sm font-medium text-slate-500">Shipped</p>
 
-              <p className="mt-1 text-3xl font-extrabold text-indigo-600">
-                {shippedCount}
+              <p className="mt-1 text-3xl font-extrabold text-sky-600">
+                {statistics.shipped}
               </p>
             </div>
 
             {/* Delivered */}
             <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                  ✓
-                </div>
-
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-600">
-                  COMPLETED
-                </span>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
+                ✓
               </div>
+
+              <span className="mt-3 inline-block rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-600">
+                COMPLETED
+              </span>
 
               <p className="mt-5 text-sm font-medium text-slate-500">
                 Delivered
               </p>
 
               <p className="mt-1 text-3xl font-extrabold text-emerald-600">
-                {deliveredCount}
+                {statistics.delivered}
               </p>
             </div>
           </div>
 
-          {/* Status Overview */}
+          {/* =================================================
+              STATUS OVERVIEW
+          ================================================= */}
+
           <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
             <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -638,50 +815,59 @@ export default function AdminOrdersPage() {
               </div>
 
               <span className="w-fit rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-500">
-                {orders.length} total orders
+                {statistics.totalOrders} total orders
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              {statusCards.map((item) => (
-                <button
-                  key={item.status}
-                  onClick={() =>
-                    setStatusFilter(
-                      statusFilter === item.status ? "ALL" : item.status,
-                    )
-                  }
-                  className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${item.bg} ${
-                    statusFilter === item.status
-                      ? "border-indigo-300 ring-2 ring-indigo-100"
-                      : "border-transparent"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div
-                      className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${item.iconBg} ${item.text}`}
-                    >
-                      {item.icon}
+              {statusCards.map((item) => {
+                const styles = statusCardStyles[item.status];
+
+                const active = statusFilter === item.status;
+
+                return (
+                  <button
+                    key={item.status}
+                    onClick={() =>
+                      setStatusFilter(active ? "ALL" : item.status)
+                    }
+                    className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${styles.bg} ${
+                      active
+                        ? "border-blue-300 ring-2 ring-blue-100"
+                        : "border-transparent"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div
+                        className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${styles.iconBg} ${styles.text}`}
+                      >
+                        {styles.icon}
+                      </div>
+
+                      {active && (
+                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                      )}
                     </div>
 
-                    {statusFilter === item.status && (
-                      <span className="h-2 w-2 rounded-full bg-indigo-500" />
-                    )}
-                  </div>
+                    <p
+                      className={`mt-4 text-2xl font-extrabold ${styles.text}`}
+                    >
+                      {item.value}
+                    </p>
 
-                  <p className={`mt-4 text-2xl font-extrabold ${item.text}`}>
-                    {item.value}
-                  </p>
-
-                  <p className="mt-1 text-xs font-bold text-slate-600">
-                    {item.label}
-                  </p>
-                </button>
-              ))}
+                    <p className="mt-1 text-xs font-bold text-slate-600">
+                      {item.label}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </section>
 
-          {/* Orders Card */}
+          {/* =================================================
+              ORDERS
+          ================================================= */}
+
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {/* Card Header */}
             <div className="border-b border-slate-100 p-5 md:p-6">
@@ -692,7 +878,7 @@ export default function AdminOrdersPage() {
                       All Customer Orders
                     </h3>
 
-                    <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-600">
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-600">
                       {filteredOrders.length}
                     </span>
                   </div>
@@ -709,14 +895,14 @@ export default function AdminOrdersPage() {
                       setSearch("");
                       setStatusFilter("ALL");
                     }}
-                    className="w-fit rounded-lg px-3 py-2 text-sm font-bold text-indigo-600 transition hover:bg-indigo-50"
+                    className="w-fit rounded-lg px-3 py-2 text-sm font-bold text-blue-600 transition hover:bg-blue-50"
                   >
                     Clear filters
                   </button>
                 )}
               </div>
 
-              {/* Search + Filter */}
+              {/* Search */}
               <div className="flex flex-col gap-3 md:flex-row">
                 <div className="relative flex-1">
                   <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -728,43 +914,35 @@ export default function AdminOrdersPage() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search by order ID, customer name or email..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
                   />
                 </div>
 
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-bold text-slate-700 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50 md:min-w-48"
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as "ALL" | OrderStatus)
+                  }
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50 md:min-w-48"
                 >
                   <option value="ALL">All Statuses</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="CONFIRMED">Confirmed</option>
-                  <option value="SHIPPED">Shipped</option>
-                  <option value="DELIVERED">Delivered</option>
-                  <option value="CANCELLED">Cancelled</option>
+
+                  {statuses.map((status) => (
+                    <option key={status} value={status}>
+                      {statusLabels[status]}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            {/* Loading */}
-            {loading ? (
-              <div className="p-12">
-                <div className="mx-auto flex max-w-sm flex-col items-center">
-                  <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" />
+            {/* =================================================
+                EMPTY
+            ================================================= */}
 
-                  <p className="mt-5 font-bold text-slate-700">
-                    Loading orders...
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-400">
-                    Please wait while we fetch customer orders.
-                  </p>
-                </div>
-              </div>
-            ) : filteredOrders.length === 0 ? (
+            {!loading && filteredOrders.length === 0 ? (
               <div className="p-12 text-center">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-indigo-50 text-4xl">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-50 text-4xl">
                   📦
                 </div>
 
@@ -784,7 +962,7 @@ export default function AdminOrdersPage() {
                       setSearch("");
                       setStatusFilter("ALL");
                     }}
-                    className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700"
+                    className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700"
                   >
                     Show all orders
                   </button>
@@ -792,7 +970,10 @@ export default function AdminOrdersPage() {
               </div>
             ) : (
               <>
-                {/* Desktop Table */}
+                {/* =================================================
+                    DESKTOP TABLE
+                ================================================= */}
+
                 <div className="hidden overflow-x-auto lg:block">
                   <table className="w-full">
                     <thead className="border-b border-slate-100 bg-slate-50/80 text-left">
@@ -831,14 +1012,21 @@ export default function AdminOrdersPage() {
                       {filteredOrders.map((order) => {
                         const isExpanded = expandedId === order.id;
 
+                        const items = getItems(order);
+
+                        const availableStatuses = getAvailableStatuses(
+                          order.status,
+                        );
+
                         return (
                           <tr
                             key={order.id}
-                            className="transition hover:bg-indigo-50/30"
+                            className="transition hover:bg-blue-50/30"
                           >
+                            {/* Order */}
                             <td className="px-6 py-5 align-top">
                               <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 font-bold text-indigo-600">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 font-bold text-blue-600">
                                   #
                                 </div>
 
@@ -854,9 +1042,10 @@ export default function AdminOrdersPage() {
                               </div>
                             </td>
 
+                            {/* Customer */}
                             <td className="px-6 py-5 align-top">
                               <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-sm">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-sky-500 text-sm font-bold text-white shadow-sm">
                                   {getCustomerName(order)
                                     .charAt(0)
                                     .toUpperCase()}
@@ -874,9 +1063,10 @@ export default function AdminOrdersPage() {
                               </div>
                             </td>
 
+                            {/* Products */}
                             <td className="px-6 py-5 align-top">
                               <div className="flex -space-x-2">
-                                {order.items.slice(0, 4).map((item) =>
+                                {items.slice(0, 4).map((item) =>
                                   item.product?.image ? (
                                     <img
                                       key={item.id}
@@ -894,22 +1084,23 @@ export default function AdminOrdersPage() {
                                   ),
                                 )}
 
-                                {order.items.length > 4 && (
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-indigo-600 text-xs font-bold text-white">
-                                    +{order.items.length - 4}
+                                {items.length > 4 && (
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-xs font-bold text-white">
+                                    +{items.length - 4}
                                   </div>
                                 )}
                               </div>
 
                               <p className="mt-2 text-xs font-medium text-slate-500">
-                                {order.items.length} product
-                                {order.items.length !== 1 ? "s" : ""}
+                                {items.length} product
+                                {items.length !== 1 ? "s" : ""}
                               </p>
                             </td>
 
+                            {/* Total */}
                             <td className="px-6 py-5 align-top">
                               <p className="font-extrabold text-slate-900">
-                                ${Number(order.total || 0).toFixed(2)}
+                                {formatCurrency(order.total)}
                               </p>
 
                               <p className="mt-1 text-xs text-slate-400">
@@ -917,6 +1108,7 @@ export default function AdminOrdersPage() {
                               </p>
                             </td>
 
+                            {/* Status */}
                             <td className="px-6 py-5 align-top">
                               <select
                                 value={order.status}
@@ -926,61 +1118,57 @@ export default function AdminOrdersPage() {
                                   order.status === "CANCELLED"
                                 }
                                 onChange={(e) =>
-                                  updateStatus(order.id, e.target.value)
+                                  updateStatus(
+                                    order.id,
+                                    e.target.value as OrderStatus,
+                                  )
                                 }
-                                className={`rounded-xl border px-3 py-2 text-xs font-extrabold outline-none transition ${getStatusStyle(
-                                  order.status,
-                                )} ${
+                                className={`rounded-xl border px-3 py-2 text-xs font-extrabold outline-none transition ${statusStyles[order.status]} ${
                                   order.status === "DELIVERED" ||
                                   order.status === "CANCELLED"
                                     ? "cursor-not-allowed opacity-70"
                                     : "cursor-pointer hover:shadow-sm"
                                 }`}
                               >
-                                {getAvailableStatuses(order.status).map(
-                                  (status) => (
-                                    <option key={status} value={status}>
-                                      {status}
-                                    </option>
-                                  ),
-                                )}
+                                {availableStatuses.map((status) => (
+                                  <option key={status} value={status}>
+                                    {statusLabels[status]}
+                                  </option>
+                                ))}
                               </select>
 
                               {updatingId === order.id && (
-                                <p className="mt-2 text-xs font-bold text-indigo-600">
+                                <p className="mt-2 text-xs font-bold text-blue-600">
                                   Updating...
                                 </p>
                               )}
                             </td>
 
+                            {/* Date */}
                             <td className="px-6 py-5 align-top">
                               <p className="text-sm font-bold text-slate-700">
-                                {new Date(order.createdAt).toLocaleDateString()}
+                                {formatDate(order.createdAt)}
                               </p>
 
                               <p className="mt-1 text-xs text-slate-400">
-                                {new Date(order.createdAt).toLocaleTimeString(
-                                  [],
-                                  {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )}
+                                {formatTime(order.createdAt)}
                               </p>
                             </td>
 
+                            {/* Details */}
                             <td className="relative px-6 py-5 text-right align-top">
                               <button
                                 onClick={() =>
                                   setExpandedId(isExpanded ? null : order.id)
                                 }
-                                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                               >
                                 {isExpanded ? "Hide" : "View"}
                               </button>
 
                               {isExpanded && (
-                                <div className="absolute right-8 z-20 mt-3 w-96 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-2xl">
+                                <div className="absolute right-8 z-20 mt-3 w-96 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-2xl">
+                                  {/* Detail header */}
                                   <div className="mb-4 flex items-center justify-between">
                                     <div>
                                       <p className="font-extrabold text-slate-900">
@@ -994,15 +1182,15 @@ export default function AdminOrdersPage() {
 
                                     <button
                                       onClick={() => setExpandedId(null)}
-                                      className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                      className="rounded-lg px-2 py-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                                     >
                                       ✕
                                     </button>
                                   </div>
 
                                   {/* Customer */}
-                                  <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
-                                    <p className="mb-3 text-xs font-extrabold uppercase tracking-wide text-indigo-700">
+                                  <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                                    <p className="mb-3 text-xs font-extrabold uppercase tracking-wide text-blue-700">
                                       Customer Information
                                     </p>
 
@@ -1093,8 +1281,8 @@ export default function AdminOrdersPage() {
                                   </div>
 
                                   {/* Payment */}
-                                  <div className="mb-4 rounded-xl border border-violet-100 bg-violet-50 p-4">
-                                    <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-violet-700">
+                                  <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                                    <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-blue-700">
                                       Payment
                                     </p>
 
@@ -1116,7 +1304,7 @@ export default function AdminOrdersPage() {
                                     </p>
 
                                     <div className="space-y-3">
-                                      {order.items.map((item) => (
+                                      {items.map((item) => (
                                         <div
                                           key={item.id}
                                           className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"
@@ -1139,16 +1327,16 @@ export default function AdminOrdersPage() {
                                             </p>
 
                                             <p className="mt-1 text-xs text-slate-500">
-                                              {item.quantity} × $
-                                              {Number(item.price).toFixed(2)}
+                                              {item.quantity} ×{" "}
+                                              {formatCurrency(item.price)}
                                             </p>
                                           </div>
 
                                           <p className="text-sm font-extrabold">
-                                            $
-                                            {(
-                                              Number(item.price) * item.quantity
-                                            ).toFixed(2)}
+                                            {formatCurrency(
+                                              Number(item.price) *
+                                                item.quantity,
+                                            )}
                                           </p>
                                         </div>
                                       ))}
@@ -1161,9 +1349,9 @@ export default function AdminOrdersPage() {
                                       <span className="text-slate-500">
                                         Subtotal
                                       </span>
+
                                       <span>
-                                        $
-                                        {Number(order.subtotal || 0).toFixed(2)}
+                                        {formatCurrency(order.subtotal)}
                                       </span>
                                     </div>
 
@@ -1171,9 +1359,9 @@ export default function AdminOrdersPage() {
                                       <span className="text-slate-500">
                                         Shipping
                                       </span>
+
                                       <span>
-                                        $
-                                        {Number(order.shipping || 0).toFixed(2)}
+                                        {formatCurrency(order.shipping)}
                                       </span>
                                     </div>
 
@@ -1181,26 +1369,25 @@ export default function AdminOrdersPage() {
                                       <span className="text-slate-500">
                                         Tax
                                       </span>
-                                      <span>
-                                        ${Number(order.tax || 0).toFixed(2)}
-                                      </span>
+
+                                      <span>{formatCurrency(order.tax)}</span>
                                     </div>
 
                                     <div className="flex justify-between">
                                       <span className="text-slate-500">
                                         Discount
                                       </span>
+
                                       <span className="text-rose-600">
-                                        -$
-                                        {Number(order.discount || 0).toFixed(2)}
+                                        -{formatCurrency(order.discount)}
                                       </span>
                                     </div>
 
                                     <div className="flex justify-between border-t border-slate-100 pt-3">
                                       <span className="font-bold">Total</span>
 
-                                      <span className="font-extrabold text-indigo-600">
-                                        ${Number(order.total || 0).toFixed(2)}
+                                      <span className="font-extrabold text-blue-600">
+                                        {formatCurrency(order.total)}
                                       </span>
                                     </div>
                                   </div>
@@ -1214,24 +1401,34 @@ export default function AdminOrdersPage() {
                   </table>
                 </div>
 
-                {/* Mobile / Tablet */}
+                {/* =================================================
+                    MOBILE
+                ================================================= */}
+
                 <div className="space-y-4 p-4 lg:hidden">
                   {filteredOrders.map((order) => {
                     const isExpanded = expandedId === order.id;
+
+                    const items = getItems(order);
+
+                    const availableStatuses = getAvailableStatuses(
+                      order.status,
+                    );
 
                     return (
                       <div
                         key={order.id}
                         className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                       >
+                        {/* Customer header */}
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 font-bold text-indigo-600">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 font-bold text-blue-600">
                               #{order.id}
                             </div>
 
-                            <div>
-                              <p className="font-extrabold text-slate-900">
+                            <div className="min-w-0">
+                              <p className="truncate font-extrabold text-slate-900">
                                 {getCustomerName(order)}
                               </p>
 
@@ -1242,14 +1439,13 @@ export default function AdminOrdersPage() {
                           </div>
 
                           <span
-                            className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${getStatusStyle(
-                              order.status,
-                            )}`}
+                            className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${statusStyles[order.status]}`}
                           >
-                            {order.status}
+                            {statusLabels[order.status]}
                           </span>
                         </div>
 
+                        {/* Basic info */}
                         <div className="mt-4 grid grid-cols-2 gap-3">
                           <div className="rounded-xl bg-slate-50 p-3">
                             <p className="text-xs font-medium text-slate-400">
@@ -1257,7 +1453,7 @@ export default function AdminOrdersPage() {
                             </p>
 
                             <p className="mt-1 font-extrabold text-slate-900">
-                              ${Number(order.total).toFixed(2)}
+                              {formatCurrency(order.total)}
                             </p>
                           </div>
 
@@ -1267,12 +1463,13 @@ export default function AdminOrdersPage() {
                             </p>
 
                             <p className="mt-1 font-extrabold text-slate-900">
-                              {order.items.length}
+                              {items.length}
                             </p>
                           </div>
                         </div>
 
-                        <div className="mt-4 flex flex-col gap-3">
+                        {/* Status */}
+                        <div className="mt-4">
                           <select
                             value={order.status}
                             disabled={
@@ -1281,38 +1478,45 @@ export default function AdminOrdersPage() {
                               order.status === "CANCELLED"
                             }
                             onChange={(e) =>
-                              updateStatus(order.id, e.target.value)
+                              updateStatus(
+                                order.id,
+                                e.target.value as OrderStatus,
+                              )
                             }
-                            className={`w-full rounded-xl border px-4 py-3 text-sm font-extrabold outline-none ${getStatusStyle(
-                              order.status,
-                            )}`}
+                            className={`w-full rounded-xl border px-4 py-3 text-sm font-extrabold outline-none ${statusStyles[order.status]}`}
                           >
-                            {getAvailableStatuses(order.status).map(
-                              (status) => (
-                                <option key={status} value={status}>
-                                  {status}
-                                </option>
-                              ),
-                            )}
+                            {availableStatuses.map((status) => (
+                              <option key={status} value={status}>
+                                {statusLabels[status]}
+                              </option>
+                            ))}
                           </select>
 
-                          <button
-                            onClick={() =>
-                              setExpandedId(isExpanded ? null : order.id)
-                            }
-                            className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-                          >
-                            {isExpanded
-                              ? "Hide Order Details"
-                              : "View Order Details"}
-                          </button>
+                          {updatingId === order.id && (
+                            <p className="mt-2 text-xs font-bold text-blue-600">
+                              Updating order...
+                            </p>
+                          )}
                         </div>
 
+                        {/* Details button */}
+                        <button
+                          onClick={() =>
+                            setExpandedId(isExpanded ? null : order.id)
+                          }
+                          className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          {isExpanded
+                            ? "Hide Order Details"
+                            : "View Order Details"}
+                        </button>
+
+                        {/* Expanded details */}
                         {isExpanded && (
                           <div className="mt-4 border-t border-slate-100 pt-4">
                             {/* Customer */}
-                            <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
-                              <p className="text-xs font-extrabold uppercase tracking-wide text-indigo-700">
+                            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                              <p className="text-xs font-extrabold uppercase tracking-wide text-blue-700">
                                 Customer
                               </p>
 
@@ -1355,8 +1559,8 @@ export default function AdminOrdersPage() {
                             </div>
 
                             {/* Payment */}
-                            <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50 p-4">
-                              <p className="text-xs font-extrabold uppercase tracking-wide text-violet-700">
+                            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                              <p className="text-xs font-extrabold uppercase tracking-wide text-blue-700">
                                 Payment
                               </p>
 
@@ -1371,7 +1575,7 @@ export default function AdminOrdersPage() {
                             </p>
 
                             <div className="space-y-3">
-                              {order.items.map((item) => (
+                              {items.map((item) => (
                                 <div
                                   key={item.id}
                                   className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"
@@ -1398,58 +1602,55 @@ export default function AdminOrdersPage() {
                                     </p>
                                   </div>
 
-                                  <p className="text-sm font-extrabold text-indigo-600">
-                                    $
-                                    {(
-                                      Number(item.price) * item.quantity
-                                    ).toFixed(2)}
+                                  <p className="text-sm font-extrabold text-blue-600">
+                                    {formatCurrency(
+                                      Number(item.price) * item.quantity,
+                                    )}
                                   </p>
                                 </div>
                               ))}
                             </div>
 
-                            {/* Mobile Summary */}
+                            {/* Summary */}
                             <div className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-slate-500">Subtotal</span>
-                                <span>
-                                  ${Number(order.subtotal || 0).toFixed(2)}
-                                </span>
+
+                                <span>{formatCurrency(order.subtotal)}</span>
                               </div>
 
                               <div className="flex justify-between">
                                 <span className="text-slate-500">Shipping</span>
-                                <span>
-                                  ${Number(order.shipping || 0).toFixed(2)}
-                                </span>
+
+                                <span>{formatCurrency(order.shipping)}</span>
                               </div>
 
                               <div className="flex justify-between">
                                 <span className="text-slate-500">Tax</span>
-                                <span>
-                                  ${Number(order.tax || 0).toFixed(2)}
-                                </span>
+
+                                <span>{formatCurrency(order.tax)}</span>
                               </div>
 
                               <div className="flex justify-between">
                                 <span className="text-slate-500">Discount</span>
+
                                 <span className="text-rose-600">
-                                  -$
-                                  {Number(order.discount || 0).toFixed(2)}
+                                  -{formatCurrency(order.discount)}
                                 </span>
                               </div>
 
                               <div className="flex justify-between border-t border-slate-100 pt-3">
                                 <span className="font-bold">Total</span>
 
-                                <span className="font-extrabold text-indigo-600">
-                                  ${Number(order.total || 0).toFixed(2)}
+                                <span className="font-extrabold text-blue-600">
+                                  {formatCurrency(order.total)}
                                 </span>
                               </div>
                             </div>
                           </div>
                         )}
 
+                        {/* Footer */}
                         <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
                           <div>
                             <p className="text-xs font-medium text-slate-400">
@@ -1457,19 +1658,17 @@ export default function AdminOrdersPage() {
                             </p>
 
                             <p className="mt-1 text-xs font-bold text-slate-600">
-                              {new Date(order.createdAt).toLocaleDateString()}
+                              {formatDate(order.createdAt)}
                             </p>
                           </div>
 
                           <div className="flex items-center gap-2">
                             <span
-                              className={`h-2.5 w-2.5 rounded-full ${getStatusDot(
-                                order.status,
-                              )}`}
+                              className={`h-2.5 w-2.5 rounded-full ${statusDots[order.status]}`}
                             />
 
                             <span className="text-xs font-bold text-slate-500">
-                              {order.status}
+                              {statusLabels[order.status]}
                             </span>
                           </div>
                         </div>

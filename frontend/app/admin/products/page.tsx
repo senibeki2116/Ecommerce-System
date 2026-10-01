@@ -577,7 +577,7 @@ export default function AdminProductsPage() {
         }`}
       >
         {/* BRAND */}
-        <div className="flex h-[76px] items-center border-b border-slate-200 px-5">
+        <div className="flex h-19 items-center border-b border-slate-200 px-5">
           <Link
             href="/admin"
             onClick={() => setSidebarOpen(false)}
@@ -687,7 +687,7 @@ export default function AdminProductsPage() {
       <main className="min-h-screen lg:pl-64">
         {/* HEADER */}
         <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur">
-          <div className="flex min-h-[76px] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
+          <div className="flex min-h-19 items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
             <button
               onClick={() => setSidebarOpen(true)}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 lg:hidden"
@@ -711,7 +711,7 @@ export default function AdminProductsPage() {
             </div>
 
             {/* DESKTOP SEARCH */}
-            <div className="hidden w-[280px] lg:block xl:w-[340px]">
+            <div className="hidden w-70 lg:block xl:w-85">
               <div className="relative">
                 <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                   <Icon name="search" size={17} />
@@ -778,7 +778,7 @@ export default function AdminProductsPage() {
         </header>
 
         {/* CONTENT */}
-        <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-375 px-4 py-6 sm:px-6 lg:px-8">
           {/* HERO / PAGE INTRO */}
           <section className="relative mb-6 overflow-hidden rounded-3xl border border-indigo-100 bg-linear-to-r from-indigo-50 via-white to-violet-50 p-5 shadow-sm sm:p-6 lg:p-7">
             <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-indigo-200/30 blur-3xl" />
@@ -1112,7 +1112,7 @@ export default function AdminProductsPage() {
 
             {/* DESKTOP TABLE */}
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[1050px]">
+              <table className="w-full min-w-262.5">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/80">
                     <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -1203,7 +1203,7 @@ export default function AdminProductsPage() {
                               </div>
 
                               <div className="min-w-0">
-                                <p className="max-w-[300px] truncate text-sm font-bold text-slate-900">
+                                <p className="max-w-75 truncate text-sm font-bold text-slate-900">
                                   {product.name}
                                 </p>
 
@@ -1455,7 +1455,7 @@ export default function AdminProductsPage() {
 
       {/* VIEW PRODUCT MODAL */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
             {/* HEADER */}
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
@@ -1574,7 +1574,7 @@ export default function AdminProductsPage() {
 
       {/* DELETE MODAL */}
       {deleteProduct && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-80 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
