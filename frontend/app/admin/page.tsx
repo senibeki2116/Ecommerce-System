@@ -352,6 +352,17 @@ export default function AdminDashboard() {
         ],
       );
 
+      if (
+        [ordersRes, usersRes, paymentsRes].some(
+          (response) => response.status === 401,
+        )
+      ) {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("user");
+        window.location.replace("/login");
+        return;
+      }
+
       if (ordersRes.ok) {
         const data = await ordersRes.json();
 
@@ -2494,4 +2505,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-

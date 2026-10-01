@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 type Order = {
   id: number;
@@ -81,6 +85,10 @@ type IconName =
   | "wallet"
   | "alert";
 
+/* =========================================================
+   ICON
+========================================================= */
+
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const common = {
     width: size,
@@ -97,10 +105,10 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     case "grid":
       return (
         <svg {...common}>
-          <rect x="3" y="3" width="7" height="7" rx="1.5" />
-          <rect x="14" y="3" width="7" height="7" rx="1.5" />
-          <rect x="3" y="14" width="7" height="7" rx="1.5" />
-          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
         </svg>
       );
 
@@ -134,28 +142,28 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     case "tag":
       return (
         <svg {...common}>
-          <path d="M20.59 13.41 11 3H4v7l10.59 10.59a2 2 0 0 0 2.82 0l3.18-3.18a2 2 0 0 0 0-2.82Z" />
-          <circle cx="7.5" cy="7.5" r="1" />
+          <path d="M20.59 13.41 13.4 20.6a2 2 0 0 1-2.82 0L3.4 13.4a2 2 0 0 1 0-2.82l7.18-7.18A2 2 0 0 1 12 2.82H20v8a2 2 0 0 1 .59 1.41Z" />
+          <circle cx="16.5" cy="7.5" r="1" />
         </svg>
       );
 
     case "store":
       return (
         <svg {...common}>
-          <path d="M3 10h18" />
-          <path d="M5 10v10h14V10" />
-          <path d="M4 4h16l2 6H2l2-6Z" />
-          <path d="M8 20v-6h8v6" />
+          <path d="M3 9h18" />
+          <path d="M5 9v12h14V9" />
+          <path d="M3 9 5 3h14l2 6" />
+          <path d="M9 21v-6h6v6" />
         </svg>
       );
 
     case "refresh":
       return (
         <svg {...common}>
-          <path d="M20 11a8.1 8.1 0 0 0-14.7-4L3 10" />
-          <path d="M3 5v5h5" />
-          <path d="M4 13a8.1 8.1 0 0 0 14.7 4L21 14" />
-          <path d="M21 19v-5h-5" />
+          <path d="M20 11a8.1 8.1 0 0 0-14.9-4L3 10" />
+          <path d="M3 4v6h6" />
+          <path d="M4 13a8.1 8.1 0 0 0 14.9 4L21 14" />
+          <path d="M21 20v-6h-6" />
         </svg>
       );
 
@@ -170,8 +178,8 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     case "trend":
       return (
         <svg {...common}>
-          <path d="m3 17 6-6 4 4 8-9" />
-          <path d="M15 6h6v6" />
+          <path d="m3 17 6-6 4 4 7-8" />
+          <path d="M14 7h6v6" />
         </svg>
       );
 
@@ -179,10 +187,10 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
       return (
         <svg {...common}>
           <path d="M4 19V5" />
-          <path d="M4 19h16" />
-          <path d="M8 16v-4" />
-          <path d="M12 16V8" />
-          <path d="M16 16v-6" />
+          <path d="M4 19h17" />
+          <rect x="7" y="12" width="3" height="5" rx=".5" />
+          <rect x="12" y="9" width="3" height="8" rx=".5" />
+          <rect x="17" y="6" width="3" height="11" rx=".5" />
         </svg>
       );
 
@@ -221,7 +229,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
       return (
         <svg {...common}>
           <path d="M3 6h11v10H3z" />
-          <path d="M14 9h4l3 3v4h-7z" />
+          <path d="M14 9h4l3 3v4h-7V9Z" />
           <circle cx="7" cy="18" r="2" />
           <circle cx="18" cy="18" r="2" />
         </svg>
@@ -237,9 +245,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     case "menu":
       return (
         <svg {...common}>
-          <path d="M4 6h16" />
-          <path d="M4 12h16" />
-          <path d="M4 18h16" />
+          <path d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       );
 
@@ -263,41 +269,40 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     case "dollar":
       return (
         <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M15 8.5c-.6-.6-1.5-1-2.7-1-1.8 0-3 .9-3 2.1 0 3.3 5.7 1.4 5.7 4.5 0 1.2-1.2 2.2-3.1 2.2-1.2 0-2.2-.4-2.9-1.1" />
-          <path d="M12 5.5v13" />
+          <path d="M12 2v20" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7" />
         </svg>
       );
 
     case "activity":
       return (
         <svg {...common}>
-          <path d="M3 12h4l2-7 4 14 2-7h6" />
+          <path d="M3 12h4l3-8 4 16 3-8h4" />
         </svg>
       );
 
     case "credit":
       return (
         <svg {...common}>
-          <rect x="3" y="5" width="18" height="14" rx="2" />
-          <path d="M3 10h18" />
-          <path d="M7 15h4" />
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M2 10h20" />
+          <path d="M6 15h4" />
         </svg>
       );
 
     case "wallet":
       return (
         <svg {...common}>
-          <path d="M4 6a2 2 0 0 1 2-2h13v16H6a2 2 0 0 1-2-2V6Z" />
-          <path d="M4 7h15" />
-          <path d="M16 12h3" />
+          <path d="M4 5h15a2 2 0 0 1 2 2v12H5a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1Z" />
+          <path d="M17 13h4" />
+          <circle cx="17" cy="13" r=".5" />
         </svg>
       );
 
     case "alert":
       return (
         <svg {...common}>
-          <path d="M10.3 4.2 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" />
+          <path d="M10.3 3.8 2.5 17.5A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.5L13.7 3.8a2 2 0 0 0-3.4 0Z" />
           <path d="M12 9v4" />
           <path d="M12 17h.01" />
         </svg>
@@ -307,6 +312,45 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
       return null;
   }
 }
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const getPaymentAmount = (payment: Payment) =>
+  Number(payment.amount || payment.total || payment.order?.total || 0);
+
+const getPaymentMethod = (payment: Payment) =>
+  payment.method ||
+  payment.paymentMethod ||
+  payment.type ||
+  payment.provider ||
+  "UNKNOWN";
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+/* =========================================================
+   COMPONENT
+========================================================= */
 
 export default function AdminAnalyticsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -323,7 +367,11 @@ export default function AdminAnalyticsPage() {
 
   const API_URL = "http://localhost:3001";
 
-  const fetchAnalyticsData = async () => {
+  /* =======================================================
+     FETCH DATA
+  ======================================================= */
+
+  const fetchAnalyticsData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -339,74 +387,87 @@ export default function AdminAnalyticsPage() {
         "Content-Type": "application/json",
       };
 
-      const [ordersRes, usersRes, productsRes, paymentsRes] = await Promise.all(
-        [
-          fetch(`${API_URL}/admin/orders`, { headers }),
-          fetch(`${API_URL}/admin/users`, { headers }),
-          fetch(`${API_URL}/products`),
-          fetch(`${API_URL}/payments/admin/all`, { headers }),
-        ],
-      );
+      const [
+        ordersResponse,
+        usersResponse,
+        productsResponse,
+        paymentsResponse,
+      ] = await Promise.all([
+        fetch(`${API_URL}/admin/orders`, { headers }),
+        fetch(`${API_URL}/admin/users`, { headers }),
+        fetch(`${API_URL}/products`, { headers }),
+        fetch(`${API_URL}/payments/admin/all`, { headers }),
+      ]);
 
-      if (ordersRes.ok) {
-        const data = await ordersRes.json();
+      if (ordersResponse.ok) {
+        const data = await ordersResponse.json();
 
-        setOrders(
-          Array.isArray(data)
-            ? data
-            : Array.isArray(data.orders)
-              ? data.orders
-              : Array.isArray(data.data)
-                ? data.data
-                : [],
+        if (Array.isArray(data)) {
+          setOrders(data);
+        } else if (Array.isArray(data?.orders)) {
+          setOrders(data.orders);
+        } else if (Array.isArray(data?.data)) {
+          setOrders(data.data);
+        }
+      } else {
+        console.error(
+          "Orders request failed:",
+          ordersResponse.status,
+          ordersResponse.statusText,
         );
       }
 
-      if (usersRes.ok) {
-        const data = await usersRes.json();
+      if (usersResponse.ok) {
+        const data = await usersResponse.json();
 
-        setUsers(
-          Array.isArray(data)
-            ? data
-            : Array.isArray(data.users)
-              ? data.users
-              : Array.isArray(data.data)
-                ? data.data
-                : [],
+        if (Array.isArray(data)) {
+          setUsers(data);
+        } else if (Array.isArray(data?.users)) {
+          setUsers(data.users);
+        } else if (Array.isArray(data?.data)) {
+          setUsers(data.data);
+        }
+      } else {
+        console.error(
+          "Users request failed:",
+          usersResponse.status,
+          usersResponse.statusText,
         );
       }
 
-      if (productsRes.ok) {
-        const data = await productsRes.json();
+      if (productsResponse.ok) {
+        const data = await productsResponse.json();
 
-        setProducts(
-          Array.isArray(data)
-            ? data
-            : Array.isArray(data.products)
-              ? data.products
-              : Array.isArray(data.data)
-                ? data.data
-                : [],
+        if (Array.isArray(data)) {
+          setProducts(data);
+        } else if (Array.isArray(data?.products)) {
+          setProducts(data.products);
+        } else if (Array.isArray(data?.data)) {
+          setProducts(data.data);
+        }
+      } else {
+        console.error(
+          "Products request failed:",
+          productsResponse.status,
+          productsResponse.statusText,
         );
       }
 
-      if (paymentsRes.ok) {
-        const data = await paymentsRes.json();
+      if (paymentsResponse.ok) {
+        const data = await paymentsResponse.json();
 
-        setPayments(
-          Array.isArray(data)
-            ? data
-            : Array.isArray(data.payments)
-              ? data.payments
-              : Array.isArray(data.data)
-                ? data.data
-                : [],
-        );
+        if (Array.isArray(data)) {
+          setPayments(data);
+        } else if (Array.isArray(data?.payments)) {
+          setPayments(data.payments);
+        } else if (Array.isArray(data?.data)) {
+          setPayments(data.data);
+        }
       } else {
         console.error(
           "Payments request failed:",
-          paymentsRes.status,
-          paymentsRes.statusText,
+          paymentsResponse.status,
+          paymentsResponse.statusText,
         );
       }
     } catch (error) {
@@ -414,89 +475,15 @@ export default function AdminAnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, []);
+  }, [fetchAnalyticsData]);
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 2,
-    }).format(Number(value) || 0);
-
-  const formatDate = (date: string) => {
-    try {
-      return new Date(date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } catch {
-      return "—";
-    }
-  };
-
-  /*
-   * Payment helpers
-   */
-
-  const getPaymentAmount = (payment: Payment) => {
-    const directAmount = Number(payment.amount);
-
-    if (Number.isFinite(directAmount) && directAmount > 0) {
-      return directAmount;
-    }
-
-    const totalAmount = Number(payment.total);
-
-    if (Number.isFinite(totalAmount) && totalAmount > 0) {
-      return totalAmount;
-    }
-
-    const orderAmount = Number(payment.order?.total);
-
-    if (Number.isFinite(orderAmount) && orderAmount > 0) {
-      return orderAmount;
-    }
-
-    return 0;
-  };
-
-  const getPaymentMethod = (payment: Payment) => {
-    const raw =
-      payment.method ||
-      payment.paymentMethod ||
-      payment.type ||
-      payment.provider ||
-      "UNKNOWN";
-
-    const normalized = String(raw).trim().toUpperCase();
-
-    if (
-      normalized.includes("CASH") ||
-      normalized.includes("COD") ||
-      normalized.includes("DELIVERY")
-    ) {
-      return "CASH_ON_DELIVERY";
-    }
-
-    if (normalized.includes("TELEBIRR")) {
-      return "TELEBIRR";
-    }
-
-    if (
-      normalized.includes("CARD") ||
-      normalized.includes("VISA") ||
-      normalized.includes("MASTERCARD")
-    ) {
-      return "CARD";
-    }
-
-    return normalized || "UNKNOWN";
-  };
+  /* =======================================================
+     USER STATISTICS
+  ======================================================= */
 
   const customers = useMemo(
     () => users.filter((user) => user.role === "CUSTOMER"),
@@ -508,58 +495,43 @@ export default function AdminAnalyticsPage() {
     [users],
   );
 
+  /* =======================================================
+     ORDER STATISTICS
+  ======================================================= */
+
   const activeOrders = useMemo(
     () => orders.filter((order) => order.status !== "CANCELLED"),
     [orders],
   );
 
-  /*
-   * Order status
-   */
-
   const pendingOrders = useMemo(
-    () => orders.filter((order) => order.status === "PENDING").length,
+    () => orders.filter((order) => order.status === "PENDING"),
     [orders],
   );
 
   const confirmedOrders = useMemo(
-    () => orders.filter((order) => order.status === "CONFIRMED").length,
+    () => orders.filter((order) => order.status === "CONFIRMED"),
     [orders],
   );
 
   const shippedOrders = useMemo(
-    () => orders.filter((order) => order.status === "SHIPPED").length,
+    () => orders.filter((order) => order.status === "SHIPPED"),
     [orders],
   );
 
   const deliveredOrders = useMemo(
-    () => orders.filter((order) => order.status === "DELIVERED").length,
+    () => orders.filter((order) => order.status === "DELIVERED"),
     [orders],
   );
 
   const cancelledOrders = useMemo(
-    () => orders.filter((order) => order.status === "CANCELLED").length,
+    () => orders.filter((order) => order.status === "CANCELLED"),
     [orders],
   );
 
-  /*
-   * Sales
-   */
-
-  const totalSales = useMemo(
-    () =>
-      activeOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
-    [activeOrders],
-  );
-
-  const totalOrders = orders.length;
-
-  const averageOrderValue =
-    activeOrders.length > 0 ? totalSales / activeOrders.length : 0;
-
-  /*
-   * Payment statistics
-   */
+  /* =======================================================
+     PAYMENT STATISTICS
+  ======================================================= */
 
   const paidPayments = useMemo(
     () => payments.filter((payment) => payment.status === "PAID"),
@@ -605,6 +577,19 @@ export default function AdminAnalyticsPage() {
     [failedPayments],
   );
 
+  const cancelledRevenue = useMemo(
+    () =>
+      cancelledPayments.reduce(
+        (sum, payment) => sum + getPaymentAmount(payment),
+        0,
+      ),
+    [cancelledPayments],
+  );
+
+  /* =======================================================
+     PAYMENT METHODS
+  ======================================================= */
+
   const cashOnDeliveryPayments = useMemo(
     () =>
       payments.filter(
@@ -624,9 +609,40 @@ export default function AdminAnalyticsPage() {
     [payments],
   );
 
-  /*
-   * Inventory
-   */
+  const paymentMethodTotal =
+    cashOnDeliveryPayments.length +
+    telebirrPayments.length +
+    cardPayments.length;
+
+  const cashPercentage =
+    paymentMethodTotal > 0
+      ? (cashOnDeliveryPayments.length / paymentMethodTotal) * 100
+      : 0;
+
+  const telebirrPercentage =
+    paymentMethodTotal > 0
+      ? (telebirrPayments.length / paymentMethodTotal) * 100
+      : 0;
+
+  const cardPercentage =
+    paymentMethodTotal > 0
+      ? (cardPayments.length / paymentMethodTotal) * 100
+      : 0;
+
+  /* =======================================================
+     SALES
+  ======================================================= */
+
+  const totalSales = paidRevenue;
+
+  const totalOrders = orders.length;
+
+  const averageOrderValue =
+    paidPayments.length > 0 ? paidRevenue / paidPayments.length : 0;
+
+  /* =======================================================
+     INVENTORY
+  ======================================================= */
 
   const inStock = useMemo(
     () => products.filter((product) => Number(product.stock || 0) > 0).length,
@@ -640,40 +656,41 @@ export default function AdminAnalyticsPage() {
 
   const lowStock = useMemo(
     () =>
-      products.filter(
-        (product) =>
-          Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5,
-      ).length,
+      products.filter((product) => {
+        const stock = Number(product.stock || 0);
+        return stock > 0 && stock <= 5;
+      }).length,
     [products],
   );
 
-  /*
-   * Notifications
-   */
+  /* =======================================================
+     NOTIFICATIONS
+  ======================================================= */
 
-  const notificationLowStockProducts = useMemo(
+  const lowStockProducts = useMemo(
     () =>
-      products
-        .filter(
-          (product) =>
-            Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5,
-        )
+      [...products]
+        .filter((product) => {
+          const stock = Number(product.stock || 0);
+          return stock > 0 && stock <= 5;
+        })
         .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0))
         .slice(0, 4),
     [products],
   );
 
-  const notificationOutOfStockProducts = useMemo(
+  const outOfStockProducts = useMemo(
     () =>
       products.filter((product) => Number(product.stock || 0) <= 0).slice(0, 4),
     [products],
   );
 
-  const notificationCount = pendingOrders + lowStock + outOfStock;
+  const notificationCount =
+    pendingOrders.length + lowStockProducts.length + outOfStockProducts.length;
 
-  /*
-   * Reporting period
-   */
+  /* =======================================================
+     REPORTING PERIOD
+  ======================================================= */
 
   const periodDays = {
     "7D": 7,
@@ -718,13 +735,16 @@ export default function AdminAnalyticsPage() {
     [periodPayments],
   );
 
+  /* =======================================================
+     PREVIOUS PERIOD REVENUE
+  ======================================================= */
+
   const previousPeriodRevenue = useMemo(() => {
     const start = new Date(periodStart);
     const end = new Date(periodStart);
 
     if (period === "7D" || period === "30D") {
       const days = period === "7D" ? 7 : 30;
-
       start.setDate(start.getDate() - days);
     } else if (period === "6M") {
       start.setMonth(start.getMonth() - 6);
@@ -732,14 +752,18 @@ export default function AdminAnalyticsPage() {
       start.setFullYear(start.getFullYear() - 1);
     }
 
-    return activeOrders
-      .filter((order) => {
-        const date = new Date(order.createdAt);
+    return payments
+      .filter((payment) => {
+        if (payment.status !== "PAID") {
+          return false;
+        }
+
+        const date = new Date(payment.createdAt);
 
         return date >= start && date < end;
       })
-      .reduce((sum, order) => sum + Number(order.total || 0), 0);
-  }, [activeOrders, period, periodStart]);
+      .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+  }, [payments, period, periodStart]);
 
   const revenueChange = useMemo(() => {
     if (previousPeriodRevenue === 0) {
@@ -752,11 +776,11 @@ export default function AdminAnalyticsPage() {
     );
   }, [periodPaidRevenue, previousPeriodRevenue]);
 
-  /*
-   * Revenue chart
-   */
+  /* =======================================================
+     REVENUE CHART
+  ======================================================= */
 
-  const revenueChartData = useMemo(() => {
+  const revenueChart = useMemo(() => {
     const now = new Date();
 
     if (period === "7D") {
@@ -764,25 +788,28 @@ export default function AdminAnalyticsPage() {
         const date = new Date(now);
 
         date.setDate(now.getDate() - (6 - index));
+        date.setHours(0, 0, 0, 0);
 
-        const key = date.toISOString().slice(0, 10);
+        const nextDate = new Date(date);
+        nextDate.setDate(date.getDate() + 1);
 
-        const revenue = periodPayments
+        const value = periodPayments
           .filter((payment) => {
-            if (payment.status !== "PAID") return false;
+            if (payment.status !== "PAID") {
+              return false;
+            }
 
-            return (
-              new Date(payment.createdAt).toISOString().slice(0, 10) === key
-            );
+            const paymentDate = new Date(payment.createdAt);
+
+            return paymentDate >= date && paymentDate < nextDate;
           })
           .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
         return {
-          key,
           label: date.toLocaleDateString("en-US", {
             weekday: "short",
           }),
-          value: revenue,
+          value,
         };
       });
     }
@@ -791,74 +818,106 @@ export default function AdminAnalyticsPage() {
       return Array.from({ length: 6 }, (_, index) => {
         const end = new Date(now);
 
-        end.setDate(now.getDate() - (5 - index) * 5);
+        end.setDate(now.getDate() - index * 5);
+        end.setHours(23, 59, 59, 999);
 
         const start = new Date(end);
 
-        start.setDate(start.getDate() - 4);
+        start.setDate(end.getDate() - 4);
+        start.setHours(0, 0, 0, 0);
 
-        const revenue = periodPayments
+        const value = periodPayments
           .filter((payment) => {
-            if (payment.status !== "PAID") return false;
+            if (payment.status !== "PAID") {
+              return false;
+            }
 
-            const date = new Date(payment.createdAt);
+            const paymentDate = new Date(payment.createdAt);
 
-            return date >= start && date <= end;
+            return paymentDate >= start && paymentDate <= end;
           })
           .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
         return {
-          key: String(index),
-          label: `${start.getDate()}-${end.getDate()}`,
-          value: revenue,
+          label: start.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+          value,
+        };
+      }).reverse();
+    }
+
+    if (period === "6M") {
+      return Array.from({ length: 6 }, (_, index) => {
+        const date = new Date(now);
+
+        date.setMonth(now.getMonth() - (5 - index));
+        date.setDate(1);
+        date.setHours(0, 0, 0, 0);
+
+        const nextDate = new Date(date);
+        nextDate.setMonth(date.getMonth() + 1);
+
+        const value = periodPayments
+          .filter((payment) => {
+            if (payment.status !== "PAID") {
+              return false;
+            }
+
+            const paymentDate = new Date(payment.createdAt);
+
+            return paymentDate >= date && paymentDate < nextDate;
+          })
+          .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
+
+        return {
+          label: date.toLocaleDateString("en-US", {
+            month: "short",
+          }),
+          value,
         };
       });
     }
 
-    const months = period === "1Y" ? 12 : 6;
+    return Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(now);
 
-    return Array.from({ length: months }, (_, index) => {
-      const date = new Date(
-        now.getFullYear(),
-        now.getMonth() - (months - 1 - index),
-        1,
-      );
+      date.setMonth(now.getMonth() - (11 - index));
+      date.setDate(1);
+      date.setHours(0, 0, 0, 0);
 
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const nextDate = new Date(date);
+      nextDate.setMonth(date.getMonth() + 1);
 
-      const revenue = periodPayments
+      const value = periodPayments
         .filter((payment) => {
-          if (payment.status !== "PAID") return false;
+          if (payment.status !== "PAID") {
+            return false;
+          }
 
           const paymentDate = new Date(payment.createdAt);
 
-          return (
-            paymentDate.getFullYear() === date.getFullYear() &&
-            paymentDate.getMonth() === date.getMonth()
-          );
+          return paymentDate >= date && paymentDate < nextDate;
         })
         .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
       return {
-        key,
-        label: date.toLocaleString("en-US", {
+        label: date.toLocaleDateString("en-US", {
           month: "short",
         }),
-        value: revenue,
+        value,
       };
     });
   }, [period, periodPayments]);
 
-  const maxRevenueChartValue = Math.max(
-    ...revenueChartData.map((item) => item.value),
-    1,
-  );
+  const maxRevenue = Math.max(...revenueChart.map((item) => item.value), 1);
 
-  /*
-   * Orders chart
-   */
+  /* =======================================================
+     ORDERS CHART
+  ======================================================= */
 
-  const orderChartData = useMemo(() => {
+  const ordersChart = useMemo(() => {
     const now = new Date();
 
     if (period === "7D") {
@@ -866,20 +925,22 @@ export default function AdminAnalyticsPage() {
         const date = new Date(now);
 
         date.setDate(now.getDate() - (6 - index));
+        date.setHours(0, 0, 0, 0);
 
-        const key = date.toISOString().slice(0, 10);
+        const nextDate = new Date(date);
+        nextDate.setDate(date.getDate() + 1);
 
-        const count = periodOrders.filter(
-          (order) =>
-            new Date(order.createdAt).toISOString().slice(0, 10) === key,
-        ).length;
+        const value = periodOrders.filter((order) => {
+          const orderDate = new Date(order.createdAt);
+
+          return orderDate >= date && orderDate < nextDate;
+        }).length;
 
         return {
-          key,
           label: date.toLocaleDateString("en-US", {
             weekday: "short",
           }),
-          value: count,
+          value,
         };
       });
     }
@@ -888,86 +949,86 @@ export default function AdminAnalyticsPage() {
       return Array.from({ length: 6 }, (_, index) => {
         const end = new Date(now);
 
-        end.setDate(now.getDate() - (5 - index) * 5);
+        end.setDate(now.getDate() - index * 5);
+        end.setHours(23, 59, 59, 999);
 
         const start = new Date(end);
 
-        start.setDate(start.getDate() - 4);
+        start.setDate(end.getDate() - 4);
+        start.setHours(0, 0, 0, 0);
 
-        const count = periodOrders.filter((order) => {
-          const date = new Date(order.createdAt);
+        const value = periodOrders.filter((order) => {
+          const orderDate = new Date(order.createdAt);
 
-          return date >= start && date <= end;
+          return orderDate >= start && orderDate <= end;
         }).length;
 
         return {
-          key: String(index),
-          label: `${start.getDate()}-${end.getDate()}`,
-          value: count,
+          label: start.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+          value,
+        };
+      }).reverse();
+    }
+
+    if (period === "6M") {
+      return Array.from({ length: 6 }, (_, index) => {
+        const date = new Date(now);
+
+        date.setMonth(now.getMonth() - (5 - index));
+        date.setDate(1);
+        date.setHours(0, 0, 0, 0);
+
+        const nextDate = new Date(date);
+        nextDate.setMonth(date.getMonth() + 1);
+
+        const value = periodOrders.filter((order) => {
+          const orderDate = new Date(order.createdAt);
+
+          return orderDate >= date && orderDate < nextDate;
+        }).length;
+
+        return {
+          label: date.toLocaleDateString("en-US", {
+            month: "short",
+          }),
+          value,
         };
       });
     }
 
-    const months = period === "1Y" ? 12 : 6;
+    return Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(now);
 
-    return Array.from({ length: months }, (_, index) => {
-      const date = new Date(
-        now.getFullYear(),
-        now.getMonth() - (months - 1 - index),
-        1,
-      );
+      date.setMonth(now.getMonth() - (11 - index));
+      date.setDate(1);
+      date.setHours(0, 0, 0, 0);
 
-      const count = periodOrders.filter((order) => {
+      const nextDate = new Date(date);
+      nextDate.setMonth(date.getMonth() + 1);
+
+      const value = periodOrders.filter((order) => {
         const orderDate = new Date(order.createdAt);
 
-        return (
-          orderDate.getFullYear() === date.getFullYear() &&
-          orderDate.getMonth() === date.getMonth()
-        );
+        return orderDate >= date && orderDate < nextDate;
       }).length;
 
       return {
-        key: `${date.getFullYear()}-${date.getMonth()}`,
-        label: date.toLocaleString("en-US", {
+        label: date.toLocaleDateString("en-US", {
           month: "short",
         }),
-        value: count,
+        value,
       };
     });
   }, [period, periodOrders]);
 
-  const maxOrderChartValue = Math.max(
-    ...orderChartData.map((item) => item.value),
-    1,
-  );
+  const maxOrders = Math.max(...ordersChart.map((item) => item.value), 1);
 
-  /*
-   * Payment method percentages
-   */
-
-  const paymentMethodTotal =
-    cashOnDeliveryPayments.length +
-    telebirrPayments.length +
-    cardPayments.length;
-
-  const cashPercentage =
-    paymentMethodTotal > 0
-      ? (cashOnDeliveryPayments.length / paymentMethodTotal) * 100
-      : 0;
-
-  const telebirrPercentage =
-    paymentMethodTotal > 0
-      ? (telebirrPayments.length / paymentMethodTotal) * 100
-      : 0;
-
-  const cardPercentage =
-    paymentMethodTotal > 0
-      ? (cardPayments.length / paymentMethodTotal) * 100
-      : 0;
-
-  /*
-   * Top products
-   */
+  /* =======================================================
+     TOP PRODUCTS
+  ======================================================= */
 
   const topProducts = useMemo(
     () =>
@@ -977,9 +1038,9 @@ export default function AdminAnalyticsPage() {
     [products],
   );
 
-  /*
-   * Recent orders
-   */
+  /* =======================================================
+     RECENT ORDERS
+  ======================================================= */
 
   const recentOrders = useMemo(
     () =>
@@ -992,14 +1053,16 @@ export default function AdminAnalyticsPage() {
     [orders],
   );
 
-  /*
-   * Search
-   */
+  /* =======================================================
+     SEARCH
+  ======================================================= */
 
   const searchResults = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) return [];
+    if (!query) {
+      return [];
+    }
 
     const results: {
       type: string;
@@ -1009,26 +1072,33 @@ export default function AdminAnalyticsPage() {
     }[] = [];
 
     orders.forEach((order) => {
-      if (
-        String(order.id).includes(query) ||
-        order.status.toLowerCase().includes(query) ||
-        order.user?.name?.toLowerCase().includes(query) ||
-        order.user?.email?.toLowerCase().includes(query)
-      ) {
+      const searchable = [
+        String(order.id),
+        order.status,
+        order.user?.name || "",
+        order.user?.email || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      if (searchable.includes(query)) {
         results.push({
           type: "Order",
           name: `Order #${order.id}`,
-          detail: order.user?.name || "Customer",
+          detail: `${order.status} • ${formatCurrency(
+            Number(order.total || 0),
+          )}`,
           href: "/admin/orders",
         });
       }
     });
 
     products.forEach((product) => {
-      if (
-        product.name.toLowerCase().includes(query) ||
-        String(product.id).includes(query)
-      ) {
+      const searchable = [product.name, String(product.id)]
+        .join(" ")
+        .toLowerCase();
+
+      if (searchable.includes(query)) {
         results.push({
           type: "Product",
           name: product.name,
@@ -1038,31 +1108,42 @@ export default function AdminAnalyticsPage() {
       }
     });
 
-    customers.forEach((user) => {
-      if (
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query)
-      ) {
+    customers.forEach((customer) => {
+      const searchable = [customer.name, customer.email]
+        .join(" ")
+        .toLowerCase();
+
+      if (searchable.includes(query)) {
         results.push({
           type: "Customer",
-          name: user.name,
-          detail: user.email,
+          name: customer.name,
+          detail: customer.email,
           href: "/admin/users",
         });
       }
     });
 
     payments.forEach((payment) => {
-      if (
-        String(payment.id).includes(query) ||
-        payment.status.toLowerCase().includes(query) ||
-        getPaymentMethod(payment).toLowerCase().includes(query)
-      ) {
+      const method = getPaymentMethod(payment);
+
+      const searchable = [
+        String(payment.id),
+        payment.status,
+        method,
+        payment.order?.user?.name || "",
+        payment.order?.user?.email || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      if (searchable.includes(query)) {
         results.push({
           type: "Payment",
           name: `Payment #${payment.id}`,
-          detail: `${getPaymentMethod(payment)} • ${payment.status}`,
-          href: "/admin/payments",
+          detail: `${payment.status} • ${formatCurrency(
+            getPaymentAmount(payment),
+          )}`,
+          href: "/admin/orders",
         });
       }
     });
@@ -1070,107 +1151,102 @@ export default function AdminAnalyticsPage() {
     return results.slice(0, 8);
   }, [search, orders, products, customers, payments]);
 
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
+  /* =======================================================
+     STATUS HELPERS
+  ======================================================= */
 
-      case "CONFIRMED":
-        return "bg-blue-50 text-blue-700 ring-1 ring-blue-200";
+  const getOrderStatusClass = (status: string) => {
+    switch (status) {
+      case "DELIVERED":
+        return "bg-emerald-50 text-emerald-700";
 
       case "SHIPPED":
-        return "bg-violet-50 text-violet-700 ring-1 ring-violet-200";
+        return "bg-blue-50 text-blue-700";
 
-      case "DELIVERED":
-        return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-
-      case "CANCELLED":
-        return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
-
-      default:
-        return "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
-    }
-  };
-
-  const getPaymentStatusStyle = (status: string) => {
-    switch (status) {
-      case "PAID":
-        return "bg-emerald-50 text-emerald-700";
+      case "CONFIRMED":
+        return "bg-indigo-50 text-indigo-700";
 
       case "PENDING":
         return "bg-amber-50 text-amber-700";
 
-      case "FAILED":
-        return "bg-rose-50 text-rose-700";
-
       case "CANCELLED":
-        return "bg-slate-100 text-slate-600";
+        return "bg-red-50 text-red-700";
 
       default:
-        return "bg-slate-50 text-slate-600";
+        return "bg-slate-100 text-slate-700";
     }
   };
 
-  const navigation = [
-    {
-      name: "Dashboard",
-      href: "/admin",
-      icon: "grid" as IconName,
-    },
-    {
-      name: "Orders",
-      href: "/admin/orders",
-      icon: "bag" as IconName,
-      badge: pendingOrders,
-    },
-    {
-      name: "Products",
-      href: "/admin/products",
-      icon: "box" as IconName,
-    },
-    {
-      name: "Categories",
-      href: "/admin/categories",
-      icon: "tag" as IconName,
-    },
-    {
-      name: "Users",
-      href: "/admin/users",
-      icon: "users" as IconName,
-    },
-    {
-      name: "Analytics",
-      href: "/admin/analytics",
-      icon: "chart" as IconName,
-      active: true,
-    },
-  ];
+  /* =======================================================
+     KEY METRICS
+  ======================================================= */
+
+  const deliveryCompletion =
+    orders.length > 0 ? (deliveredOrders.length / orders.length) * 100 : 0;
+
+  const fulfillmentRate =
+    orders.length > 0
+      ? ((shippedOrders.length + deliveredOrders.length) / orders.length) * 100
+      : 0;
+
+  const paymentSuccessRate =
+    payments.length > 0 ? (paidPayments.length / payments.length) * 100 : 0;
+
+  const inventoryHealth =
+    products.length > 0 ? (inStock / products.length) * 100 : 0;
+
+  /* =======================================================
+     EXPORT REPORT
+  ======================================================= */
 
   const exportReport = () => {
     const rows = [
-      ["Metric", "Value"],
+      ["ShopEase Analytics Report", ""],
+      ["Generated", new Date().toLocaleString()],
+      ["Reporting Period", period],
+      ["", ""],
+
+      ["Sales", ""],
       ["Total Sales", totalSales.toFixed(2)],
       ["Paid Revenue", paidRevenue.toFixed(2)],
       ["Pending Revenue", pendingRevenue.toFixed(2)],
       ["Failed Revenue", failedRevenue.toFixed(2)],
+      ["Cancelled Revenue", cancelledRevenue.toFixed(2)],
+      ["Average Paid Order Value", averageOrderValue.toFixed(2)],
+      ["", ""],
+
+      ["Orders", ""],
       ["Total Orders", totalOrders],
-      ["Average Order Value", averageOrderValue.toFixed(2)],
-      ["Pending Orders", pendingOrders],
-      ["Confirmed Orders", confirmedOrders],
-      ["Shipped Orders", shippedOrders],
-      ["Delivered Orders", deliveredOrders],
-      ["Cancelled Orders", cancelledOrders],
+      ["Active Orders", activeOrders.length],
+      ["Pending Orders", pendingOrders.length],
+      ["Confirmed Orders", confirmedOrders.length],
+      ["Shipped Orders", shippedOrders.length],
+      ["Delivered Orders", deliveredOrders.length],
+      ["Cancelled Orders", cancelledOrders.length],
+      ["", ""],
+
+      ["Payments", ""],
       ["Total Payments", payments.length],
       ["Paid Payments", paidPayments.length],
       ["Pending Payments", pendingPayments.length],
       ["Failed Payments", failedPayments.length],
+      ["Cancelled Payments", cancelledPayments.length],
+      ["", ""],
+
+      ["Payment Methods", ""],
       ["Cash on Delivery", cashOnDeliveryPayments.length],
       ["Telebirr", telebirrPayments.length],
       ["Card", cardPayments.length],
+      ["", ""],
+
+      ["Users", ""],
       ["Total Users", users.length],
       ["Customers", customers.length],
       ["Admins", admins.length],
-      ["Products", products.length],
+      ["", ""],
+
+      ["Inventory", ""],
+      ["Total Products", products.length],
       ["In Stock", inStock],
       ["Low Stock", lowStock],
       ["Out of Stock", outOfStock],
@@ -1178,7 +1254,21 @@ export default function AdminAnalyticsPage() {
 
     const csv = rows
       .map((row) =>
-        row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","),
+        row
+          .map((cell) => {
+            const value = String(cell ?? "");
+
+            if (
+              value.includes(",") ||
+              value.includes('"') ||
+              value.includes("\n")
+            ) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+
+            return value;
+          })
+          .join(","),
       )
       .join("\n");
 
@@ -1199,907 +1289,726 @@ export default function AdminAnalyticsPage() {
     URL.revokeObjectURL(url);
   };
 
+  /* =======================================================
+     LOADING
+  ======================================================= */
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+
+          <p className="text-sm font-medium text-slate-600">
+            Loading analytics...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
-    <div className="min-h-screen bg-[#f7f8fc] text-slate-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      {/* =====================================================
+          MOBILE OVERLAY
+      ===================================================== */}
+
       {sidebarOpen && (
         <button
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm lg:hidden"
+          type="button"
           aria-label="Close sidebar"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden"
         />
       )}
 
-      {/* SIDEBAR */}
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-65 flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 h-screen w-65 border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-20.5 items-center border-b border-slate-100 px-5">
+        <div className="flex h-20.5 items-center justify-between border-b border-slate-200 px-5">
           <Link
-            href="/"
+            href="/admin"
             className="flex items-center gap-3"
             onClick={() => setSidebarOpen(false)}
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
               <Icon name="store" size={21} />
             </div>
 
             <div>
-              <p className="text-[19px] font-black tracking-tight text-slate-950">
-                ShopEase
-              </p>
+              <div className="text-lg font-bold tracking-tight">ShopEase</div>
 
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                Admin Panel
-              </p>
+              <div className="text-xs text-slate-500">Admin Panel</div>
             </div>
           </Link>
 
           <button
+            type="button"
             onClick={() => setSidebarOpen(false)}
-            className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 lg:hidden"
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
           >
-            <Icon name="x" size={18} />
+            <Icon name="x" size={19} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-7">
-          <p className="mb-3 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-            Main menu
-          </p>
-
-          <nav className="space-y-1.5">
-            {navigation.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-3 transition ${
-                  item.active
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-950"
-                }`}
-              >
-                <span
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                    item.active
-                      ? "bg-white/15"
-                      : "bg-slate-50 group-hover:bg-white"
-                  }`}
-                >
-                  <Icon name={item.icon} size={18} />
-                </span>
-
-                <span className="text-sm font-bold">{item.name}</span>
-
-                {item.badge && item.badge > 0 && (
-                  <span
-                    className={`ml-auto rounded-full px-2 py-1 text-[9px] font-black ${
-                      item.active
-                        ? "bg-white text-indigo-600"
-                        : "bg-rose-100 text-rose-600"
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="my-7 h-px bg-slate-100" />
-
-          <p className="mb-3 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-            Store
-          </p>
-
+        <nav className="space-y-1 px-3 py-5">
           <Link
-            href="/"
-            onClick={() => setSidebarOpen(false)}
-            className="group flex items-center gap-3 rounded-xl px-3 py-3 text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
+            href="/admin"
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 group-hover:bg-white">
-              <Icon name="store" size={18} />
-            </span>
-
-            <span className="text-sm font-bold">View storefront</span>
+            <Icon name="grid" size={19} />
+            Dashboard
           </Link>
 
-          <div className="mt-8 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-black text-slate-900">Analytics</p>
+          <Link
+            href="/admin/orders"
+            className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600"
+          >
+            <span className="flex items-center gap-3">
+              <Icon name="bag" size={19} />
+              Orders
+            </span>
 
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-indigo-600 shadow-sm">
-                <Icon name="chart" size={14} />
+            {pendingOrders.length > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                {pendingOrders.length}
               </span>
+            )}
+          </Link>
+
+          <Link
+            href="/admin/products"
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600"
+          >
+            <Icon name="box" size={19} />
+            Products
+          </Link>
+
+          <Link
+            href="/admin/categories"
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600"
+          >
+            <Icon name="tag" size={19} />
+            Categories
+          </Link>
+
+          <Link
+            href="/admin/users"
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600"
+          >
+            <Icon name="users" size={19} />
+            Users
+          </Link>
+
+          <Link
+            href="/admin/analytics"
+            className="flex items-center gap-3 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm"
+          >
+            <Icon name="chart" size={19} />
+            Analytics
+          </Link>
+        </nav>
+
+        <div className="absolute bottom-0 left-0 right-0 border-t border-slate-200 p-4">
+          <div className="rounded-xl bg-blue-50 p-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
+                A
+              </div>
+
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">Administrator</p>
+
+                <p className="text-xs text-slate-500">ShopEase Admin</p>
+              </div>
             </div>
-
-            <p className="mt-2 text-[11px] leading-5 text-slate-500">
-              Track revenue, payments, orders, customers and inventory
-              performance.
-            </p>
-
-            <div className="mt-4 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-
-              <span className="text-[10px] font-bold text-emerald-600">
-                Live data
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-slate-100 p-4">
-          <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-sm font-black text-white">
-              A
-            </div>
-
-            <div className="min-w-0">
-              <p className="truncate text-sm font-black text-slate-900">
-                Administrator
-              </p>
-
-              <p className="truncate text-[10px] font-medium text-slate-400">
-                Store manager
-              </p>
-            </div>
-
-            <span className="ml-auto h-2.5 w-2.5 rounded-full bg-emerald-500" />
           </div>
         </div>
       </aside>
 
-      {/* MAIN */}
+      {/* =====================================================
+          MAIN
+      ===================================================== */}
 
       <main className="min-h-screen lg:pl-65">
-        {/* HEADER */}
+        {/* ===================================================
+            HEADER
+        =================================================== */}
 
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="flex min-h-13 items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm lg:hidden"
-              >
-                <Icon name="menu" size={19} />
-              </button>
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div className="flex min-h-13 items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="rounded-lg p-2 text-slate-600 hover:bg-blue-50 hover:text-blue-600 lg:hidden"
+            >
+              <Icon name="menu" size={21} />
+            </button>
 
-              <div className="min-w-0">
-                <p className="hidden text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600 sm:block">
-                  Business intelligence
-                </p>
+            <div className="hidden min-w-0 flex-1 md:block">
+              <h1 className="text-lg font-bold">Analytics</h1>
 
-                <h1 className="truncate text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
-                  Analytics & Reports
-                </h1>
-              </div>
+              <p className="text-xs text-slate-500">
+                Monitor your store performance
+              </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="relative hidden lg:block">
-                <div className="flex h-11 w-57.5 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-indigo-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/10">
-                  <Icon name="search" size={18} />
+            {/* Search */}
+            <div className="relative hidden md:block">
+              <div className="flex w-57.5 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-300 focus-within:bg-white">
+                <Icon name="search" size={17} />
 
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onFocus={() => setSearchOpen(true)}
-                    placeholder="Search..."
-                    className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400"
-                  />
-
-                  {search && (
-                    <button
-                      type="button"
-                      onClick={() => setSearch("")}
-                      className="text-slate-400 hover:text-slate-700"
-                    >
-                      <Icon name="x" size={15} />
-                    </button>
-                  )}
-                </div>
-
-                {searchOpen && search.trim() !== "" && (
-                  <div className="absolute right-0 top-14 z-50 w-85 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                    <div className="border-b border-slate-100 px-4 py-3">
-                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        Search results
-                      </p>
-                    </div>
-
-                    {searchResults.length > 0 ? (
-                      <div className="max-h-87.5 overflow-y-auto p-2">
-                        {searchResults.map((result, index) => (
-                          <Link
-                            key={`${result.type}-${result.name}-${index}`}
-                            href={result.href}
-                            onClick={() => {
-                              setSearch("");
-                              setSearchOpen(false);
-                            }}
-                            className="flex items-center gap-3 rounded-xl p-3 hover:bg-slate-50"
-                          >
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                              <Icon
-                                name={
-                                  result.type === "Order"
-                                    ? "bag"
-                                    : result.type === "Product"
-                                      ? "box"
-                                      : result.type === "Payment"
-                                        ? "credit"
-                                        : "users"
-                                }
-                                size={16}
-                              />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-xs font-black text-slate-800">
-                                {result.name}
-                              </p>
-
-                              <p className="truncate text-[10px] text-slate-400">
-                                {result.detail}
-                              </p>
-                            </div>
-
-                            <span className="text-[9px] font-bold text-slate-400">
-                              {result.type}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="px-4 py-8 text-center">
-                        <Icon name="search" size={22} />
-
-                        <p className="mt-3 text-sm font-bold text-slate-600">
-                          No results found
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <input
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={() => setSearchOpen(true)}
+                  placeholder="Search..."
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                />
               </div>
 
+              {searchOpen && search.trim() && (
+                <div className="absolute right-0 top-full mt-2 max-h-87.5 w-85 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                  {searchResults.length > 0 ? (
+                    searchResults.map((result, index) => (
+                      <Link
+                        key={`${result.type}-${index}`}
+                        href={result.href}
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setSearch("");
+                        }}
+                        className="block rounded-lg px-3 py-2.5 hover:bg-blue-50"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-semibold">
+                            {result.name}
+                          </span>
+
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-500">
+                            {result.type}
+                          </span>
+                        </div>
+
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {result.detail}
+                        </p>
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="px-3 py-5 text-center text-sm text-slate-500">
+                      No results found.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="ml-auto flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setSearchOpen(!searchOpen)}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm lg:hidden"
+                onClick={fetchAnalyticsData}
+                className="rounded-xl p-2.5 text-slate-600 hover:bg-blue-50 hover:text-blue-600"
+                title="Refresh"
               >
-                <Icon name="search" size={18} />
+                <Icon name="refresh" size={19} />
               </button>
 
-              {/* NOTIFICATIONS */}
-
+              {/* Notifications */}
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setNotificationsOpen((value) => !value)}
-                  className={`relative flex h-11 w-11 items-center justify-center rounded-xl border bg-white shadow-sm transition ${
-                    notificationsOpen
-                      ? "border-indigo-200 text-indigo-600 ring-4 ring-indigo-500/10"
-                      : "border-slate-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-                  }`}
+                  onClick={() => setNotificationsOpen(!notificationsOpen)}
+                  className="relative rounded-xl p-2.5 text-slate-600 hover:bg-blue-50 hover:text-blue-600"
                 >
                   <Icon name="bell" size={19} />
 
                   {notificationCount > 0 && (
-                    <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-rose-500 px-1 text-[8px] font-black text-white">
-                      {notificationCount > 9 ? "9+" : notificationCount}
+                    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                      {notificationCount > 99 ? "99+" : notificationCount}
                     </span>
                   )}
                 </button>
 
                 {notificationsOpen && (
-                  <>
-                    <button
-                      type="button"
-                      aria-label="Close notifications"
-                      onClick={() => setNotificationsOpen(false)}
-                      className="fixed inset-0 z-40 cursor-default bg-transparent"
-                    />
+                  <div className="absolute right-0 top-full mt-2 max-h-105 w-87.5 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+                    <div className="border-b border-slate-100 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold">Notifications</h3>
 
-                    <div className="absolute right-0 top-14 z-50 w-87.5 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                            <Icon name="bell" size={18} />
+                        <span className="text-xs text-slate-400">
+                          {notificationCount} total
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-2">
+                      {pendingOrders.length > 0 && (
+                        <Link
+                          href="/admin/orders"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="flex gap-3 rounded-lg p-3 hover:bg-blue-50"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+                            <Icon name="clock" size={17} />
                           </div>
 
                           <div>
-                            <p className="text-sm font-black text-slate-900">
-                              Notifications
+                            <p className="text-sm font-semibold">
+                              Pending orders
                             </p>
 
-                            <p className="text-[10px] text-slate-400">
-                              {notificationCount === 0
-                                ? "Everything looks good"
-                                : `${notificationCount} item${
-                                    notificationCount === 1 ? "" : "s"
-                                  } need attention`}
+                            <p className="text-xs text-slate-500">
+                              {pendingOrders.length} order
+                              {pendingOrders.length !== 1 ? "s" : ""} waiting
+                              for processing.
                             </p>
                           </div>
-                        </div>
+                        </Link>
+                      )}
 
-                        <button
+                      {lowStockProducts.map((product) => (
+                        <Link
+                          key={`low-${product.id}`}
+                          href="/admin/products"
                           onClick={() => setNotificationsOpen(false)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"
+                          className="flex gap-3 rounded-lg p-3 hover:bg-blue-50"
                         >
-                          <Icon name="x" size={16} />
-                        </button>
-                      </div>
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+                            <Icon name="alert" size={17} />
+                          </div>
 
-                      <div className="max-h-105 overflow-y-auto p-2">
-                        {pendingOrders > 0 && (
-                          <Link
-                            href="/admin/orders"
-                            onClick={() => setNotificationsOpen(false)}
-                            className="group flex items-start gap-3 rounded-xl p-3 hover:bg-amber-50"
-                          >
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-                              <Icon name="clock" size={18} />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex justify-between gap-2">
-                                <p className="text-xs font-black">
-                                  Pending orders
-                                </p>
-
-                                <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-black text-amber-700">
-                                  {pendingOrders}
-                                </span>
-                              </div>
-
-                              <p className="mt-1 text-[10px] text-slate-400">
-                                Orders are waiting for confirmation.
-                              </p>
-                            </div>
-                          </Link>
-                        )}
-
-                        {notificationLowStockProducts.length > 0 && (
-                          <Link
-                            href="/admin/products"
-                            onClick={() => setNotificationsOpen(false)}
-                            className="group flex items-start gap-3 rounded-xl p-3 hover:bg-orange-50"
-                          >
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
-                              <Icon name="box" size={18} />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex justify-between">
-                                <p className="text-xs font-black">Low stock</p>
-
-                                <span className="rounded-full bg-orange-100 px-2 py-1 text-[9px] font-black text-orange-700">
-                                  {lowStock}
-                                </span>
-                              </div>
-
-                              <div className="mt-2 space-y-1">
-                                {notificationLowStockProducts.map((product) => (
-                                  <div
-                                    key={product.id}
-                                    className="flex justify-between gap-3"
-                                  >
-                                    <span className="truncate text-[10px] text-slate-500">
-                                      {product.name}
-                                    </span>
-
-                                    <span className="text-[10px] font-black text-orange-600">
-                                      {product.stock} left
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </Link>
-                        )}
-
-                        {notificationOutOfStockProducts.length > 0 && (
-                          <Link
-                            href="/admin/products"
-                            onClick={() => setNotificationsOpen(false)}
-                            className="group flex items-start gap-3 rounded-xl p-3 hover:bg-rose-50"
-                          >
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-                              <Icon name="alert" size={18} />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex justify-between">
-                                <p className="text-xs font-black">
-                                  Out of stock
-                                </p>
-
-                                <span className="rounded-full bg-rose-100 px-2 py-1 text-[9px] font-black text-rose-700">
-                                  {outOfStock}
-                                </span>
-                              </div>
-
-                              <div className="mt-2 space-y-1">
-                                {notificationOutOfStockProducts.map(
-                                  (product) => (
-                                    <p
-                                      key={product.id}
-                                      className="truncate text-[10px] text-slate-500"
-                                    >
-                                      {product.name}
-                                    </p>
-                                  ),
-                                )}
-                              </div>
-                            </div>
-                          </Link>
-                        )}
-
-                        {notificationCount === 0 && (
-                          <div className="px-5 py-10 text-center">
-                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                              <Icon name="check" size={25} />
-                            </div>
-
-                            <p className="mt-4 text-sm font-black">
-                              You&apos;re all caught up
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              Low stock
                             </p>
 
-                            <p className="mt-1 text-xs text-slate-400">
-                              There are no pending orders or inventory issues
-                              right now.
+                            <p className="truncate text-xs text-slate-500">
+                              {product.name} has {product.stock} item
+                              {product.stock !== 1 ? "s" : ""} left.
                             </p>
                           </div>
-                        )}
-                      </div>
+                        </Link>
+                      ))}
+
+                      {outOfStockProducts.map((product) => (
+                        <Link
+                          key={`out-${product.id}`}
+                          href="/admin/products"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="flex gap-3 rounded-lg p-3 hover:bg-blue-50"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                            <Icon name="x" size={17} />
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              Out of stock
+                            </p>
+
+                            <p className="truncate text-xs text-slate-500">
+                              {product.name} is out of stock.
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
+
+                      {notificationCount === 0 && (
+                        <div className="px-4 py-8 text-center">
+                          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                            <Icon name="check" size={20} />
+                          </div>
+
+                          <p className="text-sm font-semibold">All caught up</p>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            There are no new notifications.
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
-
-              <button
-                type="button"
-                onClick={fetchAnalyticsData}
-                disabled={loading}
-                className="flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-600 disabled:opacity-50"
-              >
-                <Icon name="refresh" size={17} />
-
-                <span className="hidden sm:inline">
-                  {loading ? "Loading..." : "Refresh"}
-                </span>
-              </button>
             </div>
           </div>
 
-          {searchOpen && (
-            <div className="mt-3 lg:hidden">
-              <div className="flex h-12 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3">
-                <Icon name="search" size={18} />
+          {/* Mobile search */}
+          <div className="px-4 pb-3 md:hidden">
+            <div className="relative">
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 focus-within:border-blue-300 focus-within:bg-white">
+                <Icon name="search" size={17} />
 
                 <input
-                  autoFocus
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search orders, products..."
-                  className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-                />
-
-                <button
-                  onClick={() => {
-                    setSearch("");
-                    setSearchOpen(false);
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setSearchOpen(true);
                   }}
-                >
-                  <Icon name="x" size={17} />
-                </button>
+                  placeholder="Search orders, products..."
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                />
               </div>
 
-              {search.trim() !== "" && (
-                <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+              {searchOpen && search.trim() && (
+                <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
                   {searchResults.length > 0 ? (
                     searchResults.map((result, index) => (
                       <Link
-                        key={`${result.type}-${result.name}-${index}`}
+                        key={`${result.type}-${index}`}
                         href={result.href}
                         onClick={() => {
-                          setSearch("");
                           setSearchOpen(false);
+                          setSearch("");
                         }}
-                        className="flex items-center gap-3 rounded-xl p-3 hover:bg-slate-50"
+                        className="block rounded-lg px-3 py-2.5 hover:bg-blue-50"
                       >
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                          <Icon
-                            name={
-                              result.type === "Order"
-                                ? "bag"
-                                : result.type === "Product"
-                                  ? "box"
-                                  : result.type === "Payment"
-                                    ? "credit"
-                                    : "users"
-                            }
-                            size={16}
-                          />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-bold">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-semibold">
                             {result.name}
-                          </p>
+                          </span>
 
-                          <p className="truncate text-[10px] text-slate-400">
-                            {result.detail}
-                          </p>
+                          <span className="text-[10px] font-semibold uppercase text-blue-500">
+                            {result.type}
+                          </span>
                         </div>
+
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {result.detail}
+                        </p>
                       </Link>
                     ))
                   ) : (
-                    <p className="p-5 text-center text-xs text-slate-400">
+                    <div className="px-3 py-5 text-center text-sm text-slate-500">
                       No results found.
-                    </p>
+                    </div>
                   )}
                 </div>
               )}
             </div>
-          )}
+          </div>
         </header>
 
-        {/* CONTENT */}
+        {/* ===================================================
+            CONTENT
+        =================================================== */}
 
-        <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {/* HERO */}
+        <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+          {/* Hero */}
+          <section className="overflow-hidden rounded-2xl bg-linear-to-br from-blue-800 via-blue-600 to-blue-500 text-white shadow-sm">
+            <div className="flex flex-col gap-8 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-blue-50">
+                  <Icon name="activity" size={14} />
+                  Store performance
+                </div>
 
-          <section className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200">
-            <div className="relative overflow-hidden bg-linear-to-br from-indigo-600 via-indigo-600 to-violet-600 px-6 py-8 text-white sm:px-8 lg:px-10 lg:py-10">
-              <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+                <h2 className="max-w-2xl text-2xl font-bold tracking-tight sm:text-3xl">
+                  Analytics &amp; Performance
+                </h2>
 
-              <div className="relative flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
-                <div className="max-w-2xl">
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">
+                  Track sales, payments, orders, customers, and inventory from
+                  one place.
+                </p>
 
-                    <span className="text-[10px] font-black uppercase tracking-wider text-white/80">
-                      Live store analytics
-                    </span>
-                  </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={exportReport}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                  >
+                    <Icon name="download" size={17} />
+                    Export Report
+                  </button>
 
-                  <h2 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">
-                    Understand your
-                    <br />
-                    store performance.
-                  </h2>
+                  <Link
+                    href="/admin/orders"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15"
+                  >
+                    View Orders
+                    <Icon name="arrow" size={16} />
+                  </Link>
+                </div>
+              </div>
 
-                  <p className="mt-4 max-w-xl text-sm leading-6 text-white/75 sm:text-base">
-                    Analyze sales, revenue, payments, orders, customers and
-                    inventory using your store&apos;s real data.
+              <div className="grid w-full grid-cols-2 gap-3 lg:w-107.5">
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                  <p className="text-xs text-blue-100">Paid Revenue</p>
+
+                  <p className="mt-2 text-xl font-bold">
+                    {formatCurrency(paidRevenue)}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:w-107.5">
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                    <Icon name="dollar" size={19} />
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                  <p className="text-xs text-blue-100">Total Orders</p>
 
-                    <p className="mt-4 text-xl font-black">
-                      {formatCurrency(paidRevenue)}
-                    </p>
+                  <p className="mt-2 text-xl font-bold">{totalOrders}</p>
+                </div>
 
-                    <p className="mt-1 text-[10px] font-semibold text-white/60">
-                      Paid revenue
-                    </p>
-                  </div>
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                  <p className="text-xs text-blue-100">Customers</p>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                    <Icon name="bag" size={19} />
+                  <p className="mt-2 text-xl font-bold">{customers.length}</p>
+                </div>
 
-                    <p className="mt-4 text-xl font-black">{totalOrders}</p>
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                  <p className="text-xs text-blue-100">Payments</p>
 
-                    <p className="mt-1 text-[10px] font-semibold text-white/60">
-                      Orders
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                    <Icon name="users" size={19} />
-
-                    <p className="mt-4 text-xl font-black">
-                      {customers.length}
-                    </p>
-
-                    <p className="mt-1 text-[10px] font-semibold text-white/60">
-                      Customers
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                    <Icon name="credit" size={19} />
-
-                    <p className="mt-4 text-xl font-black">{payments.length}</p>
-
-                    <p className="mt-1 text-[10px] font-semibold text-white/60">
-                      Payments
-                    </p>
-                  </div>
+                  <p className="mt-2 text-xl font-bold">{payments.length}</p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* PERIOD */}
+          {/* =================================================
+              PERIOD SELECTOR
+          ================================================= */}
 
-          <section className="mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <Icon name="calendar" size={19} />
-              </div>
+          <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-bold">Reporting Period</h3>
 
-              <div>
-                <p className="text-sm font-black text-slate-900">
-                  Reporting period
-                </p>
-
-                <p className="text-[11px] text-slate-400">
-                  Select the period you want to analyze
-                </p>
-              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Choose the period used by the charts and revenue comparison.
+              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {[
-                ["7D", "7 Days"],
-                ["30D", "30 Days"],
-                ["6M", "6 Months"],
-                ["1Y", "1 Year"],
-              ].map(([value, label]) => (
+            <div className="flex flex-wrap rounded-xl bg-slate-100 p-1">
+              {(["7D", "30D", "6M", "1Y"] as Period[]).map((item) => (
                 <button
+                  key={item}
                   type="button"
-                  key={value}
-                  onClick={() => setPeriod(value as Period)}
-                  className={`rounded-xl px-4 py-2.5 text-xs font-black transition ${
-                    period === value
-                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
-                      : "bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                  onClick={() => setPeriod(item)}
+                  className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
+                    period === item
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-blue-600"
                   }`}
                 >
-                  {label}
+                  {item === "7D"
+                    ? "7 Days"
+                    : item === "30D"
+                      ? "30 Days"
+                      : item === "6M"
+                        ? "6 Months"
+                        : "1 Year"}
                 </button>
               ))}
-
-              <button
-                type="button"
-                onClick={exportReport}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600"
-              >
-                <Icon name="download" size={15} />
-                <span className="hidden sm:inline">Export</span>
-              </button>
             </div>
           </section>
 
-          {/* SALES KPI */}
+          {/* =================================================
+              SALES KPIs
+          ================================================= */}
 
-          <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500">
-                    Total sales
-                  </p>
+                  <p className="text-sm text-slate-500">Total Sales</p>
 
-                  <p className="mt-2 text-2xl font-black text-slate-950">
+                  <p className="mt-2 text-2xl font-bold tracking-tight">
                     {formatCurrency(totalSales)}
                   </p>
                 </div>
 
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                  <Icon name="trend" size={22} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Icon name="dollar" size={19} />
                 </div>
               </div>
 
-              <p className="mt-5 text-[10px] font-bold text-slate-400">
-                Active orders excluding cancelled
+              <p className="mt-3 text-xs text-slate-500">
+                Revenue from paid payments
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500">
-                    Total orders
-                  </p>
+                  <p className="text-sm text-slate-500">Total Orders</p>
 
-                  <p className="mt-2 text-2xl font-black text-slate-950">
+                  <p className="mt-2 text-2xl font-bold tracking-tight">
                     {totalOrders}
                   </p>
                 </div>
 
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                  <Icon name="bag" size={22} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Icon name="bag" size={19} />
                 </div>
               </div>
 
-              <p className="mt-5 text-[10px] font-bold text-slate-400">
-                All order statuses
-              </p>
+              <p className="mt-3 text-xs text-slate-500">All order statuses</p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500">
-                    Average order value
-                  </p>
+                  <p className="text-sm text-slate-500">Average Order Value</p>
 
-                  <p className="mt-2 text-2xl font-black text-slate-950">
+                  <p className="mt-2 text-2xl font-bold tracking-tight">
                     {formatCurrency(averageOrderValue)}
                   </p>
                 </div>
 
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                  <Icon name="dollar" size={22} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Icon name="trend" size={19} />
                 </div>
               </div>
 
-              <p className="mt-5 text-[10px] font-bold text-slate-400">
-                Average active order value
+              <p className="mt-3 text-xs text-slate-500">
+                Average paid order value
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500">
-                    Period paid revenue
-                  </p>
+                  <p className="text-sm text-slate-500">Period Revenue</p>
 
-                  <p className="mt-2 text-2xl font-black text-slate-950">
+                  <p className="mt-2 text-2xl font-bold tracking-tight">
                     {formatCurrency(periodPaidRevenue)}
                   </p>
                 </div>
 
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
-                  <Icon name="activity" size={22} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Icon name="chart" size={19} />
                 </div>
               </div>
 
-              <div className="mt-5">
+              <div className="mt-3 flex items-center gap-1.5 text-xs">
                 <span
-                  className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                  className={
                     revenueChange >= 0
-                      ? "bg-emerald-50 text-emerald-600"
-                      : "bg-rose-50 text-rose-600"
-                  }`}
+                      ? "font-semibold text-emerald-600"
+                      : "font-semibold text-red-600"
+                  }
                 >
                   {revenueChange >= 0 ? "+" : ""}
                   {revenueChange.toFixed(1)}%
                 </span>
 
-                <span className="ml-2 text-[10px] font-semibold text-slate-400">
-                  vs previous period
-                </span>
+                <span className="text-slate-500">vs previous period</span>
               </div>
             </div>
           </section>
 
-          {/* REVENUE + ORDERS CHARTS */}
+          {/* =================================================
+              REVENUE + ORDERS CHARTS
+          ================================================= */}
 
-          <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-            {/* REVENUE CHART */}
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between">
+          <section className="grid gap-6 xl:grid-cols-2">
+            {/* Revenue */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500">
-                    Revenue analytics
-                  </p>
+                  <h3 className="text-base font-bold">Revenue Overview</h3>
 
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">
-                    Revenue over time
-                  </h2>
-
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-slate-500">
                     Paid payment revenue
                   </p>
                 </div>
 
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                  <Icon name="chart" size={21} />
+                <div className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700">
+                  {formatCurrency(periodPaidRevenue)}
                 </div>
               </div>
 
-              <div className="mt-8 flex h-70 items-end gap-2 sm:gap-4">
-                {revenueChartData.map((item) => {
+              <div className="mt-8 flex h-70 items-end gap-2 overflow-x-auto">
+                {revenueChart.map((item, index) => {
                   const height =
                     item.value > 0
-                      ? Math.max((item.value / maxRevenueChartValue) * 100, 7)
-                      : 3;
+                      ? Math.max((item.value / maxRevenue) * 100, 5)
+                      : 2;
 
                   return (
                     <div
-                      key={item.key}
-                      className="group relative flex h-full min-w-0 flex-1 flex-col justify-end"
+                      key={`${item.label}-${index}`}
+                      className="flex min-w-10 flex-1 flex-col items-center justify-end gap-2"
                     >
-                      <div className="relative flex h-full items-end justify-center">
+                      <div className="relative flex h-full w-full items-end justify-center">
                         <div
-                          className="w-full max-w-14 rounded-t-xl bg-indigo-100 transition-all duration-500 group-hover:bg-indigo-600"
+                          className="group relative w-full max-w-14 rounded-t-xl bg-blue-600 transition hover:bg-blue-700"
                           style={{
                             height: `${height}%`,
+                            minHeight: item.value > 0 ? "8px" : "3px",
                           }}
-                        />
-
-                        {item.value > 0 && (
-                          <div className="absolute bottom-[calc(100%-8px)] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-[10px] font-bold text-white shadow-xl group-hover:block">
+                        >
+                          <div className="absolute bottom-[calc(100%-8px)] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-blue-700 px-2 py-1 text-[10px] font-semibold text-white group-hover:block">
                             {formatCurrency(item.value)}
                           </div>
-                        )}
+                        </div>
                       </div>
 
-                      <p className="mt-3 truncate text-center text-[10px] font-bold text-slate-400 sm:text-xs">
+                      <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
                         {item.label}
-                      </p>
+                      </span>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* ORDERS CHART */}
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between">
+            {/* Orders */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500">
-                    Order analytics
-                  </p>
+                  <h3 className="text-base font-bold">Orders Overview</h3>
 
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">
-                    Orders over time
-                  </h2>
-
-                  <p className="mt-1 text-xs text-slate-400">
-                    Active orders during the selected period
+                  <p className="mt-1 text-xs text-slate-500">
+                    Active orders excluding cancelled orders
                   </p>
                 </div>
 
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                  <Icon name="activity" size={21} />
+                <div className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700">
+                  {periodOrders.length} orders
                 </div>
               </div>
 
-              <div className="mt-8 flex h-70 items-end gap-2 sm:gap-4">
-                {orderChartData.map((item) => {
+              <div className="mt-8 flex h-70 items-end gap-2 overflow-x-auto">
+                {ordersChart.map((item, index) => {
                   const height =
                     item.value > 0
-                      ? Math.max((item.value / maxOrderChartValue) * 100, 7)
-                      : 3;
+                      ? Math.max((item.value / maxOrders) * 100, 5)
+                      : 2;
 
                   return (
                     <div
-                      key={item.key}
-                      className="group relative flex h-full min-w-0 flex-1 flex-col justify-end"
+                      key={`${item.label}-${index}`}
+                      className="flex min-w-10 flex-1 flex-col items-center justify-end gap-2"
                     >
-                      <div className="relative flex h-full items-end justify-center">
+                      <div className="relative flex h-full w-full items-end justify-center">
                         <div
-                          className="w-full max-w-14 rounded-t-xl bg-emerald-100 transition-all duration-500 group-hover:bg-emerald-500"
+                          className="group relative w-full max-w-14 rounded-t-xl bg-blue-400 transition hover:bg-blue-500"
                           style={{
                             height: `${height}%`,
+                            minHeight: item.value > 0 ? "8px" : "3px",
                           }}
-                        />
-
-                        {item.value > 0 && (
-                          <div className="absolute bottom-[calc(100%-8px)] left-1/2 hidden -translate-x-1/2 rounded-lg bg-slate-950 px-2.5 py-1.5 text-[10px] font-bold text-white shadow-xl group-hover:block">
-                            {item.value}
+                        >
+                          <div className="absolute bottom-[calc(100%-8px)] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-blue-700 px-2 py-1 text-[10px] font-semibold text-white group-hover:block">
+                            {item.value} orders
                           </div>
-                        )}
+                        </div>
                       </div>
 
-                      <p className="mt-3 truncate text-center text-[10px] font-bold text-slate-400 sm:text-xs">
+                      <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
                         {item.label}
-                      </p>
+                      </span>
                     </div>
                   );
                 })}
@@ -2107,803 +2016,645 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* REVENUE STATUS */}
+          {/* =================================================
+              PAYMENT STATUS + METHODS
+          ================================================= */}
 
-          <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">Revenue</p>
+          <section className="grid gap-6 xl:grid-cols-2">
+            {/* Payment status */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div>
+                <h3 className="text-base font-bold">Payment Status</h3>
 
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
-                Payment revenue
-              </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Revenue by payment status
+                </p>
+              </div>
 
-              <div className="mt-7 space-y-4">
-                <div className="rounded-xl bg-emerald-50 p-4">
-                  <div className="flex justify-between">
-                    <span className="text-xs font-bold text-emerald-700">
-                      Paid
-                    </span>
+              <div className="mt-6 space-y-4">
+                <div className="flex items-center justify-between rounded-xl bg-emerald-50 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-emerald-600">
+                      <Icon name="check" size={17} />
+                    </div>
 
-                    <Icon name="check" size={16} />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        Paid
+                      </p>
+
+                      <p className="text-xs text-slate-500">
+                        {paidPayments.length} payments
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="mt-2 text-2xl font-black text-emerald-700">
+                  <p className="text-sm font-bold text-emerald-700">
                     {formatCurrency(paidRevenue)}
                   </p>
                 </div>
 
-                <div className="rounded-xl bg-amber-50 p-4">
-                  <div className="flex justify-between">
-                    <span className="text-xs font-bold text-amber-700">
-                      Pending
-                    </span>
+                <div className="flex items-center justify-between rounded-xl bg-amber-50 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-amber-600">
+                      <Icon name="clock" size={17} />
+                    </div>
 
-                    <Icon name="clock" size={16} />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        Pending
+                      </p>
+
+                      <p className="text-xs text-slate-500">
+                        {pendingPayments.length} payments
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="mt-2 text-2xl font-black text-amber-700">
+                  <p className="text-sm font-bold text-amber-700">
                     {formatCurrency(pendingRevenue)}
                   </p>
                 </div>
 
-                <div className="rounded-xl bg-rose-50 p-4">
-                  <div className="flex justify-between">
-                    <span className="text-xs font-bold text-rose-700">
-                      Failed
-                    </span>
+                <div className="flex items-center justify-between rounded-xl bg-red-50 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-red-600">
+                      <Icon name="x" size={17} />
+                    </div>
 
-                    <Icon name="x" size={16} />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        Failed
+                      </p>
+
+                      <p className="text-xs text-slate-500">
+                        {failedPayments.length} payments
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="mt-2 text-2xl font-black text-rose-700">
+                  <p className="text-sm font-bold text-red-700">
                     {formatCurrency(failedRevenue)}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600">
+                      <Icon name="x" size={17} />
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        Cancelled
+                      </p>
+
+                      <p className="text-xs text-slate-500">
+                        {cancelledPayments.length} payments
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-sm font-bold text-slate-700">
+                    {formatCurrency(cancelledRevenue)}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* PAYMENT METHODS */}
+            {/* Payment methods */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div>
+                <h3 className="text-base font-bold">Payment Methods</h3>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
-                Payment analytics
-              </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Distribution of payment methods
+                </p>
+              </div>
 
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
-                Payment methods
-              </h2>
-
-              <div className="mt-7 flex justify-center">
+              <div className="mt-6 grid gap-6 sm:grid-cols-[170px_1fr] sm:items-center">
                 <div
-                  className="relative flex h-48 w-48 items-center justify-center rounded-full"
+                  className="mx-auto flex h-40 w-40 items-center justify-center rounded-full"
                   style={{
-                    background:
-                      paymentMethodTotal > 0
-                        ? `conic-gradient(
-                            #4f46e5 0% ${cashPercentage}%,
-                            #8b5cf6 ${cashPercentage}% ${
-                              cashPercentage + telebirrPercentage
-                            }%,
-                            #10b981 ${cashPercentage + telebirrPercentage}% 100%
-                          )`
-                        : "#e2e8f0",
+                    background: `conic-gradient(
+                      #2563eb 0% ${cashPercentage}%,
+                      #60a5fa ${cashPercentage}% ${
+                        cashPercentage + telebirrPercentage
+                      }%,
+                      #bfdbfe ${cashPercentage + telebirrPercentage}% 100%
+                    )`,
                   }}
                 >
-                  <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white">
-                    <span className="text-3xl font-black">
-                      {paymentMethodTotal}
-                    </span>
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white">
+                    <div className="text-center">
+                      <p className="text-xl font-bold">{paymentMethodTotal}</p>
 
-                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                      Payments
-                    </span>
+                      <p className="text-[10px] text-slate-500">payments</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="h-3 w-3 rounded-full bg-blue-600" />
+
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Cash on Delivery
+                        </p>
+
+                        <p className="text-xs text-slate-500">
+                          {cashOnDeliveryPayments.length} payments
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-sm font-bold">
+                      {cashPercentage.toFixed(1)}%
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="h-3 w-3 rounded-full bg-blue-400" />
+
+                      <div>
+                        <p className="text-sm font-semibold">Telebirr</p>
+
+                        <p className="text-xs text-slate-500">
+                          {telebirrPayments.length} payments
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-sm font-bold">
+                      {telebirrPercentage.toFixed(1)}%
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="h-3 w-3 rounded-full bg-blue-200" />
+
+                      <div>
+                        <p className="text-sm font-semibold">Card</p>
+
+                        <p className="text-xs text-slate-500">
+                          {cardPayments.length} payments
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-sm font-bold">
+                      {cardPercentage.toFixed(1)}%
+                    </p>
                   </div>
                 </div>
               </div>
+            </div>
+          </section>
 
-              <div className="mt-7 space-y-2">
-                {[
-                  {
-                    label: "Cash on Delivery",
-                    value: cashOnDeliveryPayments.length,
-                    color: "bg-indigo-500",
-                    revenue: cashOnDeliveryPayments.reduce(
-                      (sum, payment) => sum + getPaymentAmount(payment),
-                      0,
-                    ),
-                  },
-                  {
-                    label: "Telebirr",
-                    value: telebirrPayments.length,
-                    color: "bg-violet-500",
-                    revenue: telebirrPayments.reduce(
-                      (sum, payment) => sum + getPaymentAmount(payment),
-                      0,
-                    ),
-                  },
-                  {
-                    label: "Card",
-                    value: cardPayments.length,
-                    color: "bg-emerald-500",
-                    revenue: cardPayments.reduce(
-                      (sum, payment) => sum + getPaymentAmount(payment),
-                      0,
-                    ),
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${item.color}`}
-                      />
+          {/* =================================================
+              ORDER STATUS + CUSTOMER BASE
+          ================================================= */}
 
-                      <span className="text-xs font-semibold text-slate-500">
-                        {item.label}
-                      </span>
-                    </div>
+          <section className="grid gap-6 xl:grid-cols-2">
+            {/* Order status */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div>
+                <h3 className="text-base font-bold">Order Status</h3>
 
-                    <div className="text-right">
-                      <p className="text-xs font-black text-slate-900">
-                        {item.value}
-                      </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Current order distribution
+                </p>
+              </div>
 
-                      <p className="text-[9px] text-slate-400">
-                        {formatCurrency(item.revenue)}
-                      </p>
+              <div className="mt-6 grid gap-6 sm:grid-cols-[170px_1fr] sm:items-center">
+                <div
+                  className="mx-auto flex h-40 w-40 items-center justify-center rounded-full"
+                  style={{
+                    background: (() => {
+                      const total = orders.length || 1;
+
+                      const pending = (pendingOrders.length / total) * 100;
+
+                      const confirmed = (confirmedOrders.length / total) * 100;
+
+                      const shipped = (shippedOrders.length / total) * 100;
+
+                      const delivered = (deliveredOrders.length / total) * 100;
+
+                      return `conic-gradient(
+                        #f59e0b 0% ${pending}%,
+                        #6366f1 ${pending}% ${pending + confirmed}%,
+                        #3b82f6 ${pending + confirmed}% ${
+                          pending + confirmed + shipped
+                        }%,
+                        #10b981 ${pending + confirmed + shipped}% ${
+                          pending + confirmed + shipped + delivered
+                        }%,
+                        #ef4444 ${
+                          pending + confirmed + shipped + delivered
+                        }% 100%
+                      )`;
+                    })(),
+                  }}
+                >
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white">
+                    <div className="text-center">
+                      <p className="text-xl font-bold">{orders.length}</p>
+
+                      <p className="text-[10px] text-slate-500">total orders</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* PAYMENT STATUS */}
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
-                Payment status
-              </p>
-
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
-                Payment overview
-              </h2>
-
-              <div className="mt-7 space-y-3">
-                {[
-                  {
-                    label: "Paid",
-                    value: paidPayments.length,
-                    color: "bg-emerald-500",
-                    amount: paidRevenue,
-                  },
-                  {
-                    label: "Pending",
-                    value: pendingPayments.length,
-                    color: "bg-amber-500",
-                    amount: pendingRevenue,
-                  },
-                  {
-                    label: "Failed",
-                    value: failedPayments.length,
-                    color: "bg-rose-500",
-                    amount: failedRevenue,
-                  },
-                  {
-                    label: "Cancelled",
-                    value: cancelledPayments.length,
-                    color: "bg-slate-400",
-                    amount: cancelledPayments.reduce(
-                      (sum, payment) => sum + getPaymentAmount(payment),
-                      0,
-                    ),
-                  },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-xl bg-slate-50 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                <div className="space-y-3">
+                  {[
+                    {
+                      label: "Pending",
+                      count: pendingOrders.length,
+                      color: "bg-amber-500",
+                    },
+                    {
+                      label: "Confirmed",
+                      count: confirmedOrders.length,
+                      color: "bg-indigo-500",
+                    },
+                    {
+                      label: "Shipped",
+                      count: shippedOrders.length,
+                      color: "bg-blue-500",
+                    },
+                    {
+                      label: "Delivered",
+                      count: deliveredOrders.length,
+                      color: "bg-emerald-500",
+                    },
+                    {
+                      label: "Cancelled",
+                      count: cancelledOrders.length,
+                      color: "bg-red-500",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
                         <span
-                          className={`h-2.5 w-2.5 rounded-full ${item.color}`}
+                          className={`h-3 w-3 rounded-full ${item.color}`}
                         />
 
-                        <span className="text-xs font-bold text-slate-600">
+                        <span className="text-sm font-medium text-slate-700">
                           {item.label}
                         </span>
                       </div>
 
-                      <span className="text-sm font-black text-slate-900">
-                        {item.value}
-                      </span>
+                      <span className="text-sm font-bold">{item.count}</span>
                     </div>
-
-                    <p className="mt-2 text-lg font-black text-slate-900">
-                      {formatCurrency(item.amount)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* ORDER STATUS */}
-
-          <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
-              <p className="text-sm font-semibold text-slate-500">
-                Order analytics
-              </p>
-
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
-                Order status distribution
-              </h2>
-
-              <div className="mt-8 flex justify-center">
-                <div
-                  className="relative flex h-48 w-48 items-center justify-center rounded-full"
-                  style={{
-                    background:
-                      orders.length > 0
-                        ? `conic-gradient(
-                            #f59e0b 0% ${
-                              (pendingOrders / orders.length) * 100
-                            }%,
-                            #3b82f6 ${(pendingOrders / orders.length) * 100}% ${
-                              ((pendingOrders + confirmedOrders) /
-                                orders.length) *
-                              100
-                            }%,
-                            #8b5cf6 ${
-                              ((pendingOrders + confirmedOrders) /
-                                orders.length) *
-                              100
-                            }% ${
-                              ((pendingOrders +
-                                confirmedOrders +
-                                shippedOrders) /
-                                orders.length) *
-                              100
-                            }%,
-                            #10b981 ${
-                              ((pendingOrders +
-                                confirmedOrders +
-                                shippedOrders) /
-                                orders.length) *
-                              100
-                            }% ${
-                              ((pendingOrders +
-                                confirmedOrders +
-                                shippedOrders +
-                                deliveredOrders) /
-                                orders.length) *
-                              100
-                            }%,
-                            #f43f5e ${
-                              ((pendingOrders +
-                                confirmedOrders +
-                                shippedOrders +
-                                deliveredOrders) /
-                                orders.length) *
-                              100
-                            }% 100%
-                          )`
-                        : "#e2e8f0",
-                  }}
-                >
-                  <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white shadow-inner">
-                    <span className="text-4xl font-black text-slate-950">
-                      {orders.length}
-                    </span>
-
-                    <span className="mt-1 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      Total orders
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {[
-                  {
-                    label: "Pending",
-                    value: pendingOrders,
-                    color: "bg-amber-500",
-                  },
-                  {
-                    label: "Confirmed",
-                    value: confirmedOrders,
-                    color: "bg-blue-500",
-                  },
-                  {
-                    label: "Shipped",
-                    value: shippedOrders,
-                    color: "bg-violet-500",
-                  },
-                  {
-                    label: "Delivered",
-                    value: deliveredOrders,
-                    color: "bg-emerald-500",
-                  },
-                  {
-                    label: "Cancelled",
-                    value: cancelledOrders,
-                    color: "bg-rose-500",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${item.color}`}
-                      />
-
-                      <span className="text-xs font-semibold text-slate-500">
-                        {item.label}
-                      </span>
-                    </div>
-
-                    <span className="text-xs font-black text-slate-900">
-                      {item.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* CUSTOMERS */}
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
-                Customer analytics
-              </p>
-
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
-                Customer base
-              </h2>
-
-              <div className="mt-7 grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-indigo-50 p-4">
-                  <p className="text-[10px] font-bold text-indigo-600">
-                    Total users
-                  </p>
-
-                  <p className="mt-2 text-2xl font-black text-indigo-700">
-                    {users.length}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-violet-50 p-4">
-                  <p className="text-[10px] font-bold text-violet-600">
-                    Customers
-                  </p>
-
-                  <p className="mt-2 text-2xl font-black text-violet-700">
-                    {customers.length}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-orange-50 p-4">
-                  <p className="text-[10px] font-bold text-orange-600">
-                    Admins
-                  </p>
-
-                  <p className="mt-2 text-2xl font-black text-orange-700">
-                    {admins.length}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-8">
-                <div className="mb-2 flex justify-between">
-                  <span className="text-[10px] font-bold text-slate-400">
-                    Customer share
-                  </span>
-
-                  <span className="text-[10px] font-black text-slate-700">
-                    {users.length > 0
-                      ? Math.round((customers.length / users.length) * 100)
-                      : 0}
-                    %
-                  </span>
-                </div>
-
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-indigo-500"
-                    style={{
-                      width: `${
-                        users.length > 0
-                          ? (customers.length / users.length) * 100
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-8 rounded-2xl bg-slate-50 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">
-                    <Icon name="users" size={20} />
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-black text-slate-900">
-                      Registered customers
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-400">
-                      Customers with CUSTOMER role
-                    </p>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
-          </section>
 
-          {/* INVENTORY */}
+            {/* Customer base */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div>
+                <h3 className="text-base font-bold">Customer Base</h3>
 
-          <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between">
+                <p className="mt-1 text-xs text-slate-500">
+                  User account distribution
+                </p>
+              </div>
+
+              <div className="mt-6 space-y-5">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500">
-                    Inventory analytics
-                  </p>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-semibold">Customers</span>
 
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">
-                    Stock health
-                  </h2>
+                    <span className="text-sm font-bold">
+                      {customers.length}
+                    </span>
+                  </div>
+
+                  <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-blue-600"
+                      style={{
+                        width: `${
+                          users.length > 0
+                            ? (customers.length / users.length) * 100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-semibold">
+                      Administrators
+                    </span>
+
+                    <span className="text-sm font-bold">{admins.length}</span>
+                  </div>
+
+                  <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-blue-300"
+                      style={{
+                        width: `${
+                          users.length > 0
+                            ? (admins.length / users.length) * 100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="rounded-xl bg-blue-50 p-4">
+                    <p className="text-xs text-blue-600">Total Users</p>
+
+                    <p className="mt-1 text-xl font-bold">{users.length}</p>
+                  </div>
+
+                  <div className="rounded-xl bg-blue-50 p-4">
+                    <p className="text-xs text-blue-600">Customer Share</p>
+
+                    <p className="mt-1 text-xl font-bold">
+                      {users.length > 0
+                        ? ((customers.length / users.length) * 100).toFixed(1)
+                        : "0.0"}
+                      %
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* =================================================
+              INVENTORY
+          ================================================= */}
+
+          <section className="grid gap-6 xl:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-base font-bold">Inventory Overview</h3>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Current product availability
+                  </p>
                 </div>
 
                 <Link
                   href="/admin/products"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-950 hover:text-white"
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700"
                 >
-                  <Icon name="arrow" size={15} />
+                  Manage Products
                 </Link>
               </div>
 
-              <div className="mt-7 grid grid-cols-3 gap-3">
+              <div className="mt-6 grid grid-cols-3 gap-3">
                 <div className="rounded-xl bg-emerald-50 p-4">
-                  <p className="text-[10px] font-bold text-emerald-600">
-                    In stock
-                  </p>
+                  <p className="text-xs text-emerald-700">In Stock</p>
 
-                  <p className="mt-2 text-2xl font-black text-emerald-700">
+                  <p className="mt-2 text-2xl font-bold text-emerald-800">
                     {inStock}
                   </p>
                 </div>
 
                 <div className="rounded-xl bg-amber-50 p-4">
-                  <p className="text-[10px] font-bold text-amber-600">
-                    Low stock
-                  </p>
+                  <p className="text-xs text-amber-700">Low Stock</p>
 
-                  <p className="mt-2 text-2xl font-black text-amber-700">
+                  <p className="mt-2 text-2xl font-bold text-amber-800">
                     {lowStock}
                   </p>
                 </div>
 
-                <div className="rounded-xl bg-rose-50 p-4">
-                  <p className="text-[10px] font-bold text-rose-600">Out</p>
+                <div className="rounded-xl bg-red-50 p-4">
+                  <p className="text-xs text-red-700">Out of Stock</p>
 
-                  <p className="mt-2 text-2xl font-black text-rose-700">
+                  <p className="mt-2 text-2xl font-bold text-red-800">
                     {outOfStock}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-7">
-                <div className="mb-2 flex justify-between text-[10px] font-bold text-slate-400">
-                  <span>Inventory availability</span>
+              <div className="mt-6">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-600">
+                    Inventory health
+                  </span>
 
-                  <span>
-                    {products.length > 0
-                      ? Math.round((inStock / products.length) * 100)
-                      : 0}
-                    %
+                  <span className="text-xs font-bold text-blue-700">
+                    {inventoryHealth.toFixed(1)}%
                   </span>
                 </div>
 
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    className="h-full rounded-full bg-blue-600"
                     style={{
-                      width: `${
-                        products.length > 0
-                          ? (inStock / products.length) * 100
-                          : 0
-                      }%`,
+                      width: `${inventoryHealth}%`,
                     }}
                   />
                 </div>
               </div>
-
-              <div className="mt-7 divide-y divide-slate-100">
-                {topProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    className="flex items-center gap-3 py-3"
-                  >
-                    <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                      {product.image ? (
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-slate-400">
-                          <Icon name="box" size={18} />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-black text-slate-800">
-                        {product.name}
-                      </p>
-
-                      <p className="mt-1 text-[10px] text-slate-400">
-                        Product #{product.id}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-sm font-black text-slate-900">
-                        {product.stock}
-                      </p>
-
-                      <p
-                        className={`text-[9px] font-bold ${
-                          product.stock <= 0
-                            ? "text-rose-500"
-                            : product.stock <= 5
-                              ? "text-amber-600"
-                              : "text-emerald-600"
-                        }`}
-                      >
-                        {product.stock <= 0
-                          ? "Out"
-                          : product.stock <= 5
-                            ? "Low"
-                            : "Healthy"}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
 
-            {/* KEY METRICS */}
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold text-slate-500">
-                Store performance
-              </p>
-
-              <h2 className="mt-1 text-2xl font-black text-slate-950">
-                Key metrics
-              </h2>
-
-              <div className="mt-7 space-y-5">
+            {/* Highest stock products */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="flex items-start justify-between">
                 <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                        <Icon name="check" size={15} />
-                      </span>
+                  <h3 className="text-base font-bold">
+                    Product Stock Overview
+                  </h3>
 
-                      <span className="text-xs font-bold text-slate-600">
-                        Delivery completion
-                      </span>
-                    </div>
-
-                    <span className="text-sm font-black text-slate-900">
-                      {orders.length > 0
-                        ? Math.round((deliveredOrders / orders.length) * 100)
-                        : 0}
-                      %
-                    </span>
-                  </div>
-
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-emerald-500"
-                      style={{
-                        width: `${
-                          orders.length > 0
-                            ? (deliveredOrders / orders.length) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Products with the highest current stock
+                  </p>
                 </div>
 
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                        <Icon name="truck" size={15} />
-                      </span>
-
-                      <span className="text-xs font-bold text-slate-600">
-                        Fulfillment
-                      </span>
-                    </div>
-
-                    <span className="text-sm font-black text-slate-900">
-                      {orders.length > 0
-                        ? Math.round(
-                            ((shippedOrders + deliveredOrders) /
-                              orders.length) *
-                              100,
-                          )
-                        : 0}
-                      %
-                    </span>
-                  </div>
-
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-indigo-500"
-                      style={{
-                        width: `${
-                          orders.length > 0
-                            ? ((shippedOrders + deliveredOrders) /
-                                orders.length) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
-                        <Icon name="credit" size={15} />
-                      </span>
-
-                      <span className="text-xs font-bold text-slate-600">
-                        Payment success
-                      </span>
-                    </div>
-
-                    <span className="text-sm font-black text-slate-900">
-                      {payments.length > 0
-                        ? Math.round(
-                            (paidPayments.length / payments.length) * 100,
-                          )
-                        : 0}
-                      %
-                    </span>
-                  </div>
-
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-violet-500"
-                      style={{
-                        width: `${
-                          payments.length > 0
-                            ? (paidPayments.length / payments.length) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
-                        <Icon name="box" size={15} />
-                      </span>
-
-                      <span className="text-xs font-bold text-slate-600">
-                        Inventory health
-                      </span>
-                    </div>
-
-                    <span className="text-sm font-black text-slate-900">
-                      {products.length > 0
-                        ? Math.round((inStock / products.length) * 100)
-                        : 0}
-                      %
-                    </span>
-                  </div>
-
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-orange-500"
-                      style={{
-                        width: `${
-                          products.length > 0
-                            ? (inStock / products.length) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
+                <div className="text-blue-600">
+                  <Icon name="box" size={19} />
                 </div>
               </div>
 
-              <div className="mt-8 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-amber-50 p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
-                    Pending orders
-                  </p>
+              <div className="mt-5 space-y-3">
+                {topProducts.length > 0 ? (
+                  topProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className="flex items-center gap-3 rounded-xl bg-blue-50/60 p-3"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-blue-600">
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <Icon name="box" size={18} />
+                        )}
+                      </div>
 
-                  <p className="mt-2 text-2xl font-black text-amber-700">
-                    {pendingOrders}
-                  </p>
-                </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">
+                          {product.name}
+                        </p>
 
-                <div className="rounded-2xl bg-emerald-50 p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
-                    Delivered
-                  </p>
+                        <p className="text-xs text-slate-500">
+                          {formatCurrency(product.price)}
+                        </p>
+                      </div>
 
-                  <p className="mt-2 text-2xl font-black text-emerald-700">
-                    {deliveredOrders}
-                  </p>
-                </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold">{product.stock}</p>
+
+                        <p className="text-[10px] text-slate-400">units</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-sm text-slate-500">
+                    No products available.
+                  </div>
+                )}
               </div>
             </div>
           </section>
 
-          {/* RECENT ORDERS */}
+          {/* =================================================
+              KEY METRICS
+          ================================================= */}
 
-          <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center">
-              <div>
-                <p className="text-sm font-semibold text-slate-500">
-                  Latest activity
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <div>
+              <h3 className="text-base font-bold">Key Performance Metrics</h3>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Operational indicators for your store
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
+                    <Icon name="truck" size={17} />
+                  </div>
+
+                  <span className="text-sm font-semibold">
+                    Delivery Completion
+                  </span>
+                </div>
+
+                <p className="mt-4 text-2xl font-bold">
+                  {deliveryCompletion.toFixed(1)}%
                 </p>
+              </div>
 
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                  Recent orders
-                </h2>
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
+                    <Icon name="activity" size={17} />
+                  </div>
+
+                  <span className="text-sm font-semibold">
+                    Fulfillment Rate
+                  </span>
+                </div>
+
+                <p className="mt-4 text-2xl font-bold">
+                  {fulfillmentRate.toFixed(1)}%
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
+                    <Icon name="credit" size={17} />
+                  </div>
+
+                  <span className="text-sm font-semibold">Payment Success</span>
+                </div>
+
+                <p className="mt-4 text-2xl font-bold">
+                  {paymentSuccessRate.toFixed(1)}%
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
+                    <Icon name="box" size={17} />
+                  </div>
+
+                  <span className="text-sm font-semibold">
+                    Inventory Health
+                  </span>
+                </div>
+
+                <p className="mt-4 text-2xl font-bold">
+                  {inventoryHealth.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* =================================================
+              RECENT ORDERS
+          ================================================= */}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold">Recent Orders</h3>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Latest orders from your store
+                </p>
               </div>
 
               <Link
                 href="/admin/orders"
-                className="flex w-fit items-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-xs font-black text-slate-600 transition hover:bg-slate-950 hover:text-white"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
               >
-                View all orders
+                View all
                 <Icon name="arrow" size={14} />
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-180">
+            <div className="mt-5 overflow-x-auto">
+              <table className="min-w-180 w-full">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/70">
-                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <tr className="border-b border-slate-100 text-left">
+                    <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
                       Order
                     </th>
 
-                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
                       Customer
                     </th>
 
-                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
                       Date
                     </th>
 
-                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      Amount
+                    <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Status
                     </th>
 
-                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      Status
+                    <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Total
                     </th>
                   </tr>
                 </thead>
@@ -2913,67 +2664,50 @@ export default function AdminAnalyticsPage() {
                     recentOrders.map((order) => (
                       <tr
                         key={order.id}
-                        className="border-b border-slate-100 transition hover:bg-slate-50 last:border-0"
+                        className="border-b border-slate-50 last:border-0 hover:bg-blue-50/30"
                       >
-                        <td className="px-6 py-5">
-                          <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-black text-slate-700">
-                            #{order.id}
-                          </span>
+                        <td className="px-3 py-4">
+                          <span className="text-sm font-bold">#{order.id}</span>
                         </td>
 
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-black text-indigo-600">
-                              {(order.user?.name || "C")
-                                .charAt(0)
-                                .toUpperCase()}
-                            </div>
+                        <td className="px-3 py-4">
+                          <div>
+                            <p className="text-sm font-semibold">
+                              {order.user?.name || "Unknown customer"}
+                            </p>
 
-                            <div className="max-w-50">
-                              <p className="truncate text-xs font-black text-slate-800">
-                                {order.user?.name || "Customer"}
-                              </p>
-
-                              <p className="truncate text-[10px] text-slate-400">
-                                {order.user?.email || "—"}
-                              </p>
-                            </div>
+                            <p className="max-w-50 truncate text-xs text-slate-500">
+                              {order.user?.email || "—"}
+                            </p>
                           </div>
                         </td>
 
-                        <td className="px-6 py-5 text-xs font-semibold text-slate-500">
+                        <td className="px-3 py-4 text-sm text-slate-600">
                           {formatDate(order.createdAt)}
                         </td>
 
-                        <td className="px-6 py-5 text-sm font-black text-slate-900">
-                          {formatCurrency(Number(order.total || 0))}
-                        </td>
-
-                        <td className="px-6 py-5">
+                        <td className="px-3 py-4">
                           <span
-                            className={`inline-flex rounded-full px-3 py-1.5 text-[10px] font-black ${getStatusStyle(
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${getOrderStatusClass(
                               order.status,
                             )}`}
                           >
                             {order.status}
                           </span>
                         </td>
+
+                        <td className="px-3 py-4 text-right text-sm font-bold">
+                          {formatCurrency(Number(order.total || 0))}
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="px-6 py-16 text-center">
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                          <Icon name="bag" size={22} />
-                        </div>
-
-                        <p className="mt-4 text-sm font-black text-slate-600">
-                          No orders yet
-                        </p>
-
-                        <p className="mt-1 text-xs text-slate-400">
-                          Orders will appear here when customers make purchases.
-                        </p>
+                      <td
+                        colSpan={5}
+                        className="px-3 py-10 text-center text-sm text-slate-500"
+                      >
+                        No orders found.
                       </td>
                     </tr>
                   )}
@@ -2982,83 +2716,80 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* PAYMENT SNAPSHOT */}
+          {/* =================================================
+              PAYMENT SNAPSHOT
+          ================================================= */}
 
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-500">
-                  Payment activity
-                </p>
+                <h3 className="text-base font-bold">Payment Snapshot</h3>
 
-                <h2 className="mt-1 text-2xl font-black text-slate-950">
-                  Latest payments
-                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Current payment activity
+                </p>
               </div>
 
-              <Link
-                href="/admin/payments"
-                className="flex w-fit items-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-950 hover:text-white"
-              >
-                Manage payments
-                <Icon name="arrow" size={14} />
-              </Link>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <Icon name="wallet" size={18} />
+              </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl bg-emerald-50 p-4">
-                <p className="text-[10px] font-bold text-emerald-600">Paid</p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                <p className="text-xs font-medium text-emerald-700">Paid</p>
 
-                <p className="mt-2 text-2xl font-black text-emerald-700">
+                <p className="mt-1 text-xl font-bold text-emerald-900">
                   {paidPayments.length}
                 </p>
 
-                <p className="mt-1 text-[10px] text-emerald-600">
+                <p className="mt-1 text-xs text-emerald-700">
                   {formatCurrency(paidRevenue)}
                 </p>
               </div>
 
-              <div className="rounded-xl bg-amber-50 p-4">
-                <p className="text-[10px] font-bold text-amber-600">Pending</p>
+              <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+                <p className="text-xs font-medium text-amber-700">Pending</p>
 
-                <p className="mt-2 text-2xl font-black text-amber-700">
+                <p className="mt-1 text-xl font-bold text-amber-900">
                   {pendingPayments.length}
                 </p>
 
-                <p className="mt-1 text-[10px] text-amber-600">
+                <p className="mt-1 text-xs text-amber-700">
                   {formatCurrency(pendingRevenue)}
                 </p>
               </div>
 
-              <div className="rounded-xl bg-rose-50 p-4">
-                <p className="text-[10px] font-bold text-rose-600">Failed</p>
+              <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+                <p className="text-xs font-medium text-red-700">Failed</p>
 
-                <p className="mt-2 text-2xl font-black text-rose-700">
+                <p className="mt-1 text-xl font-bold text-red-900">
                   {failedPayments.length}
                 </p>
 
-                <p className="mt-1 text-[10px] text-rose-600">
+                <p className="mt-1 text-xs text-red-700">
                   {formatCurrency(failedRevenue)}
                 </p>
               </div>
 
-              <div className="rounded-xl bg-indigo-50 p-4">
-                <p className="text-[10px] font-bold text-indigo-600">
-                  Total payments
-                </p>
+              <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                <p className="text-xs font-medium text-blue-600">Total</p>
 
-                <p className="mt-2 text-2xl font-black text-indigo-700">
+                <p className="mt-1 text-xl font-bold text-blue-900">
                   {payments.length}
                 </p>
 
-                <p className="mt-1 text-[10px] text-indigo-600">
-                  All payment records
+                <p className="mt-1 text-xs text-blue-600">
+                  {formatCurrency(
+                    paidRevenue +
+                      pendingRevenue +
+                      failedRevenue +
+                      cancelledRevenue,
+                  )}
                 </p>
               </div>
             </div>
           </section>
-
-          <div className="h-10" />
         </div>
       </main>
     </div>
