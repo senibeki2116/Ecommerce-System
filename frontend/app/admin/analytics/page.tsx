@@ -9,13 +9,15 @@ import Link from "next/link";
 
 type Order = {
   id: number;
-  total: number;
+  total: number | string;
   status: string;
   createdAt: string;
   user?: {
+    id?: number;
     name: string;
     email: string;
   };
+  payment?: Payment | null;
 };
 
 type User = {
@@ -31,7 +33,7 @@ type Product = {
   id: number;
   name: string;
   description?: string;
-  price: number;
+  price: number | string;
   stock: number;
   image?: string | null;
 };
@@ -58,6 +60,18 @@ type Payment = {
 };
 
 type Period = "7D" | "30D" | "6M" | "1Y";
+
+type ChartPoint = {
+  label: string;
+  value: number;
+};
+
+type SearchResult = {
+  type: string;
+  name: string;
+  detail: string;
+  href: string;
+};
 
 type IconName =
   | "grid"
@@ -317,22 +331,57 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
    HELPERS
 ========================================================= */
 
-const getPaymentAmount = (payment: Payment) =>
-  Number(payment.amount || payment.total || payment.order?.total || 0);
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-const getPaymentMethod = (payment: Payment) =>
-  payment.method ||
-  payment.paymentMethod ||
-  payment.type ||
-  payment.provider ||
-  "UNKNOWN";
+const getNumber = (value: unknown): number => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const getPaymentAmount = (payment: Payment): number =>
+  getNumber(payment.amount ?? payment.total ?? payment.order?.total ?? 0);
+
+const normalizePaymentMethod = (payment: Payment): string => {
+  const method = String(
+    payment.method ??
+      payment.paymentMethod ??
+      payment.type ??
+      payment.provider ??
+      "",
+  )
+    .trim()
+    .toUpperCase();
+
+  if (
+    method === "CASH_ON_DELIVERY" ||
+    method === "CASH ON DELIVERY" ||
+    method === "COD"
+  ) {
+    return "CASH_ON_DELIVERY";
+  }
+
+  if (method === "TELEBIRR") {
+    return "TELEBIRR";
+  }
+
+  if (
+    method === "CARD" ||
+    method === "CREDIT_CARD" ||
+    method === "DEBIT_CARD" ||
+    method === "CREDIT / DEBIT CARD"
+  ) {
+    return "CARD";
+  }
+
+  return "UNKNOWN";
+};
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 2,
-  }).format(Number(value || 0));
+  }).format(getNumber(value));
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -348,6 +397,30 @@ const formatDate = (value: string) => {
   });
 };
 
+const extractArray = <T,>(data: unknown, key: string): T[] => {
+  if (Array.isArray(data)) {
+    return data as T[];
+  }
+
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    Array.isArray((data as Record<string, unknown>)[key])
+  ) {
+    return (data as Record<string, unknown>)[key] as T[];
+  }
+
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    Array.isArray((data as Record<string, unknown>).data)
+  ) {
+    return (data as Record<string, unknown>).data as T[];
+  }
+
+  return [];
+};
+
 /* =========================================================
    COMPONENT
 ========================================================= */
@@ -359,119 +432,124 @@ export default function AdminAnalyticsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [period, setPeriod] = useState<Period>("6M");
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const API_URL = "http://localhost:3001";
-
   /* =======================================================
-     FETCH DATA
+     FETCH
   ======================================================= */
 
   const fetchAnalyticsData = useCallback(async () => {
     try {
       setLoading(true);
+      setError("");
 
       const token = localStorage.getItem("accessToken");
+      const storedUser = localStorage.getItem("user");
 
       if (!token) {
-        setLoading(false);
+        window.location.href = "/login";
         return;
       }
 
-      const headers = {
+      if (storedUser) {
+        try {
+          const currentUser = JSON.parse(storedUser);
+
+          if (currentUser?.role !== "ADMIN") {
+            window.location.href = "/";
+            return;
+          }
+        } catch {
+          window.location.href = "/login";
+          return;
+        }
+      }
+
+      const headers: HeadersInit = {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       };
+
+      const responses = await Promise.all([
+        fetch(`${API_URL}/admin/orders`, {
+          headers,
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/admin/users`, {
+          headers,
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/products`, {
+          headers,
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/payments/admin/all`, {
+          headers,
+          cache: "no-store",
+        }),
+      ]);
 
       const [
         ordersResponse,
         usersResponse,
         productsResponse,
         paymentsResponse,
-      ] = await Promise.all([
-        fetch(`${API_URL}/admin/orders`, { headers }),
-        fetch(`${API_URL}/admin/users`, { headers }),
-        fetch(`${API_URL}/products`, { headers }),
-        fetch(`${API_URL}/payments/admin/all`, { headers }),
-      ]);
+      ] = responses;
 
-      if (ordersResponse.ok) {
-        const data = await ordersResponse.json();
+      if (ordersResponse.status === 401 || ordersResponse.status === 403) {
+        window.location.href = "/login";
+        return;
+      }
 
-        if (Array.isArray(data)) {
-          setOrders(data);
-        } else if (Array.isArray(data?.orders)) {
-          setOrders(data.orders);
-        } else if (Array.isArray(data?.data)) {
-          setOrders(data.data);
-        }
-      } else {
-        console.error(
-          "Orders request failed:",
-          ordersResponse.status,
-          ordersResponse.statusText,
+      if (!ordersResponse.ok) {
+        throw new Error(
+          `Orders API failed with status ${ordersResponse.status}`,
         );
       }
 
-      if (usersResponse.ok) {
-        const data = await usersResponse.json();
+      if (!usersResponse.ok) {
+        throw new Error(`Users API failed with status ${usersResponse.status}`);
+      }
 
-        if (Array.isArray(data)) {
-          setUsers(data);
-        } else if (Array.isArray(data?.users)) {
-          setUsers(data.users);
-        } else if (Array.isArray(data?.data)) {
-          setUsers(data.data);
-        }
-      } else {
-        console.error(
-          "Users request failed:",
-          usersResponse.status,
-          usersResponse.statusText,
+      if (!productsResponse.ok) {
+        throw new Error(
+          `Products API failed with status ${productsResponse.status}`,
         );
       }
 
-      if (productsResponse.ok) {
-        const data = await productsResponse.json();
-
-        if (Array.isArray(data)) {
-          setProducts(data);
-        } else if (Array.isArray(data?.products)) {
-          setProducts(data.products);
-        } else if (Array.isArray(data?.data)) {
-          setProducts(data.data);
-        }
-      } else {
-        console.error(
-          "Products request failed:",
-          productsResponse.status,
-          productsResponse.statusText,
+      if (!paymentsResponse.ok) {
+        throw new Error(
+          `Payments API failed with status ${paymentsResponse.status}`,
         );
       }
 
-      if (paymentsResponse.ok) {
-        const data = await paymentsResponse.json();
+      const [ordersData, usersData, productsData, paymentsData] =
+        await Promise.all([
+          ordersResponse.json(),
+          usersResponse.json(),
+          productsResponse.json(),
+          paymentsResponse.json(),
+        ]);
 
-        if (Array.isArray(data)) {
-          setPayments(data);
-        } else if (Array.isArray(data?.payments)) {
-          setPayments(data.payments);
-        } else if (Array.isArray(data?.data)) {
-          setPayments(data.data);
-        }
-      } else {
-        console.error(
-          "Payments request failed:",
-          paymentsResponse.status,
-          paymentsResponse.statusText,
-        );
-      }
-    } catch (error) {
-      console.error("Analytics error:", error);
+      setOrders(extractArray<Order>(ordersData, "orders"));
+      setUsers(extractArray<User>(usersData, "users"));
+      setProducts(extractArray<Product>(productsData, "products"));
+      setPayments(extractArray<Payment>(paymentsData, "payments"));
+    } catch (err) {
+      console.error("Analytics error:", err);
+
+      setError(
+        err instanceof Error ? err.message : "Failed to load analytics data.",
+      );
     } finally {
       setLoading(false);
     }
@@ -482,7 +560,7 @@ export default function AdminAnalyticsPage() {
   }, [fetchAnalyticsData]);
 
   /* =======================================================
-     USER STATISTICS
+     USERS
   ======================================================= */
 
   const customers = useMemo(
@@ -496,7 +574,7 @@ export default function AdminAnalyticsPage() {
   );
 
   /* =======================================================
-     ORDER STATISTICS
+     ORDERS
   ======================================================= */
 
   const activeOrders = useMemo(
@@ -530,7 +608,7 @@ export default function AdminAnalyticsPage() {
   );
 
   /* =======================================================
-     PAYMENT STATISTICS
+     PAYMENTS
   ======================================================= */
 
   const paidPayments = useMemo(
@@ -593,19 +671,22 @@ export default function AdminAnalyticsPage() {
   const cashOnDeliveryPayments = useMemo(
     () =>
       payments.filter(
-        (payment) => getPaymentMethod(payment) === "CASH_ON_DELIVERY",
+        (payment) => normalizePaymentMethod(payment) === "CASH_ON_DELIVERY",
       ),
     [payments],
   );
 
   const telebirrPayments = useMemo(
     () =>
-      payments.filter((payment) => getPaymentMethod(payment) === "TELEBIRR"),
+      payments.filter(
+        (payment) => normalizePaymentMethod(payment) === "TELEBIRR",
+      ),
     [payments],
   );
 
   const cardPayments = useMemo(
-    () => payments.filter((payment) => getPaymentMethod(payment) === "CARD"),
+    () =>
+      payments.filter((payment) => normalizePaymentMethod(payment) === "CARD"),
     [payments],
   );
 
@@ -634,7 +715,6 @@ export default function AdminAnalyticsPage() {
   ======================================================= */
 
   const totalSales = paidRevenue;
-
   const totalOrders = orders.length;
 
   const averageOrderValue =
@@ -645,43 +725,39 @@ export default function AdminAnalyticsPage() {
   ======================================================= */
 
   const inStock = useMemo(
-    () => products.filter((product) => Number(product.stock || 0) > 0).length,
+    () => products.filter((product) => getNumber(product.stock) > 0).length,
     [products],
   );
 
   const outOfStock = useMemo(
-    () => products.filter((product) => Number(product.stock || 0) <= 0).length,
+    () => products.filter((product) => getNumber(product.stock) <= 0).length,
     [products],
   );
 
   const lowStock = useMemo(
     () =>
       products.filter((product) => {
-        const stock = Number(product.stock || 0);
+        const stock = getNumber(product.stock);
         return stock > 0 && stock <= 5;
       }).length,
     [products],
   );
 
-  /* =======================================================
-     NOTIFICATIONS
-  ======================================================= */
-
   const lowStockProducts = useMemo(
     () =>
       [...products]
         .filter((product) => {
-          const stock = Number(product.stock || 0);
+          const stock = getNumber(product.stock);
           return stock > 0 && stock <= 5;
         })
-        .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0))
+        .sort((a, b) => getNumber(a.stock) - getNumber(b.stock))
         .slice(0, 4),
     [products],
   );
 
   const outOfStockProducts = useMemo(
     () =>
-      products.filter((product) => Number(product.stock || 0) <= 0).slice(0, 4),
+      products.filter((product) => getNumber(product.stock) <= 0).slice(0, 4),
     [products],
   );
 
@@ -689,31 +765,36 @@ export default function AdminAnalyticsPage() {
     pendingOrders.length + lowStockProducts.length + outOfStockProducts.length;
 
   /* =======================================================
-     REPORTING PERIOD
+     PERIOD
   ======================================================= */
 
-  const periodDays = {
-    "7D": 7,
-    "30D": 30,
-    "6M": 180,
-    "1Y": 365,
-  }[period];
-
   const periodStart = useMemo(() => {
-    const date = new Date();
+    const now = new Date();
 
-    if (period === "6M") {
-      date.setMonth(date.getMonth() - 5);
-      date.setDate(1);
-    } else if (period === "1Y") {
-      date.setFullYear(date.getFullYear() - 1);
-      date.setDate(1);
-    } else {
-      date.setDate(date.getDate() - periodDays);
+    if (period === "7D") {
+      now.setDate(now.getDate() - 6);
+      now.setHours(0, 0, 0, 0);
+      return now;
     }
 
-    return date;
-  }, [period, periodDays]);
+    if (period === "30D") {
+      now.setDate(now.getDate() - 29);
+      now.setHours(0, 0, 0, 0);
+      return now;
+    }
+
+    if (period === "6M") {
+      now.setMonth(now.getMonth() - 5);
+      now.setDate(1);
+      now.setHours(0, 0, 0, 0);
+      return now;
+    }
+
+    now.setMonth(now.getMonth() - 11);
+    now.setDate(1);
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }, [period]);
 
   const periodOrders = useMemo(
     () =>
@@ -736,34 +817,40 @@ export default function AdminAnalyticsPage() {
   );
 
   /* =======================================================
-     PREVIOUS PERIOD REVENUE
+     PREVIOUS PERIOD
   ======================================================= */
 
-  const previousPeriodRevenue = useMemo(() => {
+  const previousPeriodStart = useMemo(() => {
     const start = new Date(periodStart);
-    const end = new Date(periodStart);
 
-    if (period === "7D" || period === "30D") {
-      const days = period === "7D" ? 7 : 30;
-      start.setDate(start.getDate() - days);
+    if (period === "7D") {
+      start.setDate(start.getDate() - 7);
+    } else if (period === "30D") {
+      start.setDate(start.getDate() - 30);
     } else if (period === "6M") {
       start.setMonth(start.getMonth() - 6);
     } else {
       start.setFullYear(start.getFullYear() - 1);
     }
 
-    return payments
-      .filter((payment) => {
-        if (payment.status !== "PAID") {
-          return false;
-        }
+    return start;
+  }, [period, periodStart]);
 
-        const date = new Date(payment.createdAt);
+  const previousPeriodRevenue = useMemo(
+    () =>
+      payments
+        .filter((payment) => {
+          if (payment.status !== "PAID") {
+            return false;
+          }
 
-        return date >= start && date < end;
-      })
-      .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
-  }, [payments, period, periodStart]);
+          const date = new Date(payment.createdAt);
+
+          return date >= previousPeriodStart && date < periodStart;
+        })
+        .reduce((sum, payment) => sum + getPaymentAmount(payment), 0),
+    [payments, previousPeriodStart, periodStart],
+  );
 
   const revenueChange = useMemo(() => {
     if (previousPeriodRevenue === 0) {
@@ -780,7 +867,7 @@ export default function AdminAnalyticsPage() {
      REVENUE CHART
   ======================================================= */
 
-  const revenueChart = useMemo(() => {
+  const revenueChart = useMemo<ChartPoint[]>(() => {
     const now = new Date();
 
     if (period === "7D") {
@@ -793,7 +880,7 @@ export default function AdminAnalyticsPage() {
         const nextDate = new Date(date);
         nextDate.setDate(date.getDate() + 1);
 
-        const value = periodPayments
+        const value = payments
           .filter((payment) => {
             if (payment.status !== "PAID") {
               return false;
@@ -816,17 +903,16 @@ export default function AdminAnalyticsPage() {
 
     if (period === "30D") {
       return Array.from({ length: 6 }, (_, index) => {
-        const end = new Date(now);
+        const start = new Date(now);
 
-        end.setDate(now.getDate() - index * 5);
-        end.setHours(23, 59, 59, 999);
-
-        const start = new Date(end);
-
-        start.setDate(end.getDate() - 4);
+        start.setDate(now.getDate() - (5 - index) * 5 - 4);
         start.setHours(0, 0, 0, 0);
 
-        const value = periodPayments
+        const end = new Date(start);
+        end.setDate(start.getDate() + 5);
+        end.setHours(0, 0, 0, 0);
+
+        const value = payments
           .filter((payment) => {
             if (payment.status !== "PAID") {
               return false;
@@ -834,7 +920,7 @@ export default function AdminAnalyticsPage() {
 
             const paymentDate = new Date(payment.createdAt);
 
-            return paymentDate >= start && paymentDate <= end;
+            return paymentDate >= start && paymentDate < end;
           })
           .reduce((sum, payment) => sum + getPaymentAmount(payment), 0);
 
@@ -845,7 +931,7 @@ export default function AdminAnalyticsPage() {
           }),
           value,
         };
-      }).reverse();
+      });
     }
 
     if (period === "6M") {
@@ -859,7 +945,7 @@ export default function AdminAnalyticsPage() {
         const nextDate = new Date(date);
         nextDate.setMonth(date.getMonth() + 1);
 
-        const value = periodPayments
+        const value = payments
           .filter((payment) => {
             if (payment.status !== "PAID") {
               return false;
@@ -890,7 +976,7 @@ export default function AdminAnalyticsPage() {
       const nextDate = new Date(date);
       nextDate.setMonth(date.getMonth() + 1);
 
-      const value = periodPayments
+      const value = payments
         .filter((payment) => {
           if (payment.status !== "PAID") {
             return false;
@@ -909,7 +995,7 @@ export default function AdminAnalyticsPage() {
         value,
       };
     });
-  }, [period, periodPayments]);
+  }, [period, payments]);
 
   const maxRevenue = Math.max(...revenueChart.map((item) => item.value), 1);
 
@@ -917,7 +1003,7 @@ export default function AdminAnalyticsPage() {
      ORDERS CHART
   ======================================================= */
 
-  const ordersChart = useMemo(() => {
+  const ordersChart = useMemo<ChartPoint[]>(() => {
     const now = new Date();
 
     if (period === "7D") {
@@ -947,20 +1033,19 @@ export default function AdminAnalyticsPage() {
 
     if (period === "30D") {
       return Array.from({ length: 6 }, (_, index) => {
-        const end = new Date(now);
+        const start = new Date(now);
 
-        end.setDate(now.getDate() - index * 5);
-        end.setHours(23, 59, 59, 999);
-
-        const start = new Date(end);
-
-        start.setDate(end.getDate() - 4);
+        start.setDate(now.getDate() - (5 - index) * 5 - 4);
         start.setHours(0, 0, 0, 0);
+
+        const end = new Date(start);
+        end.setDate(start.getDate() + 5);
+        end.setHours(0, 0, 0, 0);
 
         const value = periodOrders.filter((order) => {
           const orderDate = new Date(order.createdAt);
 
-          return orderDate >= start && orderDate <= end;
+          return orderDate >= start && orderDate < end;
         }).length;
 
         return {
@@ -970,7 +1055,7 @@ export default function AdminAnalyticsPage() {
           }),
           value,
         };
-      }).reverse();
+      });
     }
 
     if (period === "6M") {
@@ -1033,7 +1118,7 @@ export default function AdminAnalyticsPage() {
   const topProducts = useMemo(
     () =>
       [...products]
-        .sort((a, b) => Number(b.stock || 0) - Number(a.stock || 0))
+        .sort((a, b) => getNumber(b.stock) - getNumber(a.stock))
         .slice(0, 6),
     [products],
   );
@@ -1057,19 +1142,14 @@ export default function AdminAnalyticsPage() {
      SEARCH
   ======================================================= */
 
-  const searchResults = useMemo(() => {
+  const searchResults = useMemo<SearchResult[]>(() => {
     const query = search.trim().toLowerCase();
 
     if (!query) {
       return [];
     }
 
-    const results: {
-      type: string;
-      name: string;
-      detail: string;
-      href: string;
-    }[] = [];
+    const results: SearchResult[] = [];
 
     orders.forEach((order) => {
       const searchable = [
@@ -1085,9 +1165,7 @@ export default function AdminAnalyticsPage() {
         results.push({
           type: "Order",
           name: `Order #${order.id}`,
-          detail: `${order.status} • ${formatCurrency(
-            Number(order.total || 0),
-          )}`,
+          detail: `${order.status} • ${formatCurrency(getNumber(order.total))}`,
           href: "/admin/orders",
         });
       }
@@ -1124,7 +1202,7 @@ export default function AdminAnalyticsPage() {
     });
 
     payments.forEach((payment) => {
-      const method = getPaymentMethod(payment);
+      const method = normalizePaymentMethod(payment);
 
       const searchable = [
         String(payment.id),
@@ -1152,7 +1230,25 @@ export default function AdminAnalyticsPage() {
   }, [search, orders, products, customers, payments]);
 
   /* =======================================================
-     STATUS HELPERS
+     KPI
+  ======================================================= */
+
+  const deliveryCompletion =
+    orders.length > 0 ? (deliveredOrders.length / orders.length) * 100 : 0;
+
+  const fulfillmentRate =
+    orders.length > 0
+      ? ((shippedOrders.length + deliveredOrders.length) / orders.length) * 100
+      : 0;
+
+  const paymentSuccessRate =
+    payments.length > 0 ? (paidPayments.length / payments.length) * 100 : 0;
+
+  const inventoryHealth =
+    products.length > 0 ? (inStock / products.length) * 100 : 0;
+
+  /* =======================================================
+     STATUS CLASS
   ======================================================= */
 
   const getOrderStatusClass = (status: string) => {
@@ -1178,25 +1274,7 @@ export default function AdminAnalyticsPage() {
   };
 
   /* =======================================================
-     KEY METRICS
-  ======================================================= */
-
-  const deliveryCompletion =
-    orders.length > 0 ? (deliveredOrders.length / orders.length) * 100 : 0;
-
-  const fulfillmentRate =
-    orders.length > 0
-      ? ((shippedOrders.length + deliveredOrders.length) / orders.length) * 100
-      : 0;
-
-  const paymentSuccessRate =
-    payments.length > 0 ? (paidPayments.length / payments.length) * 100 : 0;
-
-  const inventoryHealth =
-    products.length > 0 ? (inStock / products.length) * 100 : 0;
-
-  /* =======================================================
-     EXPORT REPORT
+     EXPORT
   ======================================================= */
 
   const exportReport = () => {
@@ -1308,14 +1386,43 @@ export default function AdminAnalyticsPage() {
   }
 
   /* =======================================================
+     ERROR
+  ======================================================= */
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="w-full max-w-lg rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+            <Icon name="alert" size={24} />
+          </div>
+
+          <h1 className="text-xl font-bold text-slate-900">
+            Analytics could not be loaded
+          </h1>
+
+          <p className="mt-2 text-sm leading-6 text-slate-500">{error}</p>
+
+          <button
+            type="button"
+            onClick={fetchAnalyticsData}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Icon name="refresh" size={17} />
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* =======================================================
      UI
   ======================================================= */
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* =====================================================
-          MOBILE OVERLAY
-      ===================================================== */}
+      {/* MOBILE OVERLAY */}
 
       {sidebarOpen && (
         <button
@@ -1326,9 +1433,7 @@ export default function AdminAnalyticsPage() {
         />
       )}
 
-      {/* =====================================================
-          SIDEBAR
-      ===================================================== */}
+      {/* SIDEBAR */}
 
       <aside
         className={`fixed left-0 top-0 z-50 h-screen w-65 border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0 ${
@@ -1436,14 +1541,10 @@ export default function AdminAnalyticsPage() {
         </div>
       </aside>
 
-      {/* =====================================================
-          MAIN
-      ===================================================== */}
+      {/* MAIN */}
 
       <main className="min-h-screen lg:pl-65">
-        {/* ===================================================
-            HEADER
-        =================================================== */}
+        {/* HEADER */}
 
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex min-h-13 items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
@@ -1463,7 +1564,8 @@ export default function AdminAnalyticsPage() {
               </p>
             </div>
 
-            {/* Search */}
+            {/* SEARCH */}
+
             <div className="relative hidden md:block">
               <div className="flex w-57.5 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-300 focus-within:bg-white">
                 <Icon name="search" size={17} />
@@ -1527,7 +1629,8 @@ export default function AdminAnalyticsPage() {
                 <Icon name="refresh" size={19} />
               </button>
 
-              {/* Notifications */}
+              {/* NOTIFICATIONS */}
+
               <div className="relative">
                 <button
                   type="button"
@@ -1647,7 +1750,8 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
 
-          {/* Mobile search */}
+          {/* MOBILE SEARCH */}
+
           <div className="px-4 pb-3 md:hidden">
             <div className="relative">
               <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 focus-within:border-blue-300 focus-within:bg-white">
@@ -1703,12 +1807,11 @@ export default function AdminAnalyticsPage() {
           </div>
         </header>
 
-        {/* ===================================================
-            CONTENT
-        =================================================== */}
+        {/* CONTENT */}
 
         <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-          {/* Hero */}
+          {/* HERO */}
+
           <section className="overflow-hidden rounded-2xl bg-linear-to-br from-blue-800 via-blue-600 to-blue-500 text-white shadow-sm">
             <div className="flex flex-col gap-8 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1776,9 +1879,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* =================================================
-              PERIOD SELECTOR
-          ================================================= */}
+          {/* PERIOD */}
 
           <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1813,9 +1914,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* =================================================
-              SALES KPIs
-          ================================================= */}
+          {/* SALES KPIs */}
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -1908,12 +2007,9 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* =================================================
-              REVENUE + ORDERS CHARTS
-          ================================================= */}
+          {/* CHARTS */}
 
           <section className="grid gap-6 xl:grid-cols-2">
-            {/* Revenue */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1949,7 +2045,7 @@ export default function AdminAnalyticsPage() {
                             minHeight: item.value > 0 ? "8px" : "3px",
                           }}
                         >
-                          <div className="absolute bottom-[calc(100%-8px)] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-blue-700 px-2 py-1 text-[10px] font-semibold text-white group-hover:block">
+                          <div className="absolute bottom-full left-1/2 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-blue-700 px-2 py-1 text-[10px] font-semibold text-white group-hover:block">
                             {formatCurrency(item.value)}
                           </div>
                         </div>
@@ -1964,7 +2060,6 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            {/* Orders */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -2000,7 +2095,7 @@ export default function AdminAnalyticsPage() {
                             minHeight: item.value > 0 ? "8px" : "3px",
                           }}
                         >
-                          <div className="absolute bottom-[calc(100%-8px)] left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-blue-700 px-2 py-1 text-[10px] font-semibold text-white group-hover:block">
+                          <div className="absolute bottom-full left-1/2 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-blue-700 px-2 py-1 text-[10px] font-semibold text-white group-hover:block">
                             {item.value} orders
                           </div>
                         </div>
@@ -2016,12 +2111,9 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* =================================================
-              PAYMENT STATUS + METHODS
-          ================================================= */}
+          {/* PAYMENT */}
 
           <section className="grid gap-6 xl:grid-cols-2">
-            {/* Payment status */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div>
                 <h3 className="text-base font-bold">Payment Status</h3>
@@ -2032,97 +2124,74 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-6 space-y-4">
-                <div className="flex items-center justify-between rounded-xl bg-emerald-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-emerald-600">
-                      <Icon name="check" size={17} />
+                {[
+                  {
+                    label: "Paid",
+                    count: paidPayments.length,
+                    amount: paidRevenue,
+                    bg: "bg-emerald-50",
+                    iconBg: "bg-white text-emerald-600",
+                    text: "text-emerald-700",
+                    icon: "check" as IconName,
+                  },
+                  {
+                    label: "Pending",
+                    count: pendingPayments.length,
+                    amount: pendingRevenue,
+                    bg: "bg-amber-50",
+                    iconBg: "bg-white text-amber-600",
+                    text: "text-amber-700",
+                    icon: "clock" as IconName,
+                  },
+                  {
+                    label: "Failed",
+                    count: failedPayments.length,
+                    amount: failedRevenue,
+                    bg: "bg-red-50",
+                    iconBg: "bg-white text-red-600",
+                    text: "text-red-700",
+                    icon: "x" as IconName,
+                  },
+                  {
+                    label: "Cancelled",
+                    count: cancelledPayments.length,
+                    amount: cancelledRevenue,
+                    bg: "bg-slate-50",
+                    iconBg: "bg-white text-slate-600",
+                    text: "text-slate-700",
+                    icon: "x" as IconName,
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className={`flex items-center justify-between rounded-xl ${item.bg} p-4`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg ${item.iconBg}`}
+                      >
+                        <Icon name={item.icon} size={17} />
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {item.label}
+                        </p>
+
+                        <p className="text-xs text-slate-500">
+                          {item.count} payments
+                        </p>
+                      </div>
                     </div>
 
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        Paid
-                      </p>
-
-                      <p className="text-xs text-slate-500">
-                        {paidPayments.length} payments
-                      </p>
-                    </div>
+                    <p className={`text-sm font-bold ${item.text}`}>
+                      {formatCurrency(item.amount)}
+                    </p>
                   </div>
-
-                  <p className="text-sm font-bold text-emerald-700">
-                    {formatCurrency(paidRevenue)}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl bg-amber-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-amber-600">
-                      <Icon name="clock" size={17} />
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        Pending
-                      </p>
-
-                      <p className="text-xs text-slate-500">
-                        {pendingPayments.length} payments
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-sm font-bold text-amber-700">
-                    {formatCurrency(pendingRevenue)}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl bg-red-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-red-600">
-                      <Icon name="x" size={17} />
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        Failed
-                      </p>
-
-                      <p className="text-xs text-slate-500">
-                        {failedPayments.length} payments
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-sm font-bold text-red-700">
-                    {formatCurrency(failedRevenue)}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-600">
-                      <Icon name="x" size={17} />
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        Cancelled
-                      </p>
-
-                      <p className="text-xs text-slate-500">
-                        {cancelledPayments.length} payments
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-sm font-bold text-slate-700">
-                    {formatCurrency(cancelledRevenue)}
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* Payment methods */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div>
                 <h3 className="text-base font-bold">Payment Methods</h3>
@@ -2136,13 +2205,16 @@ export default function AdminAnalyticsPage() {
                 <div
                   className="mx-auto flex h-40 w-40 items-center justify-center rounded-full"
                   style={{
-                    background: `conic-gradient(
-                      #2563eb 0% ${cashPercentage}%,
-                      #60a5fa ${cashPercentage}% ${
-                        cashPercentage + telebirrPercentage
-                      }%,
-                      #bfdbfe ${cashPercentage + telebirrPercentage}% 100%
-                    )`,
+                    background:
+                      paymentMethodTotal > 0
+                        ? `conic-gradient(
+                            #2563eb 0% ${cashPercentage}%,
+                            #60a5fa ${cashPercentage}% ${
+                              cashPercentage + telebirrPercentage
+                            }%,
+                            #bfdbfe ${cashPercentage + telebirrPercentage}% 100%
+                          )`
+                        : "#e2e8f0",
                   }}
                 >
                   <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white">
@@ -2155,72 +2227,57 @@ export default function AdminAnalyticsPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="h-3 w-3 rounded-full bg-blue-600" />
+                  {[
+                    {
+                      label: "Cash on Delivery",
+                      count: cashOnDeliveryPayments.length,
+                      percentage: cashPercentage,
+                      color: "bg-blue-600",
+                    },
+                    {
+                      label: "Telebirr",
+                      count: telebirrPayments.length,
+                      percentage: telebirrPercentage,
+                      color: "bg-blue-400",
+                    },
+                    {
+                      label: "Card",
+                      count: cardPayments.length,
+                      percentage: cardPercentage,
+                      color: "bg-blue-200",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`h-3 w-3 rounded-full ${item.color}`}
+                        />
 
-                      <div>
-                        <p className="text-sm font-semibold">
-                          Cash on Delivery
-                        </p>
+                        <div>
+                          <p className="text-sm font-semibold">{item.label}</p>
 
-                        <p className="text-xs text-slate-500">
-                          {cashOnDeliveryPayments.length} payments
-                        </p>
+                          <p className="text-xs text-slate-500">
+                            {item.count} payments
+                          </p>
+                        </div>
                       </div>
+
+                      <p className="text-sm font-bold">
+                        {item.percentage.toFixed(1)}%
+                      </p>
                     </div>
-
-                    <p className="text-sm font-bold">
-                      {cashPercentage.toFixed(1)}%
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="h-3 w-3 rounded-full bg-blue-400" />
-
-                      <div>
-                        <p className="text-sm font-semibold">Telebirr</p>
-
-                        <p className="text-xs text-slate-500">
-                          {telebirrPayments.length} payments
-                        </p>
-                      </div>
-                    </div>
-
-                    <p className="text-sm font-bold">
-                      {telebirrPercentage.toFixed(1)}%
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="h-3 w-3 rounded-full bg-blue-200" />
-
-                      <div>
-                        <p className="text-sm font-semibold">Card</p>
-
-                        <p className="text-xs text-slate-500">
-                          {cardPayments.length} payments
-                        </p>
-                      </div>
-                    </div>
-
-                    <p className="text-sm font-bold">
-                      {cardPercentage.toFixed(1)}%
-                    </p>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
           </section>
 
-          {/* =================================================
-              ORDER STATUS + CUSTOMER BASE
-          ================================================= */}
+          {/* ORDER STATUS + CUSTOMERS */}
 
           <section className="grid gap-6 xl:grid-cols-2">
-            {/* Order status */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div>
                 <h3 className="text-base font-bold">Order Status</h3>
@@ -2319,7 +2376,6 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            {/* Customer base */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div>
                 <h3 className="text-base font-bold">Customer Base</h3>
@@ -2398,9 +2454,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* =================================================
-              INVENTORY
-          ================================================= */}
+          {/* INVENTORY */}
 
           <section className="grid gap-6 xl:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
@@ -2469,7 +2523,6 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            {/* Highest stock products */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div className="flex items-start justify-between">
                 <div>
@@ -2512,7 +2565,7 @@ export default function AdminAnalyticsPage() {
                         </p>
 
                         <p className="text-xs text-slate-500">
-                          {formatCurrency(product.price)}
+                          {formatCurrency(getNumber(product.price))}
                         </p>
                       </div>
 
@@ -2532,9 +2585,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* =================================================
-              KEY METRICS
-          ================================================= */}
+          {/* KEY METRICS */}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <div>
@@ -2546,73 +2597,49 @@ export default function AdminAnalyticsPage() {
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
-                    <Icon name="truck" size={17} />
+              {[
+                {
+                  label: "Delivery Completion",
+                  value: deliveryCompletion,
+                  icon: "truck" as IconName,
+                },
+                {
+                  label: "Fulfillment Rate",
+                  value: fulfillmentRate,
+                  icon: "activity" as IconName,
+                },
+                {
+                  label: "Payment Success",
+                  value: paymentSuccessRate,
+                  icon: "credit" as IconName,
+                },
+                {
+                  label: "Inventory Health",
+                  value: inventoryHealth,
+                  icon: "box" as IconName,
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-blue-100 bg-blue-50/50 p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
+                      <Icon name={item.icon} size={17} />
+                    </div>
+
+                    <span className="text-sm font-semibold">{item.label}</span>
                   </div>
 
-                  <span className="text-sm font-semibold">
-                    Delivery Completion
-                  </span>
+                  <p className="mt-4 text-2xl font-bold">
+                    {item.value.toFixed(1)}%
+                  </p>
                 </div>
-
-                <p className="mt-4 text-2xl font-bold">
-                  {deliveryCompletion.toFixed(1)}%
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
-                    <Icon name="activity" size={17} />
-                  </div>
-
-                  <span className="text-sm font-semibold">
-                    Fulfillment Rate
-                  </span>
-                </div>
-
-                <p className="mt-4 text-2xl font-bold">
-                  {fulfillmentRate.toFixed(1)}%
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
-                    <Icon name="credit" size={17} />
-                  </div>
-
-                  <span className="text-sm font-semibold">Payment Success</span>
-                </div>
-
-                <p className="mt-4 text-2xl font-bold">
-                  {paymentSuccessRate.toFixed(1)}%
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-blue-600">
-                    <Icon name="box" size={17} />
-                  </div>
-
-                  <span className="text-sm font-semibold">
-                    Inventory Health
-                  </span>
-                </div>
-
-                <p className="mt-4 text-2xl font-bold">
-                  {inventoryHealth.toFixed(1)}%
-                </p>
-              </div>
+              ))}
             </div>
           </section>
 
-          {/* =================================================
-              RECENT ORDERS
-          ================================================= */}
+          {/* RECENT ORDERS */}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
@@ -2697,7 +2724,7 @@ export default function AdminAnalyticsPage() {
                         </td>
 
                         <td className="px-3 py-4 text-right text-sm font-bold">
-                          {formatCurrency(Number(order.total || 0))}
+                          {formatCurrency(getNumber(order.total))}
                         </td>
                       </tr>
                     ))
@@ -2716,9 +2743,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </section>
 
-          {/* =================================================
-              PAYMENT SNAPSHOT
-          ================================================= */}
+          {/* PAYMENT SNAPSHOT */}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <div className="flex items-start justify-between">

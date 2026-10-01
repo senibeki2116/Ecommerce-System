@@ -42,6 +42,25 @@ type Payment = {
   createdAt?: string;
 };
 
+type AdminNotificationSummary = {
+  pendingOrders: number;
+  lowStockProducts: number;
+  outOfStockProducts: number;
+  pendingPayments: number;
+  failedPayments: number;
+  totalAlerts: number;
+};
+
+type AdminAlerts = {
+  summary: AdminNotificationSummary;
+  pendingOrders: Order[];
+  recentOrders: Order[];
+  lowStockProducts: Product[];
+  outOfStockProducts: Product[];
+  pendingPayments: Payment[];
+  failedPayments: Payment[];
+};
+
 type IconName =
   | "grid"
   | "bag"
@@ -310,6 +329,24 @@ export default function AdminDashboard() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  const [adminAlerts, setAdminAlerts] = useState<AdminAlerts>({
+    summary: {
+      pendingOrders: 0,
+      lowStockProducts: 0,
+      outOfStockProducts: 0,
+      pendingPayments: 0,
+      failedPayments: 0,
+      totalAlerts: 0,
+    },
+    pendingOrders: [],
+    recentOrders: [],
+    lowStockProducts: [],
+    outOfStockProducts: [],
+    pendingPayments: [],
+    failedPayments: [],
+  });
 
   const fetchDashboardData = async () => {
     try {
@@ -442,8 +479,102 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchAdminAlerts = async () => {
+    try {
+      setNotificationsLoading(true);
+
+      const token = localStorage.getItem("accessToken");
+
+      if (!token) {
+        return;
+      }
+
+      const response = await fetch(
+        "http://localhost:3001/notifications/admin/alerts",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        },
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("user");
+        window.location.replace("/login");
+        return;
+      }
+
+      if (response.status === 403) {
+        console.error(
+          "Admin notifications request forbidden. Admin role is required.",
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        console.error("Admin notifications request failed:", response.status);
+        return;
+      }
+
+      const data = await response.json();
+
+      setAdminAlerts({
+        summary: {
+          pendingOrders: Number(data?.summary?.pendingOrders || 0),
+          lowStockProducts: Number(data?.summary?.lowStockProducts || 0),
+          outOfStockProducts: Number(data?.summary?.outOfStockProducts || 0),
+          pendingPayments: Number(data?.summary?.pendingPayments || 0),
+          failedPayments: Number(data?.summary?.failedPayments || 0),
+          totalAlerts: Number(data?.summary?.totalAlerts || 0),
+        },
+
+        pendingOrders: Array.isArray(data?.pendingOrders)
+          ? data.pendingOrders
+          : [],
+
+        recentOrders: Array.isArray(data?.recentOrders)
+          ? data.recentOrders
+          : [],
+
+        lowStockProducts: Array.isArray(data?.lowStockProducts)
+          ? data.lowStockProducts
+          : [],
+
+        outOfStockProducts: Array.isArray(data?.outOfStockProducts)
+          ? data.outOfStockProducts
+          : [],
+
+        pendingPayments: Array.isArray(data?.pendingPayments)
+          ? data.pendingPayments
+          : [],
+
+        failedPayments: Array.isArray(data?.failedPayments)
+          ? data.failedPayments
+          : [],
+      });
+    } catch (error) {
+      console.error("Admin notifications error:", error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
+    fetchAdminAlerts();
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      fetchAdminAlerts();
+    }, 30000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
   }, []);
 
   const totalOrders = orders.length;
@@ -540,30 +671,22 @@ export default function AdminDashboard() {
       .slice(0, 5);
   }, [products]);
 
-  const notificationLowStockProducts = useMemo(() => {
-    return [...products]
-      .filter(
-        (product) =>
-          Number(product.stock || 0) > 0 && Number(product.stock || 0) <= 5,
-      )
-      .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0))
-      .slice(0, 4);
-  }, [products]);
+  /* BACKEND NOTIFICATIONS */
 
-  const notificationOutOfStockProducts = useMemo(() => {
-    return [...products]
-      .filter((product) => Number(product.stock || 0) <= 0)
-      .slice(0, 4);
-  }, [products]);
-
-  const notificationCount =
-    pendingOrders +
-    notificationLowStockProducts.length +
-    notificationOutOfStockProducts.length +
-    pendingPayments;
+  const notificationCount = adminAlerts.summary.totalAlerts;
 
   const notificationBadge =
     notificationCount > 9 ? "9+" : String(notificationCount);
+
+  const notificationPendingOrders = adminAlerts.summary.pendingOrders;
+
+  const notificationLowStockProducts = adminAlerts.lowStockProducts;
+
+  const notificationOutOfStockProducts = adminAlerts.outOfStockProducts;
+
+  const notificationPendingPayments = adminAlerts.summary.pendingPayments;
+
+  const notificationFailedPayments = adminAlerts.summary.failedPayments;
 
   const monthlySales = useMemo(() => {
     const now = new Date();
@@ -799,6 +922,10 @@ export default function AdminDashboard() {
     setDesktopSearchOpen(false);
     setMobileSearchOpen(false);
     setNotificationsOpen((value) => !value);
+
+    if (!notificationsOpen) {
+      fetchAdminAlerts();
+    }
   };
 
   const handleNotificationNavigation = () => {
@@ -1215,133 +1342,193 @@ export default function AdminDashboard() {
                       </div>
 
                       <div className="max-h-95 overflow-y-auto p-2">
-                        {/* PENDING ORDERS */}
-
-                        {pendingOrders > 0 && (
-                          <Link
-                            href="/admin/orders"
-                            onClick={handleNotificationNavigation}
-                            className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-amber-50"
-                          >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-white">
-                              <Icon name="clock" size={17} />
+                        {notificationsLoading ? (
+                          <div className="px-5 py-10 text-center">
+                            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                              <Icon name="refresh" size={18} />
                             </div>
 
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-black text-slate-800">
-                                Pending orders
-                              </p>
-
-                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                                {pendingOrders} order
-                                {pendingOrders !== 1 ? "s" : ""} waiting for
-                                review.
-                              </p>
-                            </div>
-
-                            <Icon name="chevron" size={14} />
-                          </Link>
-                        )}
-
-                        {/* PENDING PAYMENTS */}
-
-                        {pendingPayments > 0 && (
-                          <Link
-                            href="/admin/payments"
-                            onClick={handleNotificationNavigation}
-                            className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-indigo-50"
-                          >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-white">
-                              <Icon name="card" size={17} />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-black text-slate-800">
-                                Pending payments
-                              </p>
-
-                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                                {pendingPayments} payment
-                                {pendingPayments !== 1 ? "s" : ""} waiting for
-                                review.
-                              </p>
-                            </div>
-
-                            <Icon name="chevron" size={14} />
-                          </Link>
-                        )}
-
-                        {/* LOW STOCK */}
-
-                        {notificationLowStockProducts.length > 0 && (
-                          <Link
-                            href="/admin/products"
-                            onClick={handleNotificationNavigation}
-                            className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-orange-50"
-                          >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 group-hover:bg-white">
-                              <Icon name="warning" size={17} />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-black text-slate-800">
-                                Low stock alert
-                              </p>
-
-                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                                {lowStockProducts} product
-                                {lowStockProducts !== 1 ? "s" : ""} have 5 or
-                                fewer units remaining.
-                              </p>
-                            </div>
-
-                            <Icon name="chevron" size={14} />
-                          </Link>
-                        )}
-
-                        {/* OUT OF STOCK */}
-
-                        {notificationOutOfStockProducts.length > 0 && (
-                          <Link
-                            href="/admin/products"
-                            onClick={handleNotificationNavigation}
-                            className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-rose-50"
-                          >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 group-hover:bg-white">
-                              <Icon name="box" size={17} />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-black text-slate-800">
-                                Out of stock
-                              </p>
-
-                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                                {outOfStockProducts} product
-                                {outOfStockProducts !== 1 ? "s" : ""} currently
-                                have no available stock.
-                              </p>
-                            </div>
-
-                            <Icon name="chevron" size={14} />
-                          </Link>
-                        )}
-
-                        {notificationCount === 0 && (
-                          <div className="px-5 py-8 text-center">
-                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                              <Icon name="check" size={22} />
-                            </div>
-
-                            <p className="mt-3 text-xs font-black text-slate-800">
-                              You&apos;re all caught up
+                            <p className="mt-3 text-xs font-black text-slate-700">
+                              Loading notifications...
                             </p>
 
-                            <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                              There are no pending orders, payments, or
-                              inventory alerts.
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Checking the latest store alerts.
                             </p>
                           </div>
+                        ) : (
+                          <>
+                            {/* PENDING ORDERS */}
+
+                            {notificationPendingOrders > 0 && (
+                              <Link
+                                href="/admin/orders"
+                                onClick={handleNotificationNavigation}
+                                className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-amber-50"
+                              >
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-white">
+                                  <Icon name="clock" size={17} />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-black text-slate-800">
+                                    Pending orders
+                                  </p>
+
+                                  <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                    {notificationPendingOrders} order
+                                    {notificationPendingOrders !== 1
+                                      ? "s"
+                                      : ""}{" "}
+                                    waiting for review.
+                                  </p>
+                                </div>
+
+                                <Icon name="chevron" size={14} />
+                              </Link>
+                            )}
+
+                            {/* PENDING PAYMENTS */}
+
+                            {notificationPendingPayments > 0 && (
+                              <Link
+                                href="/admin/payments?status=PENDING"
+                                onClick={handleNotificationNavigation}
+                                className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-indigo-50"
+                              >
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-white">
+                                  <Icon name="card" size={17} />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-black text-slate-800">
+                                    Pending payments
+                                  </p>
+
+                                  <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                    {notificationPendingPayments} payment
+                                    {notificationPendingPayments !== 1
+                                      ? "s"
+                                      : ""}{" "}
+                                    waiting for review.
+                                  </p>
+                                </div>
+
+                                <Icon name="chevron" size={14} />
+                              </Link>
+                            )}
+
+                            {/* FAILED PAYMENTS */}
+
+                            {notificationFailedPayments > 0 && (
+                              <Link
+                                href="/admin/payments?status=FAILED"
+                                onClick={handleNotificationNavigation}
+                                className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-rose-50"
+                              >
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 group-hover:bg-white">
+                                  <Icon name="warning" size={17} />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-black text-slate-800">
+                                    Failed payments
+                                  </p>
+
+                                  <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                    {notificationFailedPayments} payment
+                                    {notificationFailedPayments !== 1
+                                      ? "s"
+                                      : ""}{" "}
+                                    failed and require attention.
+                                  </p>
+                                </div>
+
+                                <Icon name="chevron" size={14} />
+                              </Link>
+                            )}
+
+                            {/* LOW STOCK */}
+
+                            {notificationLowStockProducts.length > 0 && (
+                              <Link
+                                href="/admin/products"
+                                onClick={handleNotificationNavigation}
+                                className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-orange-50"
+                              >
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 group-hover:bg-white">
+                                  <Icon name="warning" size={17} />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-black text-slate-800">
+                                    Low stock alert
+                                  </p>
+
+                                  <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                    {notificationLowStockProducts.length}{" "}
+                                    product
+                                    {notificationLowStockProducts.length !== 1
+                                      ? "s"
+                                      : ""}{" "}
+                                    have 5 or fewer units remaining.
+                                  </p>
+                                </div>
+
+                                <Icon name="chevron" size={14} />
+                              </Link>
+                            )}
+
+                            {/* OUT OF STOCK */}
+
+                            {notificationOutOfStockProducts.length > 0 && (
+                              <Link
+                                href="/admin/products"
+                                onClick={handleNotificationNavigation}
+                                className="group flex w-full items-start gap-3 rounded-xl p-3 transition hover:bg-rose-50"
+                              >
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 group-hover:bg-white">
+                                  <Icon name="box" size={17} />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-black text-slate-800">
+                                    Out of stock
+                                  </p>
+
+                                  <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                    {notificationOutOfStockProducts.length}{" "}
+                                    product
+                                    {notificationOutOfStockProducts.length !== 1
+                                      ? "s"
+                                      : ""}{" "}
+                                    currently have no available stock.
+                                  </p>
+                                </div>
+
+                                <Icon name="chevron" size={14} />
+                              </Link>
+                            )}
+
+                            {/* EVERYTHING CLEAR */}
+
+                            {notificationCount === 0 && (
+                              <div className="px-5 py-8 text-center">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                                  <Icon name="check" size={22} />
+                                </div>
+
+                                <p className="mt-3 text-xs font-black text-slate-800">
+                                  You&apos;re all caught up
+                                </p>
+
+                                <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                  There are no pending orders, payments, or
+                                  inventory alerts.
+                                </p>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
 
@@ -1388,6 +1575,7 @@ export default function AdminDashboard() {
                   closeAllPanels();
                   setSidebarOpen(false);
                   fetchDashboardData();
+                  fetchAdminAlerts();
                 }}
                 disabled={loading || paymentsLoading}
                 className="flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"

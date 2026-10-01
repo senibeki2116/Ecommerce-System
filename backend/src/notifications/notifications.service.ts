@@ -1,31 +1,46 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getNotifications(userId?: number) {
+  // =========================================================
+  // GET NOTIFICATIONS FOR CURRENT USER
+  // =========================================================
+  async getNotifications(userId: number) {
     return this.prisma.notification.findMany({
-      where: userId ? { userId } : {},
+      where: {
+        userId,
+      },
       orderBy: {
         createdAt: 'desc',
       },
     });
   }
 
-  async getUnreadCount(userId?: number) {
+  // =========================================================
+  // GET UNREAD NOTIFICATION COUNT
+  // =========================================================
+  async getUnreadCount(userId: number) {
     return this.prisma.notification.count({
       where: {
-        ...(userId ? { userId } : {}),
+        userId,
         isRead: false,
       },
     });
   }
 
-  async markAsRead(id: number) {
-    const notification = await this.prisma.notification.findUnique({
-      where: { id },
+  // =========================================================
+  // MARK ONE NOTIFICATION AS READ
+  // =========================================================
+  async markAsRead(id: number, userId: number) {
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id,
+        userId,
+      },
     });
 
     if (!notification) {
@@ -33,17 +48,22 @@ export class NotificationsService {
     }
 
     return this.prisma.notification.update({
-      where: { id },
+      where: {
+        id,
+      },
       data: {
         isRead: true,
       },
     });
   }
 
-  async markAllAsRead(userId?: number) {
+  // =========================================================
+  // MARK ALL USER NOTIFICATIONS AS READ
+  // =========================================================
+  async markAllAsRead(userId: number) {
     return this.prisma.notification.updateMany({
       where: {
-        ...(userId ? { userId } : {}),
+        userId,
         isRead: false,
       },
       data: {
@@ -52,9 +72,15 @@ export class NotificationsService {
     });
   }
 
-  async remove(id: number) {
-    const notification = await this.prisma.notification.findUnique({
-      where: { id },
+  // =========================================================
+  // DELETE ONE NOTIFICATION
+  // =========================================================
+  async remove(id: number, userId: number) {
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id,
+        userId,
+      },
     });
 
     if (!notification) {
@@ -62,10 +88,15 @@ export class NotificationsService {
     }
 
     return this.prisma.notification.delete({
-      where: { id },
+      where: {
+        id,
+      },
     });
   }
 
+  // =========================================================
+  // CREATE NOTIFICATION
+  // =========================================================
   async createNotification(data: {
     title: string;
     message: string;
@@ -80,5 +111,190 @@ export class NotificationsService {
         userId: data.userId,
       },
     });
+  }
+
+  // =========================================================
+  // GET LIVE ADMIN ALERTS
+  //
+  // These alerts are calculated directly from the database.
+  // They do NOT create duplicate Notification records.
+  // =========================================================
+  async getAdminAlerts() {
+    const [
+      pendingOrders,
+      recentOrders,
+      lowStockProducts,
+      outOfStockProducts,
+      pendingPayments,
+      failedPayments,
+    ] = await Promise.all([
+      // -----------------------------------------------------
+      // PENDING ORDERS
+      // -----------------------------------------------------
+      this.prisma.order.findMany({
+        where: {
+          status: 'PENDING',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 10,
+        select: {
+          id: true,
+          total: true,
+          status: true,
+          createdAt: true,
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+      }),
+
+      // -----------------------------------------------------
+      // RECENT ORDERS
+      // -----------------------------------------------------
+      this.prisma.order.findMany({
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 5,
+        select: {
+          id: true,
+          total: true,
+          status: true,
+          createdAt: true,
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+      }),
+
+      // -----------------------------------------------------
+      // LOW STOCK PRODUCTS
+      // Stock from 1 to 5
+      // -----------------------------------------------------
+      this.prisma.product.findMany({
+        where: {
+          stock: {
+            gt: 0,
+            lte: 5,
+          },
+        },
+        orderBy: {
+          stock: 'asc',
+        },
+        take: 10,
+        select: {
+          id: true,
+          name: true,
+          stock: true,
+        },
+      }),
+
+      // -----------------------------------------------------
+      // OUT OF STOCK PRODUCTS
+      // -----------------------------------------------------
+      this.prisma.product.findMany({
+        where: {
+          stock: {
+            lte: 0,
+          },
+        },
+        orderBy: {
+          id: 'desc',
+        },
+        take: 10,
+        select: {
+          id: true,
+          name: true,
+          stock: true,
+        },
+      }),
+
+      // -----------------------------------------------------
+      // PENDING PAYMENTS
+      // -----------------------------------------------------
+      this.prisma.payment.findMany({
+        where: {
+          status: 'PENDING',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 10,
+        select: {
+          id: true,
+          orderId: true,
+          amount: true,
+          method: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+
+      // -----------------------------------------------------
+      // FAILED PAYMENTS
+      // -----------------------------------------------------
+      this.prisma.payment.findMany({
+        where: {
+          status: 'FAILED',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 10,
+        select: {
+          id: true,
+          orderId: true,
+          amount: true,
+          method: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    // =======================================================
+    // RETURN ADMIN ALERT DATA
+    // =======================================================
+
+    return {
+      summary: {
+        pendingOrders: pendingOrders.length,
+
+        lowStockProducts: lowStockProducts.length,
+
+        outOfStockProducts: outOfStockProducts.length,
+
+        pendingPayments: pendingPayments.length,
+
+        failedPayments: failedPayments.length,
+
+        totalAlerts:
+          pendingOrders.length +
+          lowStockProducts.length +
+          outOfStockProducts.length +
+          pendingPayments.length +
+          failedPayments.length,
+      },
+
+      pendingOrders,
+
+      recentOrders,
+
+      lowStockProducts,
+
+      outOfStockProducts,
+
+      pendingPayments,
+
+      failedPayments,
+    };
   }
 }
