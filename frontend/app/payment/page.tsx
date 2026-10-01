@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type Payment = {
@@ -23,34 +23,25 @@ type Order = {
   payment?: Payment | null;
 };
 
-export default function PaymentPage() {
+function PaymentPageContent() {
   const searchParams = useSearchParams();
 
   const orderId = searchParams.get("orderId");
 
   const [payment, setPayment] = useState<Payment | null>(null);
-
   const [order, setOrder] = useState<Order | null>(null);
-
   const [loading, setLoading] = useState(true);
-
   const [updating, setUpdating] = useState(false);
-
   const [error, setError] = useState("");
-
   const [success, setSuccess] = useState("");
 
-  useEffect(() => {
+  const loadPayment = async () => {
     if (!orderId) {
       setError("No order was selected.");
       setLoading(false);
       return;
     }
 
-    loadPayment();
-  }, [orderId]);
-
-  const loadPayment = async () => {
     try {
       setLoading(true);
       setError("");
@@ -60,12 +51,10 @@ export default function PaymentPage() {
 
       if (!token) {
         setError("Please login to view your payment.");
+        setLoading(false);
         return;
       }
 
-      /*
-       * Get payment for this order
-       */
       const response = await fetch(
         `http://localhost:3001/payments/order/${orderId}`,
         {
@@ -87,9 +76,6 @@ export default function PaymentPage() {
 
       setPayment(data);
 
-      /*
-       * Load order information too
-       */
       const orderResponse = await fetch(
         `http://localhost:3001/orders/${orderId}`,
         {
@@ -111,14 +97,17 @@ export default function PaymentPage() {
     }
   };
 
+  useEffect(() => {
+    loadPayment();
+  }, [orderId]);
+
   /*
-   * DEVELOPMENT / TEST PAYMENT STATUS
-   *
-   * In a real payment system, the customer should
-   * NOT directly mark a payment as PAID.
-   *
-   * This is only for testing the project.
-   */
+
+* DEVELOPMENT / TEST PAYMENT STATUS
+*
+* In a real payment system, the customer should NOT directly
+* mark a payment as PAID. These buttons are for project testing.
+  */
   const updatePaymentStatus = async (status: "PAID" | "FAILED") => {
     if (!payment) {
       return;
@@ -140,13 +129,10 @@ export default function PaymentPage() {
         `http://localhost:3001/payments/${payment.id}/status`,
         {
           method: "PATCH",
-
           headers: {
             "Content-Type": "application/json",
-
             Authorization: `Bearer ${token}`,
           },
-
           body: JSON.stringify({
             status,
           }),
@@ -175,47 +161,32 @@ export default function PaymentPage() {
     }
   };
 
-  /*
-   * PAYMENT METHOD LABEL
-   */
   const getPaymentMethod = (method?: string) => {
     switch (method) {
       case "CASH_ON_DELIVERY":
         return "Cash on Delivery";
-
       case "TELEBIRR":
         return "Telebirr";
-
       case "CARD":
         return "Credit / Debit Card";
-
       default:
         return method || "Unknown";
     }
   };
 
-  /*
-   * PAYMENT ICON
-   */
   const getPaymentIcon = (method?: string) => {
     switch (method) {
       case "CASH_ON_DELIVERY":
         return "💵";
-
       case "TELEBIRR":
         return "📱";
-
       case "CARD":
         return "💳";
-
       default:
         return "💰";
     }
   };
 
-  /*
-   * STATUS INFORMATION
-   */
   const getStatusInfo = (status?: Payment["status"]) => {
     switch (status) {
       case "PAID":
@@ -256,28 +227,25 @@ export default function PaymentPage() {
     }
   };
 
-  /*
-   * LOADING
-   */
   if (loading) {
     return (
       <main className="min-h-screen bg-[#f6f9fc]">
+        {" "}
         <header className="border-b border-sky-100 bg-white">
+          {" "}
           <div className="mx-auto max-w-7xl px-5 py-4 lg:px-8">
+            {" "}
             <Link
               href="/"
               className="text-2xl font-black tracking-tight text-slate-900"
             >
-              Shop
-              <span className="text-blue-600">Ease</span>
-            </Link>
-          </div>
+              Shop<span className="text-blue-600">Ease</span>{" "}
+            </Link>{" "}
+          </div>{" "}
         </header>
-
         <div className="flex min-h-[70vh] items-center justify-center px-5">
           <div className="text-center">
             <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-sky-100 border-t-blue-600" />
-
             <p className="mt-5 font-bold text-slate-600">Loading payment...</p>
           </div>
         </div>
@@ -285,22 +253,20 @@ export default function PaymentPage() {
     );
   }
 
-  /*
-   * ERROR
-   */
   if (error && !payment) {
     return (
       <main className="min-h-screen bg-[#f6f9fc]">
+        {" "}
         <header className="border-b border-sky-100 bg-white">
+          {" "}
           <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+            {" "}
             <Link
               href="/"
               className="text-2xl font-black tracking-tight text-slate-900"
             >
-              Shop
-              <span className="text-blue-600">Ease</span>
+              Shop<span className="text-blue-600">Ease</span>{" "}
             </Link>
-
             <Link
               href="/orders"
               className="rounded-xl bg-sky-50 px-4 py-2 text-sm font-bold text-blue-700"
@@ -309,7 +275,6 @@ export default function PaymentPage() {
             </Link>
           </div>
         </header>
-
         <div className="mx-auto max-w-xl px-5 py-24 text-center">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-3xl text-red-600">
             !
@@ -345,17 +310,17 @@ export default function PaymentPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f9fc] text-slate-900">
-      {/* HEADER */}
+      {" "}
       <header className="border-b border-sky-100 bg-white">
+        {" "}
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+          {" "}
           <Link
             href="/"
             className="text-2xl font-black tracking-tight text-slate-900"
           >
-            Shop
-            <span className="text-blue-600">Ease</span>
+            Shop<span className="text-blue-600">Ease</span>{" "}
           </Link>
-
           <Link
             href="/orders"
             className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
@@ -364,8 +329,6 @@ export default function PaymentPage() {
           </Link>
         </div>
       </header>
-
-      {/* HERO */}
       <section className="bg-linear-to-br from-sky-100 via-blue-50 to-indigo-100">
         <div className="mx-auto max-w-5xl px-5 py-12 lg:px-8">
           <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-600">
@@ -381,16 +344,13 @@ export default function PaymentPage() {
           </p>
         </div>
       </section>
-
       <div className="mx-auto max-w-5xl px-5 py-10 lg:px-8 lg:py-14">
-        {/* SUCCESS */}
         {success && (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
             ✓ {success}
           </div>
         )}
 
-        {/* ERROR */}
         {error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
             ! {error}
@@ -398,7 +358,6 @@ export default function PaymentPage() {
         )}
 
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
-          {/* MAIN PAYMENT CARD */}
           <div className="space-y-6">
             <section className="overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-sm">
               <div className="bg-linear-to-br from-sky-500 via-blue-600 to-indigo-600 p-7 text-white sm:p-8">
@@ -420,7 +379,6 @@ export default function PaymentPage() {
               </div>
 
               <div className="p-6 sm:p-8">
-                {/* STATUS */}
                 <div
                   className={`rounded-2xl border p-5 ${statusInfo.className}`}
                 >
@@ -445,7 +403,6 @@ export default function PaymentPage() {
                   </div>
                 </div>
 
-                {/* DETAILS */}
                 <div className="mt-7">
                   <h2 className="text-lg font-black text-slate-900">
                     Payment information
@@ -490,7 +447,6 @@ export default function PaymentPage() {
               </div>
             </section>
 
-            {/* DEVELOPMENT TESTING */}
             {payment?.status === "PENDING" && (
               <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-7">
                 <div className="flex gap-4">
@@ -534,7 +490,6 @@ export default function PaymentPage() {
             )}
           </div>
 
-          {/* ORDER SUMMARY */}
           <aside className="lg:sticky lg:top-6 lg:self-start">
             <div className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
               <p className="text-xs font-black uppercase tracking-wider text-blue-600">
@@ -546,25 +501,23 @@ export default function PaymentPage() {
               </h2>
 
               {order && (
-                <>
-                  <div className="mt-6 space-y-4">
-                    <PaymentDetail
-                      label="Order total"
-                      value={`$${Number(order.total || 0).toFixed(2)}`}
-                    />
+                <div className="mt-6 space-y-4">
+                  <PaymentDetail
+                    label="Order total"
+                    value={`$${Number(order.total || 0).toFixed(2)}`}
+                  />
 
-                    <PaymentDetail label="Order status" value={order.status} />
+                  <PaymentDetail label="Order status" value={order.status} />
 
-                    <PaymentDetail
-                      label="Placed"
-                      value={
-                        order.createdAt
-                          ? new Date(order.createdAt).toLocaleDateString()
-                          : "-"
-                      }
-                    />
-                  </div>
-                </>
+                  <PaymentDetail
+                    label="Placed"
+                    value={
+                      order.createdAt
+                        ? new Date(order.createdAt).toLocaleDateString()
+                        : "-"
+                    }
+                  />
+                </div>
               )}
 
               <div className="mt-6 rounded-2xl bg-sky-50 p-4">
@@ -600,8 +553,6 @@ export default function PaymentPage() {
           </aside>
         </div>
       </div>
-
-      {/* FOOTER */}
       <footer className="border-t border-sky-100 bg-white py-8">
         <div className="mx-auto max-w-5xl px-5 text-center text-sm text-slate-400 lg:px-8">
           © {new Date().getFullYear()} ShopEase. Secure payment experience.
@@ -611,18 +562,50 @@ export default function PaymentPage() {
   );
 }
 
-/* =====================================================
-   PAYMENT DETAIL
-===================================================== */
-
 function PaymentDetail({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-5 px-4 py-4">
+      {" "}
       <span className="text-sm font-medium text-slate-500">{label}</span>
-
       <span className="text-right text-sm font-black text-slate-900">
         {value}
       </span>
     </div>
+  );
+}
+
+function PaymentLoading() {
+  return (
+    <main className="min-h-screen bg-[#f6f9fc]">
+      {" "}
+      <header className="border-b border-sky-100 bg-white">
+        {" "}
+        <div className="mx-auto max-w-7xl px-5 py-4 lg:px-8">
+          {" "}
+          <Link
+            href="/"
+            className="text-2xl font-black tracking-tight text-slate-900"
+          >
+            Shop<span className="text-blue-600">Ease</span>{" "}
+          </Link>{" "}
+        </div>{" "}
+      </header>
+      <div className="flex min-h-[70vh] items-center justify-center px-5">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-sky-100 border-t-blue-600" />
+
+          <p className="mt-5 font-bold text-slate-600">Loading payment...</p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+export default function PaymentPage() {
+  return (
+    <Suspense fallback={<PaymentLoading />}>
+      {" "}
+      <PaymentPageContent />{" "}
+    </Suspense>
   );
 }

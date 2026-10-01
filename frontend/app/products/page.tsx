@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCart } from "../Context/CartContext";
@@ -35,7 +35,7 @@ type Rating = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const { addToCart, cartCount } = useCart();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -254,6 +254,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const searchFromUrl = searchParams.get("search") || "";
+
     const categoryFromUrl = searchParams.get("category") || "All";
 
     setSearch(searchFromUrl);
@@ -305,6 +306,7 @@ export default function ProductsPage() {
 
       result = result.filter((product) => {
         const name = product.name?.toLowerCase() || "";
+
         const description = product.description?.toLowerCase() || "";
 
         const productCategory = getProductCategory(product).toLowerCase();
@@ -486,9 +488,7 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900">
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-        {/* =====================================================
-            BREADCRUMB
-        ===================================================== */}
+        {/* BREADCRUMB */}
 
         <div className="mb-7 flex items-center gap-2 text-sm text-slate-400">
           <Link href="/" className="transition hover:text-blue-600">
@@ -508,9 +508,7 @@ export default function ProductsPage() {
           )}
         </div>
 
-        {/* =====================================================
-            TITLE
-        ===================================================== */}
+        {/* TITLE */}
 
         <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
@@ -568,9 +566,7 @@ export default function ProductsPage() {
           </div>
         </div>
 
-        {/* =====================================================
-            SEARCH + SORT
-        ===================================================== */}
+        {/* SEARCH + SORT */}
 
         <div className="mb-7 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row">
@@ -614,9 +610,7 @@ export default function ProductsPage() {
           </div>
         </div>
 
-        {/* =====================================================
-            CATEGORY FILTER
-        ===================================================== */}
+        {/* CATEGORY FILTER */}
 
         <div className="mb-9">
           {categoriesLoading ? (
@@ -660,9 +654,7 @@ export default function ProductsPage() {
           )}
         </div>
 
-        {/* =====================================================
-            PRODUCTS HEADER
-        ===================================================== */}
+        {/* PRODUCTS HEADER */}
 
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -687,9 +679,7 @@ export default function ProductsPage() {
           )}
         </div>
 
-        {/* =====================================================
-            ERROR
-        ===================================================== */}
+        {/* ERROR */}
 
         {error && (
           <div className="mb-8 rounded-3xl border border-red-200 bg-red-50 p-7">
@@ -711,9 +701,7 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {/* =====================================================
-            LOADING
-        ===================================================== */}
+        {/* LOADING */}
 
         {loading ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -758,7 +746,9 @@ export default function ProductsPage() {
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => {
               const isWishlisted = wishlist.includes(product.id);
+
               const isAdded = addedProductId === product.id;
+
               const isWishlistLoading = wishlistLoading === product.id;
 
               const rating = ratings[product.id];
@@ -854,7 +844,9 @@ export default function ProductsPage() {
 
                     <div className="flex items-center gap-2">
                       <span className="text-sm tracking-wide text-amber-400">
-                        {Array.from({ length: 5 }).map((_, index) => (
+                        {Array.from({
+                          length: 5,
+                        }).map((_, index) => (
                           <span key={index}>
                             {index < Math.round(averageRating) ? "★" : "☆"}
                           </span>
@@ -957,5 +949,51 @@ export default function ProductsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+// =====================================================
+// SUSPENSE LOADING FALLBACK
+// =====================================================
+
+function ProductsLoading() {
+  return (
+    <div className="min-h-screen bg-[#f8fafc] px-4 py-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 h-8 w-48 animate-pulse rounded bg-slate-200" />
+
+        <div className="mb-7 h-16 animate-pulse rounded-3xl bg-white" />
+
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div
+              key={index}
+              className="overflow-hidden rounded-3xl bg-white shadow-sm"
+            >
+              <div className="h-72 animate-pulse bg-slate-200" />
+
+              <div className="space-y-3 p-5">
+                <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
+                <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
+                <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+                <div className="h-11 animate-pulse rounded-2xl bg-slate-200" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================
+// PAGE
+// =====================================================
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<ProductsLoading />}>
+      <ProductsPageContent />
+    </Suspense>
   );
 }
