@@ -1,4 +1,3 @@
-
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -90,9 +89,7 @@ export default function Chatbot() {
           <div className="flex items-center justify-between bg-black px-4 py-4 text-white">
             <div>
               <h2 className="font-semibold">ShopEase Assistant</h2>
-              <p className="text-xs text-gray-300">
-                Online shopping assistant
-              </p>
+              <p className="text-xs text-gray-300">Online shopping assistant</p>
             </div>
 
             <button
@@ -146,7 +143,7 @@ export default function Chatbot() {
               onChange={(event) => setMessage(event.target.value)}
               placeholder="Ask about products..."
               disabled={loading}
-              className="min-w-0 flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
+              className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-black placeholder:text-gray-500 outline-none focus:border-black"
             />
 
             <button
@@ -172,4 +169,3 @@ export default function Chatbot() {
     </>
   );
 }
-

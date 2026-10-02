@@ -4,6 +4,7 @@ import re
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from pydantic import BaseModel
 
@@ -14,6 +15,20 @@ app = FastAPI(
     title="Ecommerce AI Service",
     version="1.0.0",
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3002",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3002",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 api_key = os.getenv("OPENAI_API_KEY")
 
@@ -45,8 +60,13 @@ def health():
 
 def get_products():
     try:
-        response = httpx.get(PRODUCTS_API_URL, timeout=10.0)
+        response = httpx.get(
+            PRODUCTS_API_URL,
+            timeout=10.0,
+        )
+
         response.raise_for_status()
+
         return response.json()
 
     except Exception as error:
@@ -64,7 +84,10 @@ def extract_budget(message: str):
     ]
 
     for pattern in patterns:
-        match = re.search(pattern, message.lower())
+        match = re.search(
+            pattern,
+            message.lower(),
+        )
 
         if match:
             return float(match.group(1))
@@ -80,6 +103,7 @@ def chat(request: ChatRequest):
         budget = extract_budget(request.message)
 
         if budget is not None:
+
             matching_products = [
                 product
                 for product in products
@@ -92,7 +116,8 @@ def chat(request: ChatRequest):
                         f"Name: {product.get('name')}, "
                         f"Price: ${product.get('price')}, "
                         f"Stock: {product.get('stock')}, "
-                        f"Category: {product.get('category', {}).get('name', 'Unknown')}"
+                        f"Category: "
+                        f"{product.get('category', {}).get('name', 'Unknown')}"
                     )
                     for product in matching_products
                 ]
@@ -105,16 +130,19 @@ The customer asked:
 
 "{request.message}"
 
-The application has already filtered the store catalog to products
-within the customer's requested budget.
+The application has already filtered the store catalog
+to products within the customer's requested budget.
 
 CUSTOMER BUDGET:
+
 ${budget:.2f}
 
 MATCHING PRODUCTS:
+
 {product_context if product_context else "No matching products found."}
 
 Rules:
+
 1. Only recommend products listed in MATCHING PRODUCTS.
 2. Do not invent products or prices.
 3. Include product names and prices.
@@ -125,6 +153,7 @@ Rules:
 """
 
         else:
+
             product_context = "\n".join(
                 [
                     (
@@ -133,7 +162,8 @@ Rules:
                         f"Description: {product.get('description')}, "
                         f"Price: ${product.get('price')}, "
                         f"Stock: {product.get('stock')}, "
-                        f"Category: {product.get('category', {}).get('name', 'Unknown')}"
+                        f"Category: "
+                        f"{product.get('category', {}).get('name', 'Unknown')}"
                     )
                     for product in products
                 ]
@@ -145,9 +175,11 @@ You are a helpful AI shopping assistant for our ecommerce store.
 Use the following current product catalog as the source of truth:
 
 PRODUCT CATALOG:
+
 {product_context}
 
 Rules:
+
 1. Use the catalog when answering product questions.
 2. Never invent products, prices, stock quantities, or categories.
 3. Use the exact current price and stock from the catalog.
@@ -161,7 +193,9 @@ Rules:
             input=request.message,
         )
 
-        return {"reply": response.output_text}
+        return {
+            "reply": response.output_text
+        }
 
     except Exception as error:
         print(f"OpenAI error: {error}")
