@@ -62,13 +62,6 @@ export class ReviewService {
       },
     });
 
-    // Debug information
-    console.log('========== REVIEW DEBUG ==========');
-    console.log('userId:', userId);
-    console.log('productId:', productId);
-    console.log('purchasedProduct:', purchasedProduct);
-    console.log('===================================');
-
     if (!purchasedProduct) {
       throw new ForbiddenException(
         'You can only review products you have purchased and received',
