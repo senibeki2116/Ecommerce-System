@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import "./globals.css";
+import Chatbot from "../components/Chatbot";
 import { CartProvider } from "./Context/CartContext";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ShopEase",
@@ -15,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <CartProvider>{children}</CartProvider>
+        <CartProvider>
+          {children}
+          <Chatbot />
+        </CartProvider>
       </body>
     </html>
   );
