@@ -31,8 +31,10 @@ Thumbs.db
 **/.agents/
 **/.claude/
 **/.windsurf/*.zip
+frontend/.next_old/
 node_modules/
 .next/
 *.zip
 dist/
 .windsurf/
+frontend/.next_old/
