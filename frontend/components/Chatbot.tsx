@@ -4,7 +4,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useCart } from "../app/Context/CartContext";
 
-const AI_API_URL = "http://127.0.0.1:8000";
+const AI_API_URL =
+  process.env.NEXT_PUBLIC_AI_API_URL || "http://127.0.0.1:8000";
 
 type Product = {
   id: number;
@@ -52,9 +53,6 @@ declare global {
   }
 }
 
-/*
- * Detect whether the customer is asking for a comparison.
- */
 function isComparisonMessage(message: string) {
   const text = message.toLowerCase();
 
@@ -71,6 +69,60 @@ function isComparisonMessage(message: string) {
   ];
 
   return comparisonWords.some((word) => text.includes(word));
+}
+
+/*
+ * Remove Markdown formatting from AI text.
+ *
+ * This prevents things like:
+ *
+ * ### iPhone 17
+ * **$999**
+ * [View Product](...)
+ *
+ * from appearing in the chatbot.
+ */
+function cleanMarkdown(text: string) {
+  if (!text) return "";
+
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/#{1,6}\s*/g, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "• ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/*
+ * Try to extract product IDs from Markdown links
+ * if the backend accidentally puts products into reply text.
+ */
+function extractProductIds(text: string): number[] {
+  const ids: number[] = [];
+
+  const patterns = [
+    /\/products\/(\d+)/gi,
+    /product(?:Id|ID)?\s*[:=]\s*(\d+)/gi,
+    /id\s*[:=]\s*(\d+)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(text)) !== null) {
+      const id = Number(match[1]);
+
+      if (Number.isInteger(id) && id > 0 && !ids.includes(id)) {
+        ids.push(id);
+      }
+    }
+  }
+
+  return ids;
 }
 
 export default function Chatbot() {
@@ -93,9 +145,6 @@ export default function Chatbot() {
     },
   ]);
 
-  /*
-   * Stop speech when component is removed.
-   */
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
@@ -108,9 +157,6 @@ export default function Chatbot() {
     };
   }, []);
 
-  /*
-   * Voice input
-   */
   function startVoiceInput() {
     if (loading) return;
 
@@ -171,9 +217,6 @@ export default function Chatbot() {
     }
   }
 
-  /*
-   * Text-to-speech
-   */
   function speakMessage(text: string, index: number) {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       alert("Text-to-speech is not supported in this browser.");
@@ -188,7 +231,7 @@ export default function Chatbot() {
 
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(cleanMarkdown(text));
 
     utterance.lang = "en-US";
     utterance.rate = 1;
@@ -210,9 +253,6 @@ export default function Chatbot() {
     window.speechSynthesis.speak(utterance);
   }
 
-  /*
-   * Add product to cart
-   */
   function handleAddToCart(product: Product) {
     if (product.stock <= 0) return;
 
@@ -239,8 +279,48 @@ export default function Chatbot() {
   }
 
   /*
-   * Send message to AI service
+   * Fetch products from the main NestJS backend when the AI
+   * response does not provide data.products.
    */
+  async function fetchProductsFromBackend(ids: number[]): Promise<Product[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const results: Product[] = [];
+
+    for (const id of ids.slice(0, 5)) {
+      try {
+        const response = await fetch(`http://localhost:3001/products/${id}`);
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const product = await response.json();
+
+        if (product && product.id) {
+          results.push({
+            id: Number(product.id),
+            name: product.name,
+            description: product.description ?? "",
+            price: Number(product.price),
+            stock: Number(product.stock ?? 0),
+            image: product.image ?? "",
+            category:
+              typeof product.category === "string"
+                ? product.category
+                : (product.category?.name ?? null),
+          });
+        }
+      } catch (error) {
+        console.error(`Could not fetch product ${id}:`, error);
+      }
+    }
+
+    return results;
+  }
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
 
@@ -276,12 +356,45 @@ export default function Chatbot() {
 
       const data = await response.json();
 
+      /*
+       * Prefer products returned by the AI service.
+       */
+      let products: Product[] = Array.isArray(data.products)
+        ? data.products
+            .filter((product: Product) => product && product.id)
+            .map((product: Product) => ({
+              ...product,
+              id: Number(product.id),
+              price: Number(product.price),
+              stock: Number(product.stock ?? 0),
+            }))
+        : [];
+
+      /*
+       * If the AI service didn't return data.products,
+       * look for product IDs inside the reply.
+       */
+      if (products.length === 0 && typeof data.reply === "string") {
+        const productIds = extractProductIds(data.reply);
+
+        if (productIds.length > 0) {
+          products = await fetchProductsFromBackend(productIds);
+        }
+      }
+
+      /*
+       * Clean the text so raw Markdown doesn't appear.
+       */
+      const cleanedReply = cleanMarkdown(
+        data.reply || "Sorry, I couldn't generate a response.",
+      );
+
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
-          content: data.reply || "Sorry, I couldn't generate a response.",
-          products: Array.isArray(data.products) ? data.products : [],
+          content: cleanedReply,
+          products,
         },
       ]);
     } catch (error) {
@@ -302,7 +415,6 @@ export default function Chatbot() {
 
   return (
     <>
-      {/* Chat Window */}
       {isOpen && (
         <div
           className="
@@ -317,7 +429,7 @@ export default function Chatbot() {
             sm:bottom-24 sm:right-6
           "
         >
-          {/* Header */}
+          {/* HEADER */}
           <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 px-5 py-5 text-white">
             <div className="absolute -right-8 -top-12 h-36 w-36 rounded-full bg-white/10" />
             <div className="absolute -bottom-12 right-20 h-24 w-24 rounded-full bg-white/10" />
@@ -348,9 +460,7 @@ export default function Chatbot() {
                 onClick={() => {
                   setIsOpen(false);
 
-                  if (recognitionRef.current) {
-                    recognitionRef.current.stop();
-                  }
+                  recognitionRef.current?.stop();
 
                   if (typeof window !== "undefined") {
                     window.speechSynthesis?.cancel();
@@ -367,7 +477,7 @@ export default function Chatbot() {
             </div>
           </div>
 
-          {/* Chat Body */}
+          {/* CHAT BODY */}
           <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-4 py-5">
             <div className="text-center">
               <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
@@ -407,33 +517,30 @@ export default function Chatbot() {
                         : "max-w-[82%]"
                     } flex-col gap-1`}
                   >
-                    {/* Message */}
-                    <div
-                      className={`
-                        whitespace-pre-wrap break-words
-                        rounded-2xl px-4 py-3
-                        text-[13px] leading-6
-                        ${
-                          item.role === "user"
-                            ? "rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/15"
-                            : "rounded-bl-md border border-gray-100 bg-white text-gray-800 shadow-sm"
-                        }
-                      `}
-                    >
-                      {item.content}
-                    </div>
+                    {/* MESSAGE */}
+                    {item.content && (
+                      <div
+                        className={`
+                          whitespace-pre-wrap break-words
+                          rounded-2xl px-4 py-3
+                          text-[13px] leading-6
+                          ${
+                            item.role === "user"
+                              ? "rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/15"
+                              : "rounded-bl-md border border-gray-100 bg-white text-gray-800 shadow-sm"
+                          }
+                        `}
+                      >
+                        {item.content}
+                      </div>
+                    )}
 
-                    {/* Speaker button */}
-                    {item.role === "assistant" && (
+                    {/* SPEAKER */}
+                    {item.role === "assistant" && item.content && (
                       <button
                         type="button"
                         onClick={() => speakMessage(item.content, index)}
                         className="flex w-fit items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"
-                        aria-label={
-                          speakingIndex === index
-                            ? "Stop speaking"
-                            : "Read response aloud"
-                        }
                       >
                         {speakingIndex === index ? (
                           <>
@@ -478,13 +585,9 @@ export default function Chatbot() {
                       </button>
                     )}
 
-                    {/* ================================================= */}
-                    {/* PRODUCT COMPARISON */}
-                    {/* ================================================= */}
-
+                    {/* COMPARISON */}
                     {comparison && (
                       <div className="mt-2 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-                        {/* Comparison Header */}
                         <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4">
                           <div className="flex items-center gap-2">
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white">
@@ -503,7 +606,6 @@ export default function Chatbot() {
                           </div>
                         </div>
 
-                        {/* Desktop / Tablet Comparison */}
                         <div className="hidden overflow-x-auto md:block">
                           <table className="w-full min-w-[650px] text-left">
                             <thead>
@@ -548,7 +650,6 @@ export default function Chatbot() {
                             </thead>
 
                             <tbody>
-                              {/* Price */}
                               <tr className="border-b border-gray-100">
                                 <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
                                   Price
@@ -564,7 +665,6 @@ export default function Chatbot() {
                                 ))}
                               </tr>
 
-                              {/* Availability */}
                               <tr className="border-b border-gray-100">
                                 <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
                                   Stock
@@ -585,7 +685,6 @@ export default function Chatbot() {
                                 ))}
                               </tr>
 
-                              {/* Description */}
                               <tr className="border-b border-gray-100">
                                 <td className="px-3 py-4 align-top text-[10px] font-bold uppercase tracking-wide text-gray-400">
                                   Details
@@ -602,7 +701,6 @@ export default function Chatbot() {
                                 ))}
                               </tr>
 
-                              {/* Actions */}
                               <tr>
                                 <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
                                   Actions
@@ -647,14 +745,13 @@ export default function Chatbot() {
                           </table>
                         </div>
 
-                        {/* Mobile Comparison */}
+                        {/* MOBILE COMPARISON */}
                         <div className="space-y-3 p-3 md:hidden">
                           {comparisonProducts.map((product) => (
                             <div
                               key={product.id}
                               className="rounded-2xl border border-gray-200 bg-white p-3"
                             >
-                              {/* Product Header */}
                               <div className="flex gap-3">
                                 {product.image ? (
                                   <img
@@ -685,7 +782,6 @@ export default function Chatbot() {
                                 </div>
                               </div>
 
-                              {/* Product Details */}
                               <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
                                 <div className="flex items-center justify-between">
                                   <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
@@ -715,7 +811,6 @@ export default function Chatbot() {
                                 </div>
                               </div>
 
-                              {/* Mobile Actions */}
                               <div className="mt-3 grid grid-cols-2 gap-2">
                                 <Link
                                   href={`/products/${product.id}`}
@@ -747,7 +842,7 @@ export default function Chatbot() {
                           ))}
                         </div>
 
-                        {/* Price Difference */}
+                        {/* PRICE DIFFERENCE */}
                         {comparisonProducts.length >= 2 && (
                           <div className="border-t border-blue-100 bg-blue-50/60 px-4 py-3">
                             <div className="flex items-center justify-center gap-2 text-center">
@@ -783,10 +878,7 @@ export default function Chatbot() {
                       </div>
                     )}
 
-                    {/* ================================================= */}
                     {/* NORMAL PRODUCT CARDS */}
-                    {/* ================================================= */}
-
                     {!comparison &&
                       item.role === "assistant" &&
                       item.products &&
@@ -797,8 +889,8 @@ export default function Chatbot() {
                               key={product.id}
                               className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
                             >
-                              {/* Product Image */}
-                              <div className="relative h-36 w-full overflow-hidden bg-gray-100">
+                              {/* IMAGE */}
+                              <div className="relative h-40 w-full overflow-hidden bg-gray-100">
                                 {product.image ? (
                                   <img
                                     src={product.image}
@@ -811,14 +903,12 @@ export default function Chatbot() {
                                   </div>
                                 )}
 
-                                {/* Category */}
                                 {product.category && (
-                                  <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-blue-700 shadow-sm backdrop-blur-sm">
+                                  <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-bold text-blue-700 shadow-sm backdrop-blur-sm">
                                     {product.category}
                                   </span>
                                 )}
 
-                                {/* Stock Badge */}
                                 <span
                                   className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm ${
                                     product.stock > 0
@@ -832,9 +922,9 @@ export default function Chatbot() {
                                 </span>
                               </div>
 
-                              {/* Product Information */}
-                              <div className="p-3.5">
-                                <h3 className="line-clamp-1 text-sm font-bold text-gray-900">
+                              {/* INFORMATION */}
+                              <div className="p-4">
+                                <h3 className="line-clamp-1 text-base font-bold text-gray-900">
                                   {product.name}
                                 </h3>
 
@@ -844,12 +934,13 @@ export default function Chatbot() {
                                 </p>
 
                                 <div className="mt-3 flex items-center justify-between gap-2">
-                                  <span className="text-lg font-extrabold text-blue-600">
+                                  <span className="text-xl font-extrabold text-blue-600">
                                     ${Number(product.price).toFixed(2)}
                                   </span>
 
                                   {product.stock > 0 ? (
-                                    <span className="text-[10px] font-medium text-green-600">
+                                    <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
                                       Available now
                                     </span>
                                   ) : (
@@ -859,11 +950,11 @@ export default function Chatbot() {
                                   )}
                                 </div>
 
-                                {/* Actions */}
+                                {/* ACTIONS */}
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                   <Link
                                     href={`/products/${product.id}`}
-                                    className="flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                                    className="flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
                                   >
                                     View Product
                                   </Link>
@@ -872,7 +963,7 @@ export default function Chatbot() {
                                     type="button"
                                     onClick={() => handleAddToCart(product)}
                                     disabled={product.stock <= 0}
-                                    className={`h-9 rounded-xl text-[11px] font-semibold text-white transition ${
+                                    className={`h-10 rounded-xl text-[11px] font-semibold text-white transition ${
                                       product.stock <= 0
                                         ? "cursor-not-allowed bg-gray-300"
                                         : addedProducts.includes(product.id)
@@ -897,7 +988,7 @@ export default function Chatbot() {
               );
             })}
 
-            {/* Loading */}
+            {/* LOADING */}
             {loading && (
               <div className="flex items-end gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100 text-sm">
@@ -917,7 +1008,7 @@ export default function Chatbot() {
             )}
           </div>
 
-          {/* Input Area */}
+          {/* INPUT */}
           <div className="border-t border-gray-100 bg-white p-4">
             <form
               onSubmit={sendMessage}
@@ -934,7 +1025,7 @@ export default function Chatbot() {
                 className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none disabled:opacity-50"
               />
 
-              {/* Microphone */}
+              {/* MICROPHONE */}
               <button
                 type="button"
                 onClick={startVoiceInput}
@@ -953,7 +1044,6 @@ export default function Chatbot() {
                 aria-label={
                   isListening ? "Stop voice input" : "Start voice input"
                 }
-                title={isListening ? "Stop listening" : "Speak your message"}
               >
                 {isListening ? (
                   <svg
@@ -985,7 +1075,7 @@ export default function Chatbot() {
                 )}
               </button>
 
-              {/* Send */}
+              {/* SEND */}
               <button
                 type="submit"
                 disabled={loading || !message.trim()}
@@ -1023,7 +1113,7 @@ export default function Chatbot() {
         </div>
       )}
 
-      {/* Floating Chat Button */}
+      {/* FLOATING BUTTON */}
       {!isOpen && (
         <button
           type="button"
@@ -1036,7 +1126,8 @@ export default function Chatbot() {
             text-2xl text-white
             shadow-[0_8px_30px_rgba(37,99,235,0.35)]
             transition duration-300
-            hover:scale-110 hover:shadow-[0_12px_35px_rgba(37,99,235,0.45)]
+            hover:scale-110
+            hover:shadow-[0_12px_35px_rgba(37,99,235,0.45)]
             active:scale-95
           "
           aria-label="Open ShopEase Assistant"
