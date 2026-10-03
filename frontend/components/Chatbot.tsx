@@ -1,11 +1,13 @@
 "use client";
 
+import React, { useEffect, useRef, useState, KeyboardEvent } from "react";
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState } from "react";
 import { useCart } from "../app/Context/CartContext";
 
 const AI_API_URL =
   process.env.NEXT_PUBLIC_AI_API_URL || "http://127.0.0.1:8000";
+
+const BACKEND_URL = "http://localhost:3001";
 
 type Product = {
   id: number;
@@ -23,7 +25,7 @@ type Message = {
   products?: Product[];
 };
 
-type SpeechRecognitionEvent = Event & {
+type SpeechRecognitionEventLike = Event & {
   results: {
     [index: number]: {
       [index: number]: {
@@ -39,9 +41,9 @@ type SpeechRecognitionInstance = {
   lang: string;
   start: () => void;
   stop: () => void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
   onend: (() => void) | null;
-  onerror: ((event: Event) => void) | null;
+  onerror: (() => void) | null;
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
@@ -53,114 +55,141 @@ declare global {
   }
 }
 
-function isComparisonMessage(message: string) {
-  const text = message.toLowerCase();
+const quickQuestions = [
+  "Show me phones",
+  "What do you recommend?",
+  "Show products under $100",
+  "Compare laptops",
+];
 
-  const comparisonWords = [
-    "compare",
-    "comparison",
-    "difference between",
-    "which is better",
-    "which one is better",
-    "which is cheaper",
-    "which costs less",
-    "vs",
-    "versus",
-  ];
-
-  return comparisonWords.some((word) => text.includes(word));
-}
-
-/*
- * Remove Markdown formatting from AI text.
- *
- * This prevents things like:
- *
- * ### iPhone 17
- * **$999**
- * [View Product](...)
- *
- * from appearing in the chatbot.
- */
-function cleanMarkdown(text: string) {
-  if (!text) return "";
-
+function cleanMarkdown(text: string): string {
   return text
-    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/#{1,6}\s*/g, "")
     .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
     .replace(/__(.*?)__/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
-    .replace(/^\s*[-*+]\s+/gm, "• ")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .trim();
 }
 
-/*
- * Try to extract product IDs from Markdown links
- * if the backend accidentally puts products into reply text.
- */
-function extractProductIds(text: string): number[] {
-  const ids: number[] = [];
+function isComparisonMessage(message: string): boolean {
+  const text = message.toLowerCase();
 
-  const patterns = [
-    /\/products\/(\d+)/gi,
-    /product(?:Id|ID)?\s*[:=]\s*(\d+)/gi,
-    /id\s*[:=]\s*(\d+)/gi,
-  ];
+  return (
+    text.includes("compare") ||
+    text.includes("comparison") ||
+    text.includes("difference between") ||
+    text.includes("versus") ||
+    text.includes(" vs ")
+  );
+}
 
-  for (const pattern of patterns) {
-    let match: RegExpExecArray | null;
-
-    while ((match = pattern.exec(text)) !== null) {
-      const id = Number(match[1]);
-
-      if (Number.isInteger(id) && id > 0 && !ids.includes(id)) {
-        ids.push(id);
-      }
+function getProductImage(product: Product): string {
+  if (product.image) {
+    if (product.image.startsWith("http")) {
+      return product.image;
     }
+
+    return `${BACKEND_URL}${product.image.startsWith("/") ? "" : "/"}${
+      product.image
+    }`;
   }
 
-  return ids;
+  return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600";
 }
 
 export default function Chatbot() {
   const { addToCart } = useCart();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
-  const [addedProducts, setAddedProducts] = useState<number[]>([]);
-
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
       content:
-        "Hi! 👋 Welcome to ShopEase. I'm your shopping assistant. I can help you discover products, compare prices, and check availability.",
+        "Hi! 👋 I'm your ShopEase AI assistant. I can help you find products, compare items, check prices, and choose something that fits your needs.",
     },
   ]);
 
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+
+  // Auto scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages, isLoading]);
+
+  // Focus input when opening
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 150);
+    }
+  }, [isOpen]);
+
+  // Stop speech when component unmounts
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
+      }
+
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
       }
     };
   }, []);
 
-  function startVoiceInput() {
-    if (loading) return;
+  const speakText = (text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return;
+    }
 
-    if (typeof window === "undefined") return;
+    window.speechSynthesis.cancel();
+
+    const cleanText = cleanMarkdown(text);
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  const startVoiceInput = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
 
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -172,8 +201,8 @@ export default function Chatbot() {
       return;
     }
 
-    if (isListening) {
-      recognitionRef.current?.stop();
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
       setIsListening(false);
       return;
     }
@@ -184,18 +213,12 @@ export default function Chatbot() {
     recognition.interimResults = false;
     recognition.lang = "en-US";
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      const transcript = event.results[0]?.[0]?.transcript;
 
-      setMessage((current) => {
-        const existing = current.trim();
-
-        if (!existing) {
-          return transcript;
-        }
-
-        return `${existing} ${transcript}`;
-      });
+      if (transcript) {
+        setInput(transcript);
+      }
     };
 
     recognition.onend = () => {
@@ -208,136 +231,65 @@ export default function Chatbot() {
 
     recognitionRef.current = recognition;
 
+    setIsListening(true);
+    recognition.start();
+  };
+
+  const handleAddToCart = (product: Product) => {
     try {
-      recognition.start();
-      setIsListening(true);
+      addToCart({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image || "",
+        stock: product.stock,
+      } as never);
     } catch (error) {
-      console.error("Voice recognition error:", error);
-      setIsListening(false);
+      console.error("Add to cart error:", error);
     }
-  }
+  };
 
-  function speakMessage(text: string, index: number) {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      alert("Text-to-speech is not supported in this browser.");
-      return;
-    }
+  const fetchFallbackProducts = async (): Promise<Product[]> => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/products`);
 
-    if (speakingIndex === index) {
-      window.speechSynthesis.cancel();
-      setSpeakingIndex(null);
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(cleanMarkdown(text));
-
-    utterance.lang = "en-US";
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-
-    utterance.onstart = () => {
-      setSpeakingIndex(index);
-    };
-
-    utterance.onend = () => {
-      setSpeakingIndex(null);
-    };
-
-    utterance.onerror = () => {
-      setSpeakingIndex(null);
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }
-
-  function handleAddToCart(product: Product) {
-    if (product.stock <= 0) return;
-
-    addToCart({
-      id: product.id,
-      name: product.name,
-      description: product.description ?? "",
-      price: product.price,
-      stock: product.stock,
-      image: product.image ?? "",
-    });
-
-    setAddedProducts((current) => {
-      if (current.includes(product.id)) {
-        return current;
+      if (!response.ok) {
+        return [];
       }
 
-      return [...current, product.id];
-    });
+      const data = await response.json();
 
-    setTimeout(() => {
-      setAddedProducts((current) => current.filter((id) => id !== product.id));
-    }, 1800);
-  }
+      if (Array.isArray(data)) {
+        return data;
+      }
 
-  /*
-   * Fetch products from the main NestJS backend when the AI
-   * response does not provide data.products.
-   */
-  async function fetchProductsFromBackend(ids: number[]): Promise<Product[]> {
-    if (ids.length === 0) {
+      if (Array.isArray(data?.products)) {
+        return data.products;
+      }
+
+      return [];
+    } catch (error) {
+      console.error("Fallback product fetch failed:", error);
       return [];
     }
+  };
 
-    const results: Product[] = [];
+  const sendMessage = async (messageText?: string) => {
+    const text = (messageText ?? input).trim();
 
-    for (const id of ids.slice(0, 5)) {
-      try {
-        const response = await fetch(`http://localhost:3001/products/${id}`);
-
-        if (!response.ok) {
-          continue;
-        }
-
-        const product = await response.json();
-
-        if (product && product.id) {
-          results.push({
-            id: Number(product.id),
-            name: product.name,
-            description: product.description ?? "",
-            price: Number(product.price),
-            stock: Number(product.stock ?? 0),
-            image: product.image ?? "",
-            category:
-              typeof product.category === "string"
-                ? product.category
-                : (product.category?.name ?? null),
-          });
-        }
-      } catch (error) {
-        console.error(`Could not fetch product ${id}:`, error);
-      }
+    if (!text || isLoading) {
+      return;
     }
 
-    return results;
-  }
+    setInput("");
 
-  async function sendMessage(event: FormEvent) {
-    event.preventDefault();
+    const userMessage: Message = {
+      role: "user",
+      content: text,
+    };
 
-    const trimmedMessage = message.trim();
-
-    if (!trimmedMessage || loading) return;
-
-    setMessages((current) => [
-      ...current,
-      {
-        role: "user",
-        content: trimmedMessage,
-      },
-    ]);
-
-    setMessage("");
-    setLoading(true);
+    setMessages((previous) => [...previous, userMessage]);
+    setIsLoading(true);
 
     try {
       const response = await fetch(`${AI_API_URL}/chat`, {
@@ -346,796 +298,536 @@ export default function Chatbot() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: trimmedMessage,
+          message: text,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("AI service request failed");
+        throw new Error(`AI service returned ${response.status}`);
       }
 
       const data = await response.json();
 
-      /*
-       * Prefer products returned by the AI service.
-       */
-      let products: Product[] = Array.isArray(data.products)
+      let products: Product[] = Array.isArray(data?.products)
         ? data.products
-            .filter((product: Product) => product && product.id)
-            .map((product: Product) => ({
-              ...product,
-              id: Number(product.id),
-              price: Number(product.price),
-              stock: Number(product.stock ?? 0),
-            }))
         : [];
 
-      /*
-       * If the AI service didn't return data.products,
-       * look for product IDs inside the reply.
-       */
-      if (products.length === 0 && typeof data.reply === "string") {
-        const productIds = extractProductIds(data.reply);
+      // If AI returns no products for a product-related question,
+      // try the backend as a fallback.
+      if (
+        products.length === 0 &&
+        (text.toLowerCase().includes("product") ||
+          text.toLowerCase().includes("phone") ||
+          text.toLowerCase().includes("laptop") ||
+          text.toLowerCase().includes("camera") ||
+          text.toLowerCase().includes("headphone") ||
+          text.toLowerCase().includes("show me") ||
+          text.toLowerCase().includes("recommend") ||
+          text.toLowerCase().includes("compare"))
+      ) {
+        const fallbackProducts = await fetchFallbackProducts();
 
-        if (productIds.length > 0) {
-          products = await fetchProductsFromBackend(productIds);
+        if (fallbackProducts.length > 0) {
+          products = fallbackProducts.slice(0, 6);
         }
       }
 
-      /*
-       * Clean the text so raw Markdown doesn't appear.
-       */
-      const cleanedReply = cleanMarkdown(
-        data.reply || "Sorry, I couldn't generate a response.",
-      );
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: cleanMarkdown(
+          data?.reply ||
+            "I'm sorry, I couldn't find an answer. Please try asking in another way.",
+        ),
+        products,
+      };
 
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: cleanedReply,
-          products,
-        },
-      ]);
+      setMessages((previous) => [...previous, assistantMessage]);
     } catch (error) {
       console.error("Chatbot error:", error);
 
-      setMessages((current) => [
-        ...current,
+      setMessages((previous) => [
+        ...previous,
         {
           role: "assistant",
           content:
-            "Sorry, I couldn't connect to the shopping assistant. Please try again.",
+            "I'm having trouble connecting to the AI assistant right now. Please make sure the AI service is running on port 8000.",
         },
       ]);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const clearChat = () => {
+    stopSpeaking();
+
+    setMessages([
+      {
+        role: "assistant",
+        content:
+          "Chat cleared! 👋 What are you looking for today? I can help you find products, compare items, or recommend something.",
+      },
+    ]);
+
+    setInput("");
+  };
+
+  const renderComparison = (products: Product[]) => {
+    if (products.length < 2) {
+      return null;
+    }
+
+    const comparisonProducts = products.slice(0, 4);
+
+    return (
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">⚖️</span>
+            <h3 className="font-semibold text-slate-800">Product Comparison</h3>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="px-4 py-3 font-semibold text-slate-600">
+                  Product
+                </th>
+
+                {comparisonProducts.map((product) => (
+                  <th
+                    key={product.id}
+                    className="min-w-[150px] px-4 py-3 font-semibold text-slate-800"
+                  >
+                    {product.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr className="border-b border-slate-100">
+                <td className="px-4 py-3 font-medium text-slate-500">Price</td>
+
+                {comparisonProducts.map((product) => (
+                  <td
+                    key={product.id}
+                    className="px-4 py-3 font-bold text-indigo-600"
+                  >
+                    ${Number(product.price).toFixed(2)}
+                  </td>
+                ))}
+              </tr>
+
+              <tr className="border-b border-slate-100">
+                <td className="px-4 py-3 font-medium text-slate-500">Stock</td>
+
+                {comparisonProducts.map((product) => (
+                  <td key={product.id} className="px-4 py-3">
+                    {product.stock > 0 ? (
+                      <span className="font-medium text-emerald-600">
+                        {product.stock} available
+                      </span>
+                    ) : (
+                      <span className="font-medium text-red-500">
+                        Out of stock
+                      </span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+
+              <tr>
+                <td className="px-4 py-3 font-medium text-slate-500">
+                  Category
+                </td>
+
+                {comparisonProducts.map((product) => (
+                  <td key={product.id} className="px-4 py-3 text-slate-700">
+                    {product.category || "General"}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderProducts = (products: Product[], comparison = false) => {
+    if (!products || products.length === 0) {
+      return null;
+    }
+
+    if (comparison) {
+      return renderComparison(products);
+    }
+
+    return (
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {products.slice(0, 6).map((product) => (
+          <div
+            key={product.id}
+            className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg"
+          >
+            <div className="relative h-40 overflow-hidden bg-slate-100">
+              <img
+                src={getProductImage(product)}
+                alt={product.name}
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                onError={(event) => {
+                  event.currentTarget.src =
+                    "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600";
+                }}
+              />
+
+              {product.stock > 0 && (
+                <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow">
+                  In Stock
+                </span>
+              )}
+
+              {product.stock <= 0 && (
+                <span className="absolute left-2 top-2 rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow">
+                  Out of Stock
+                </span>
+              )}
+            </div>
+
+            <div className="p-3">
+              <div className="mb-1 flex items-start justify-between gap-2">
+                <h4 className="line-clamp-2 text-sm font-bold text-slate-800">
+                  {product.name}
+                </h4>
+
+                {product.category && (
+                  <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600">
+                    {product.category}
+                  </span>
+                )}
+              </div>
+
+              <p className="mb-3 line-clamp-2 min-h-[32px] text-xs leading-5 text-slate-500">
+                {product.description ||
+                  "Quality product available in our store."}
+              </p>
+
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-lg font-extrabold text-indigo-600">
+                  ${Number(product.price).toFixed(2)}
+                </span>
+
+                <span className="text-xs text-slate-400">
+                  {product.stock > 0 ? `${product.stock} left` : "Unavailable"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href={`/products/${product.id}`}
+                  className="flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600"
+                >
+                  View
+                </Link>
+
+                <button
+                  type="button"
+                  disabled={product.stock <= 0}
+                  onClick={() => handleAddToCart(product)}
+                  className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {product.stock > 0 ? "Add to Cart" : "Unavailable"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <>
-      {isOpen && (
-        <div
-          className="
-            fixed bottom-24 right-4 z-[100]
-            flex h-[min(680px,calc(100dvh-120px))]
-            w-[min(430px,calc(100vw-32px))]
-            flex-col overflow-hidden
-            rounded-[24px]
-            border border-gray-200
-            bg-white
-            shadow-[0_20px_60px_rgba(15,23,42,0.20)]
-            sm:bottom-24 sm:right-6
-          "
-        >
-          {/* HEADER */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 px-5 py-5 text-white">
-            <div className="absolute -right-8 -top-12 h-36 w-36 rounded-full bg-white/10" />
-            <div className="absolute -bottom-12 right-20 h-24 w-24 rounded-full bg-white/10" />
-
-            <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-2xl shadow-sm">
-                  🛍️
-                </div>
-
-                <div>
-                  <h2 className="text-base font-bold tracking-wide">
-                    ShopEase Assistant
-                  </h2>
-
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-green-300" />
-
-                    <p className="text-xs font-medium text-blue-100">
-                      Online · Ready to help
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-
-                  recognitionRef.current?.stop();
-
-                  if (typeof window !== "undefined") {
-                    window.speechSynthesis?.cancel();
-                  }
-
-                  setIsListening(false);
-                  setSpeakingIndex(null);
-                }}
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-xl text-white transition hover:bg-white/15"
-                aria-label="Close chatbot"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          {/* CHAT BODY */}
-          <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-4 py-5">
-            <div className="text-center">
-              <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                Your shopping companion
-              </span>
-            </div>
-
-            {messages.map((item, index) => {
-              const comparison =
-                item.role === "assistant" &&
-                isComparisonMessage(
-                  messages[index - 1]?.role === "user"
-                    ? messages[index - 1].content
-                    : "",
-                ) &&
-                Boolean(item.products && item.products.length >= 2);
-
-              const comparisonProducts = item.products?.slice(0, 3) ?? [];
-
-              return (
-                <div
-                  key={`${item.role}-${index}`}
-                  className={`flex items-end gap-2 ${
-                    item.role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  {item.role === "assistant" && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-sm">
-                      🛍️
-                    </div>
-                  )}
-
-                  <div
-                    className={`flex ${
-                      item.role === "assistant"
-                        ? "w-[calc(100%-40px)] max-w-[92%]"
-                        : "max-w-[82%]"
-                    } flex-col gap-1`}
-                  >
-                    {/* MESSAGE */}
-                    {item.content && (
-                      <div
-                        className={`
-                          whitespace-pre-wrap break-words
-                          rounded-2xl px-4 py-3
-                          text-[13px] leading-6
-                          ${
-                            item.role === "user"
-                              ? "rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/15"
-                              : "rounded-bl-md border border-gray-100 bg-white text-gray-800 shadow-sm"
-                          }
-                        `}
-                      >
-                        {item.content}
-                      </div>
-                    )}
-
-                    {/* SPEAKER */}
-                    {item.role === "assistant" && item.content && (
-                      <button
-                        type="button"
-                        onClick={() => speakMessage(item.content, index)}
-                        className="flex w-fit items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"
-                      >
-                        {speakingIndex === index ? (
-                          <>
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <rect x="6" y="4" width="4" height="16" rx="1" />
-                              <rect x="14" y="4" width="4" height="16" rx="1" />
-                            </svg>
-
-                            <span>Stop</span>
-                          </>
-                        ) : (
-                          <>
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                            </svg>
-
-                            <span>Listen</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-
-                    {/* COMPARISON */}
-                    {comparison && (
-                      <div className="mt-2 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-                        <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white">
-                              ⚖️
-                            </div>
-
-                            <div>
-                              <h3 className="text-sm font-extrabold text-gray-900">
-                                Product Comparison
-                              </h3>
-
-                              <p className="text-[10px] text-gray-500">
-                                Compare price, category, stock and details
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="hidden overflow-x-auto md:block">
-                          <table className="w-full min-w-[650px] text-left">
-                            <thead>
-                              <tr className="border-b border-gray-100 bg-gray-50">
-                                <th className="w-28 px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                                  Product
-                                </th>
-
-                                {comparisonProducts.map((product) => (
-                                  <th
-                                    key={product.id}
-                                    className="min-w-[180px] px-3 py-4 align-top"
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      {product.image ? (
-                                        <img
-                                          src={product.image}
-                                          alt={product.name}
-                                          className="h-11 w-11 shrink-0 rounded-xl object-cover"
-                                        />
-                                      ) : (
-                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-lg">
-                                          🛍️
-                                        </div>
-                                      )}
-
-                                      <div className="min-w-0">
-                                        <p className="line-clamp-2 text-xs font-bold text-gray-900">
-                                          {product.name}
-                                        </p>
-
-                                        {product.category && (
-                                          <p className="mt-1 text-[10px] font-medium text-blue-600">
-                                            {product.category}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-
-                            <tbody>
-                              <tr className="border-b border-gray-100">
-                                <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                                  Price
-                                </td>
-
-                                {comparisonProducts.map((product) => (
-                                  <td
-                                    key={product.id}
-                                    className="px-3 py-4 text-base font-extrabold text-gray-900"
-                                  >
-                                    ${Number(product.price).toFixed(2)}
-                                  </td>
-                                ))}
-                              </tr>
-
-                              <tr className="border-b border-gray-100">
-                                <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                                  Stock
-                                </td>
-
-                                {comparisonProducts.map((product) => (
-                                  <td key={product.id} className="px-3 py-4">
-                                    {product.stock > 0 ? (
-                                      <span className="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold text-green-700">
-                                        {product.stock} available
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-bold text-red-700">
-                                        Out of stock
-                                      </span>
-                                    )}
-                                  </td>
-                                ))}
-                              </tr>
-
-                              <tr className="border-b border-gray-100">
-                                <td className="px-3 py-4 align-top text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                                  Details
-                                </td>
-
-                                {comparisonProducts.map((product) => (
-                                  <td
-                                    key={product.id}
-                                    className="px-3 py-4 align-top text-[11px] leading-5 text-gray-600"
-                                  >
-                                    {product.description ||
-                                      "No description available."}
-                                  </td>
-                                ))}
-                              </tr>
-
-                              <tr>
-                                <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                                  Actions
-                                </td>
-
-                                {comparisonProducts.map((product) => (
-                                  <td
-                                    key={product.id}
-                                    className="px-3 py-4 align-top"
-                                  >
-                                    <div className="flex flex-col gap-2">
-                                      <Link
-                                        href={`/products/${product.id}`}
-                                        className="flex h-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-bold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
-                                      >
-                                        View Product
-                                      </Link>
-
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAddToCart(product)}
-                                        disabled={product.stock <= 0}
-                                        className={`h-8 rounded-lg text-[10px] font-bold text-white transition ${
-                                          product.stock <= 0
-                                            ? "cursor-not-allowed bg-gray-300"
-                                            : addedProducts.includes(product.id)
-                                              ? "bg-green-500"
-                                              : "bg-blue-600 hover:bg-blue-700"
-                                        }`}
-                                      >
-                                        {product.stock <= 0
-                                          ? "Out of Stock"
-                                          : addedProducts.includes(product.id)
-                                            ? "✓ Added"
-                                            : "Add to Cart"}
-                                      </button>
-                                    </div>
-                                  </td>
-                                ))}
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* MOBILE COMPARISON */}
-                        <div className="space-y-3 p-3 md:hidden">
-                          {comparisonProducts.map((product) => (
-                            <div
-                              key={product.id}
-                              className="rounded-2xl border border-gray-200 bg-white p-3"
-                            >
-                              <div className="flex gap-3">
-                                {product.image ? (
-                                  <img
-                                    src={product.image}
-                                    alt={product.name}
-                                    className="h-16 w-16 shrink-0 rounded-xl object-cover"
-                                  />
-                                ) : (
-                                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xl">
-                                    🛍️
-                                  </div>
-                                )}
-
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="text-sm font-bold text-gray-900">
-                                    {product.name}
-                                  </h4>
-
-                                  {product.category && (
-                                    <p className="mt-1 text-[10px] font-semibold text-blue-600">
-                                      {product.category}
-                                    </p>
-                                  )}
-
-                                  <p className="mt-1 text-lg font-extrabold text-gray-900">
-                                    ${Number(product.price).toFixed(2)}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                                    Availability
-                                  </span>
-
-                                  {product.stock > 0 ? (
-                                    <span className="text-xs font-bold text-green-600">
-                                      {product.stock} available
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs font-bold text-red-500">
-                                      Out of stock
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div>
-                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                                    Description
-                                  </p>
-
-                                  <p className="mt-1 text-[11px] leading-5 text-gray-600">
-                                    {product.description ||
-                                      "No description available."}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 grid grid-cols-2 gap-2">
-                                <Link
-                                  href={`/products/${product.id}`}
-                                  className="flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[10px] font-bold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
-                                >
-                                  View Product
-                                </Link>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleAddToCart(product)}
-                                  disabled={product.stock <= 0}
-                                  className={`h-9 rounded-xl text-[10px] font-bold text-white transition ${
-                                    product.stock <= 0
-                                      ? "cursor-not-allowed bg-gray-300"
-                                      : addedProducts.includes(product.id)
-                                        ? "bg-green-500"
-                                        : "bg-blue-600 hover:bg-blue-700"
-                                  }`}
-                                >
-                                  {product.stock <= 0
-                                    ? "Out of Stock"
-                                    : addedProducts.includes(product.id)
-                                      ? "✓ Added"
-                                      : "Add to Cart"}
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* PRICE DIFFERENCE */}
-                        {comparisonProducts.length >= 2 && (
-                          <div className="border-t border-blue-100 bg-blue-50/60 px-4 py-3">
-                            <div className="flex items-center justify-center gap-2 text-center">
-                              <span className="text-sm">💰</span>
-
-                              <p className="text-[11px] font-semibold text-blue-800">
-                                {(() => {
-                                  const prices = comparisonProducts.map((p) =>
-                                    Number(p.price),
-                                  );
-
-                                  const minPrice = Math.min(...prices);
-                                  const maxPrice = Math.max(...prices);
-                                  const difference = maxPrice - minPrice;
-
-                                  if (difference === 0) {
-                                    return "These products have the same price.";
-                                  }
-
-                                  const cheaperProduct =
-                                    comparisonProducts.find(
-                                      (p) => Number(p.price) === minPrice,
-                                    );
-
-                                  return `${cheaperProduct?.name ?? "The lower-priced product"} is $${difference.toFixed(
-                                    2,
-                                  )} cheaper.`;
-                                })()}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* NORMAL PRODUCT CARDS */}
-                    {!comparison &&
-                      item.role === "assistant" &&
-                      item.products &&
-                      item.products.length > 0 && (
-                        <div className="mt-2 space-y-3">
-                          {item.products.map((product) => (
-                            <div
-                              key={product.id}
-                              className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                            >
-                              {/* IMAGE */}
-                              <div className="relative h-40 w-full overflow-hidden bg-gray-100">
-                                {product.image ? (
-                                  <img
-                                    src={product.image}
-                                    alt={product.name}
-                                    className="h-full w-full object-cover transition duration-300 hover:scale-105"
-                                  />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 text-5xl">
-                                    🛍️
-                                  </div>
-                                )}
-
-                                {product.category && (
-                                  <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-bold text-blue-700 shadow-sm backdrop-blur-sm">
-                                    {product.category}
-                                  </span>
-                                )}
-
-                                <span
-                                  className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm ${
-                                    product.stock > 0
-                                      ? "bg-green-100/95 text-green-700"
-                                      : "bg-red-100/95 text-red-700"
-                                  }`}
-                                >
-                                  {product.stock > 0
-                                    ? `${product.stock} in stock`
-                                    : "Sold out"}
-                                </span>
-                              </div>
-
-                              {/* INFORMATION */}
-                              <div className="p-4">
-                                <h3 className="line-clamp-1 text-base font-bold text-gray-900">
-                                  {product.name}
-                                </h3>
-
-                                <p className="mt-1 line-clamp-2 min-h-[36px] text-[11px] leading-4 text-gray-500">
-                                  {product.description ||
-                                    "No description available."}
-                                </p>
-
-                                <div className="mt-3 flex items-center justify-between gap-2">
-                                  <span className="text-xl font-extrabold text-blue-600">
-                                    ${Number(product.price).toFixed(2)}
-                                  </span>
-
-                                  {product.stock > 0 ? (
-                                    <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-                                      <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                                      Available now
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-medium text-red-500">
-                                      Currently unavailable
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* ACTIONS */}
-                                <div className="mt-3 grid grid-cols-2 gap-2">
-                                  <Link
-                                    href={`/products/${product.id}`}
-                                    className="flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
-                                  >
-                                    View Product
-                                  </Link>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAddToCart(product)}
-                                    disabled={product.stock <= 0}
-                                    className={`h-10 rounded-xl text-[11px] font-semibold text-white transition ${
-                                      product.stock <= 0
-                                        ? "cursor-not-allowed bg-gray-300"
-                                        : addedProducts.includes(product.id)
-                                          ? "bg-green-500"
-                                          : "bg-blue-600 hover:bg-blue-700"
-                                    }`}
-                                  >
-                                    {product.stock <= 0
-                                      ? "Sold Out"
-                                      : addedProducts.includes(product.id)
-                                        ? "✓ Added"
-                                        : "Add to Cart"}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* LOADING */}
-            {loading && (
-              <div className="flex items-end gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100 text-sm">
-                  🛍️
-                </div>
-
-                <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 shadow-sm">
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:150ms]" />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]" />
-
-                  <span className="ml-1 text-xs text-gray-500">
-                    Finding products...
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* INPUT */}
-          <div className="border-t border-gray-100 bg-white p-4">
-            <form
-              onSubmit={sendMessage}
-              className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-1.5 transition focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50"
-            >
-              <input
-                type="text"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder={
-                  isListening ? "Listening..." : "Ask me anything..."
-                }
-                disabled={loading}
-                className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none disabled:opacity-50"
-              />
-
-              {/* MICROPHONE */}
-              <button
-                type="button"
-                onClick={startVoiceInput}
-                disabled={loading}
-                className={`
-                  flex h-10 w-10 shrink-0 items-center justify-center
-                  rounded-xl transition
-                  ${
-                    isListening
-                      ? "animate-pulse bg-red-500 text-white shadow-md shadow-red-500/30"
-                      : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                  }
-                  disabled:cursor-not-allowed
-                  disabled:opacity-40
-                `}
-                aria-label={
-                  isListening ? "Stop voice input" : "Start voice input"
-                }
-              >
-                {isListening ? (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="19"
-                    height="19"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <rect x="7" y="7" width="10" height="10" rx="1" />
-                  </svg>
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="19"
-                    height="19"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" x2="12" y1="19" y2="22" />
-                    <line x1="8" x2="16" y1="22" y2="22" />
-                  </svg>
-                )}
-              </button>
-
-              {/* SEND */}
-              <button
-                type="submit"
-                disabled={loading || !message.trim()}
-                className="
-                  flex h-10 w-11 shrink-0 items-center justify-center
-                  rounded-xl bg-blue-600 text-white
-                  shadow-md shadow-blue-600/20
-                  transition hover:bg-blue-700
-                  disabled:cursor-not-allowed
-                  disabled:opacity-40
-                "
-                aria-label="Send message"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="19"
-                  height="19"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m22 2-7 20-4-9-9-4Z" />
-                  <path d="M22 2 11 13" />
-                </svg>
-              </button>
-            </form>
-
-            <p className="mt-3 text-center text-[10px] text-gray-400">
-              Powered by ShopEase AI
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* FLOATING BUTTON */}
+      {/* Floating chatbot button */}
       {!isOpen && (
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="
-            fixed bottom-6 right-6 z-[100]
-            flex h-16 w-16 items-center justify-center
-            rounded-full
-            bg-gradient-to-br from-blue-600 to-indigo-600
-            text-2xl text-white
-            shadow-[0_8px_30px_rgba(37,99,235,0.35)]
-            transition duration-300
-            hover:scale-110
-            hover:shadow-[0_12px_35px_rgba(37,99,235,0.45)]
-            active:scale-95
-          "
-          aria-label="Open ShopEase Assistant"
+          aria-label="Open AI shopping assistant"
+          className="group fixed bottom-6 right-6 z-[9999] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-indigo-500/40"
         >
-          <span>💬</span>
+          <span className="absolute inset-0 animate-ping rounded-full bg-indigo-500 opacity-20" />
 
-          <span className="absolute right-0 top-0 h-4 w-4 rounded-full border-2 border-white bg-green-400" />
+          <div className="relative flex flex-col items-center justify-center">
+            <span className="text-2xl">🤖</span>
+          </div>
+
+          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+          </span>
         </button>
+      )}
+
+      {/* Chat window */}
+      {isOpen && (
+        <div className="fixed bottom-4 right-4 z-[9999] flex h-[min(760px,calc(100vh-32px))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+          {/* Header */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-purple-700 to-pink-600 px-5 py-4 text-white">
+            <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute -bottom-12 left-20 h-32 w-32 rounded-full bg-cyan-300/10 blur-2xl" />
+
+            <div className="relative flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-2xl shadow-inner backdrop-blur">
+                  🤖
+                  <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-indigo-700 bg-emerald-400" />
+                </div>
+
+                <div>
+                  <h2 className="text-base font-bold">ShopEase AI</h2>
+
+                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-white/80">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
+                    <span>Online • Ready to help</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={clearChat}
+                  title="Clear conversation"
+                  className="rounded-xl p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
+                >
+                  🗑️
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  title="Close"
+                  className="rounded-xl p-2 text-lg text-white/80 transition hover:bg-white/10 hover:text-white"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick suggestions */}
+          {messages.length <= 1 && (
+            <div className="border-b border-slate-100 bg-white px-4 py-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Try asking
+              </p>
+
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {quickQuestions.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => sendMessage(question)}
+                    className="shrink-0 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-600 transition hover:border-indigo-300 hover:bg-indigo-100"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white px-4 py-4">
+            <div className="space-y-4">
+              {messages.map((message, index) => {
+                const comparison =
+                  message.role === "assistant" &&
+                  message.products &&
+                  message.products.length >= 2 &&
+                  isComparisonMessage(
+                    messages[index - 1]?.content || message.content,
+                  );
+
+                return (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={`flex ${
+                      message.role === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[92%] ${
+                        message.role === "user" ? "" : "w-full"
+                      }`}
+                    >
+                      <div
+                        className={`flex items-end gap-2 ${
+                          message.role === "user"
+                            ? "flex-row-reverse"
+                            : "flex-row"
+                        }`}
+                      >
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm ${
+                            message.role === "user"
+                              ? "bg-indigo-100 text-indigo-700"
+                              : "bg-gradient-to-br from-indigo-600 to-purple-600 text-white"
+                          }`}
+                        >
+                          {message.role === "user" ? "👤" : "🤖"}
+                        </div>
+
+                        <div
+                          className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
+                            message.role === "user"
+                              ? "rounded-br-md bg-indigo-600 text-white shadow-md"
+                              : "rounded-bl-md border border-slate-200 bg-white text-slate-700 shadow-sm"
+                          }`}
+                        >
+                          {message.content}
+                        </div>
+                      </div>
+
+                      {/* Assistant actions */}
+                      {message.role === "assistant" && (
+                        <div className="ml-10 mt-1 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => speakText(message.content)}
+                            className="rounded-lg px-2 py-1 text-[11px] text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600"
+                          >
+                            🔊 Listen
+                          </button>
+
+                          {isSpeaking && (
+                            <button
+                              type="button"
+                              onClick={stopSpeaking}
+                              className="rounded-lg px-2 py-1 text-[11px] text-red-500 transition hover:bg-red-50"
+                            >
+                              ⏹ Stop
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {message.role === "assistant" &&
+                        message.products &&
+                        message.products.length > 0 && (
+                          <>
+                            {comparison
+                              ? renderComparison(message.products)
+                              : renderProducts(message.products)}
+                          </>
+                        )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Typing indicator */}
+              {isLoading && (
+                <div className="flex items-end gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-sm text-white">
+                    🤖
+                  </div>
+
+                  <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 animate-bounce rounded-full bg-indigo-400"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <span
+                        className="h-2 w-2 animate-bounce rounded-full bg-purple-400"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <span
+                        className="h-2 w-2 animate-bounce rounded-full bg-pink-400"
+                        style={{ animationDelay: "300ms" }}
+                      />
+                      <span className="ml-1 text-xs text-slate-400">
+                        AI is thinking...
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          {/* Bottom area */}
+          <div className="border-t border-slate-200 bg-white p-3">
+            {/* Active status */}
+            <div className="mb-2 flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                AI shopping assistant active
+              </div>
+
+              {isListening && (
+                <span className="flex items-center gap-1 text-[11px] font-medium text-red-500">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  Listening...
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-inner focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask me about products..."
+                disabled={isLoading}
+                className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+              />
+
+              <button
+                type="button"
+                onClick={startVoiceInput}
+                disabled={isLoading}
+                title={isListening ? "Stop listening" : "Voice input"}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
+                  isListening
+                    ? "animate-pulse bg-red-500 text-white"
+                    : "bg-white text-slate-500 shadow-sm hover:bg-indigo-50 hover:text-indigo-600"
+                } disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                🎙️
+              </button>
+
+              <button
+                type="button"
+                onClick={() => sendMessage()}
+                disabled={!input.trim() || isLoading}
+                title="Send message"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md transition hover:scale-105 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+              >
+                ➤
+              </button>
+            </div>
+
+            <p className="mt-2 text-center text-[10px] text-slate-400">
+              Press Enter to send • 🎙️ Voice enabled
+            </p>
+          </div>
+        </div>
       )}
     </>
   );
