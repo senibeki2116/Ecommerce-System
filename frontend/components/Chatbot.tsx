@@ -52,6 +52,27 @@ declare global {
   }
 }
 
+/*
+ * Detect whether the customer is asking for a comparison.
+ */
+function isComparisonMessage(message: string) {
+  const text = message.toLowerCase();
+
+  const comparisonWords = [
+    "compare",
+    "comparison",
+    "difference between",
+    "which is better",
+    "which one is better",
+    "which is cheaper",
+    "which costs less",
+    "vs",
+    "versus",
+  ];
+
+  return comparisonWords.some((word) => text.includes(word));
+}
+
 export default function Chatbot() {
   const { addToCart } = useCart();
 
@@ -354,174 +375,351 @@ export default function Chatbot() {
               </span>
             </div>
 
-            {messages.map((item, index) => (
-              <div
-                key={`${item.role}-${index}`}
-                className={`flex items-end gap-2 ${
-                  item.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                {item.role === "assistant" && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-sm">
-                    🛍️
-                  </div>
-                )}
+            {messages.map((item, index) => {
+              const comparison =
+                item.role === "assistant" &&
+                isComparisonMessage(
+                  messages[index - 1]?.role === "user"
+                    ? messages[index - 1].content
+                    : "",
+                ) &&
+                Boolean(item.products && item.products.length >= 2);
 
+              const comparisonProducts = item.products?.slice(0, 3) ?? [];
+
+              return (
                 <div
-                  className={`flex ${
-                    item.role === "assistant"
-                      ? "w-[calc(100%-40px)] max-w-[92%]"
-                      : "max-w-[82%]"
-                  } flex-col gap-1`}
+                  key={`${item.role}-${index}`}
+                  className={`flex items-end gap-2 ${
+                    item.role === "user" ? "justify-end" : "justify-start"
+                  }`}
                 >
-                  {/* Message */}
-                  <div
-                    className={`
-                      whitespace-pre-wrap break-words
-                      rounded-2xl px-4 py-3
-                      text-[13px] leading-6
-                      ${
-                        item.role === "user"
-                          ? "rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/15"
-                          : "rounded-bl-md border border-gray-100 bg-white text-gray-800 shadow-sm"
-                      }
-                    `}
-                  >
-                    {item.content}
-                  </div>
-
-                  {/* Speaker button */}
                   {item.role === "assistant" && (
-                    <button
-                      type="button"
-                      onClick={() => speakMessage(item.content, index)}
-                      className="flex w-fit items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"
-                      aria-label={
-                        speakingIndex === index
-                          ? "Stop speaking"
-                          : "Read response aloud"
-                      }
-                    >
-                      {speakingIndex === index ? (
-                        <>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <rect x="6" y="4" width="4" height="16" rx="1" />
-                            <rect x="14" y="4" width="4" height="16" rx="1" />
-                          </svg>
-
-                          <span>Stop</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                          </svg>
-
-                          <span>Listen</span>
-                        </>
-                      )}
-                    </button>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-sm">
+                      🛍️
+                    </div>
                   )}
 
-                  {/* Product Cards */}
-                  {item.role === "assistant" &&
-                    item.products &&
-                    item.products.length > 0 && (
-                      <div className="mt-2 space-y-3">
-                        {item.products.map((product) => (
-                          <div
-                            key={product.id}
-                            className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                          >
-                            {/* Product Image */}
-                            <div className="relative h-36 w-full overflow-hidden bg-gray-100">
-                              {product.image ? (
-                                <img
-                                  src={product.image}
-                                  alt={product.name}
-                                  className="h-full w-full object-cover transition duration-300 hover:scale-105"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 text-5xl">
-                                  🛍️
-                                </div>
-                              )}
+                  <div
+                    className={`flex ${
+                      item.role === "assistant"
+                        ? "w-[calc(100%-40px)] max-w-[92%]"
+                        : "max-w-[82%]"
+                    } flex-col gap-1`}
+                  >
+                    {/* Message */}
+                    <div
+                      className={`
+                        whitespace-pre-wrap break-words
+                        rounded-2xl px-4 py-3
+                        text-[13px] leading-6
+                        ${
+                          item.role === "user"
+                            ? "rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/15"
+                            : "rounded-bl-md border border-gray-100 bg-white text-gray-800 shadow-sm"
+                        }
+                      `}
+                    >
+                      {item.content}
+                    </div>
 
-                              {/* Category */}
-                              {product.category && (
-                                <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-blue-700 shadow-sm backdrop-blur-sm">
-                                  {product.category}
-                                </span>
-                              )}
+                    {/* Speaker button */}
+                    {item.role === "assistant" && (
+                      <button
+                        type="button"
+                        onClick={() => speakMessage(item.content, index)}
+                        className="flex w-fit items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"
+                        aria-label={
+                          speakingIndex === index
+                            ? "Stop speaking"
+                            : "Read response aloud"
+                        }
+                      >
+                        {speakingIndex === index ? (
+                          <>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <rect x="6" y="4" width="4" height="16" rx="1" />
+                              <rect x="14" y="4" width="4" height="16" rx="1" />
+                            </svg>
 
-                              {/* Stock Badge */}
-                              <span
-                                className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm ${
-                                  product.stock > 0
-                                    ? "bg-green-100/95 text-green-700"
-                                    : "bg-red-100/95 text-red-700"
-                                }`}
-                              >
-                                {product.stock > 0
-                                  ? `${product.stock} in stock`
-                                  : "Sold out"}
-                              </span>
+                            <span>Stop</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                            </svg>
+
+                            <span>Listen</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {/* ================================================= */}
+                    {/* PRODUCT COMPARISON */}
+                    {/* ================================================= */}
+
+                    {comparison && (
+                      <div className="mt-2 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+                        {/* Comparison Header */}
+                        <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white">
+                              ⚖️
                             </div>
 
-                            {/* Product Information */}
-                            <div className="p-3.5">
-                              <h3 className="line-clamp-1 text-sm font-bold text-gray-900">
-                                {product.name}
+                            <div>
+                              <h3 className="text-sm font-extrabold text-gray-900">
+                                Product Comparison
                               </h3>
 
-                              <p className="mt-1 line-clamp-2 min-h-[36px] text-[11px] leading-4 text-gray-500">
-                                {product.description ||
-                                  "No description available."}
+                              <p className="text-[10px] text-gray-500">
+                                Compare price, category, stock and details
                               </p>
+                            </div>
+                          </div>
+                        </div>
 
-                              <div className="mt-3 flex items-center justify-between gap-2">
-                                <span className="text-lg font-extrabold text-blue-600">
-                                  ${product.price.toFixed(2)}
-                                </span>
+                        {/* Desktop / Tablet Comparison */}
+                        <div className="hidden overflow-x-auto md:block">
+                          <table className="w-full min-w-[650px] text-left">
+                            <thead>
+                              <tr className="border-b border-gray-100 bg-gray-50">
+                                <th className="w-28 px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                                  Product
+                                </th>
 
-                                {product.stock > 0 ? (
-                                  <span className="text-[10px] font-medium text-green-600">
-                                    Available now
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-medium text-red-500">
-                                    Currently unavailable
-                                  </span>
-                                )}
-                              </div>
+                                {comparisonProducts.map((product) => (
+                                  <th
+                                    key={product.id}
+                                    className="min-w-[180px] px-3 py-4 align-top"
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      {product.image ? (
+                                        <img
+                                          src={product.image}
+                                          alt={product.name}
+                                          className="h-11 w-11 shrink-0 rounded-xl object-cover"
+                                        />
+                                      ) : (
+                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-lg">
+                                          🛍️
+                                        </div>
+                                      )}
+
+                                      <div className="min-w-0">
+                                        <p className="line-clamp-2 text-xs font-bold text-gray-900">
+                                          {product.name}
+                                        </p>
+
+                                        {product.category && (
+                                          <p className="mt-1 text-[10px] font-medium text-blue-600">
+                                            {product.category}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+
+                            <tbody>
+                              {/* Price */}
+                              <tr className="border-b border-gray-100">
+                                <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                                  Price
+                                </td>
+
+                                {comparisonProducts.map((product) => (
+                                  <td
+                                    key={product.id}
+                                    className="px-3 py-4 text-base font-extrabold text-gray-900"
+                                  >
+                                    ${Number(product.price).toFixed(2)}
+                                  </td>
+                                ))}
+                              </tr>
+
+                              {/* Availability */}
+                              <tr className="border-b border-gray-100">
+                                <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                                  Stock
+                                </td>
+
+                                {comparisonProducts.map((product) => (
+                                  <td key={product.id} className="px-3 py-4">
+                                    {product.stock > 0 ? (
+                                      <span className="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold text-green-700">
+                                        {product.stock} available
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-bold text-red-700">
+                                        Out of stock
+                                      </span>
+                                    )}
+                                  </td>
+                                ))}
+                              </tr>
+
+                              {/* Description */}
+                              <tr className="border-b border-gray-100">
+                                <td className="px-3 py-4 align-top text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                                  Details
+                                </td>
+
+                                {comparisonProducts.map((product) => (
+                                  <td
+                                    key={product.id}
+                                    className="px-3 py-4 align-top text-[11px] leading-5 text-gray-600"
+                                  >
+                                    {product.description ||
+                                      "No description available."}
+                                  </td>
+                                ))}
+                              </tr>
 
                               {/* Actions */}
+                              <tr>
+                                <td className="px-3 py-4 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                                  Actions
+                                </td>
+
+                                {comparisonProducts.map((product) => (
+                                  <td
+                                    key={product.id}
+                                    className="px-3 py-4 align-top"
+                                  >
+                                    <div className="flex flex-col gap-2">
+                                      <Link
+                                        href={`/products/${product.id}`}
+                                        className="flex h-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-bold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                                      >
+                                        View Product
+                                      </Link>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddToCart(product)}
+                                        disabled={product.stock <= 0}
+                                        className={`h-8 rounded-lg text-[10px] font-bold text-white transition ${
+                                          product.stock <= 0
+                                            ? "cursor-not-allowed bg-gray-300"
+                                            : addedProducts.includes(product.id)
+                                              ? "bg-green-500"
+                                              : "bg-blue-600 hover:bg-blue-700"
+                                        }`}
+                                      >
+                                        {product.stock <= 0
+                                          ? "Out of Stock"
+                                          : addedProducts.includes(product.id)
+                                            ? "✓ Added"
+                                            : "Add to Cart"}
+                                      </button>
+                                    </div>
+                                  </td>
+                                ))}
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Mobile Comparison */}
+                        <div className="space-y-3 p-3 md:hidden">
+                          {comparisonProducts.map((product) => (
+                            <div
+                              key={product.id}
+                              className="rounded-2xl border border-gray-200 bg-white p-3"
+                            >
+                              {/* Product Header */}
+                              <div className="flex gap-3">
+                                {product.image ? (
+                                  <img
+                                    src={product.image}
+                                    alt={product.name}
+                                    className="h-16 w-16 shrink-0 rounded-xl object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xl">
+                                    🛍️
+                                  </div>
+                                )}
+
+                                <div className="min-w-0 flex-1">
+                                  <h4 className="text-sm font-bold text-gray-900">
+                                    {product.name}
+                                  </h4>
+
+                                  {product.category && (
+                                    <p className="mt-1 text-[10px] font-semibold text-blue-600">
+                                      {product.category}
+                                    </p>
+                                  )}
+
+                                  <p className="mt-1 text-lg font-extrabold text-gray-900">
+                                    ${Number(product.price).toFixed(2)}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Product Details */}
+                              <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                    Availability
+                                  </span>
+
+                                  {product.stock > 0 ? (
+                                    <span className="text-xs font-bold text-green-600">
+                                      {product.stock} available
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-bold text-red-500">
+                                      Out of stock
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                    Description
+                                  </p>
+
+                                  <p className="mt-1 text-[11px] leading-5 text-gray-600">
+                                    {product.description ||
+                                      "No description available."}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Mobile Actions */}
                               <div className="mt-3 grid grid-cols-2 gap-2">
                                 <Link
                                   href={`/products/${product.id}`}
-                                  className="flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                                  className="flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[10px] font-bold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
                                 >
                                   View Product
                                 </Link>
@@ -530,7 +728,7 @@ export default function Chatbot() {
                                   type="button"
                                   onClick={() => handleAddToCart(product)}
                                   disabled={product.stock <= 0}
-                                  className={`h-9 rounded-xl text-[11px] font-semibold text-white transition ${
+                                  className={`h-9 rounded-xl text-[10px] font-bold text-white transition ${
                                     product.stock <= 0
                                       ? "cursor-not-allowed bg-gray-300"
                                       : addedProducts.includes(product.id)
@@ -539,20 +737,165 @@ export default function Chatbot() {
                                   }`}
                                 >
                                   {product.stock <= 0
-                                    ? "Sold Out"
+                                    ? "Out of Stock"
                                     : addedProducts.includes(product.id)
                                       ? "✓ Added"
                                       : "Add to Cart"}
                                 </button>
                               </div>
                             </div>
+                          ))}
+                        </div>
+
+                        {/* Price Difference */}
+                        {comparisonProducts.length >= 2 && (
+                          <div className="border-t border-blue-100 bg-blue-50/60 px-4 py-3">
+                            <div className="flex items-center justify-center gap-2 text-center">
+                              <span className="text-sm">💰</span>
+
+                              <p className="text-[11px] font-semibold text-blue-800">
+                                {(() => {
+                                  const prices = comparisonProducts.map((p) =>
+                                    Number(p.price),
+                                  );
+
+                                  const minPrice = Math.min(...prices);
+                                  const maxPrice = Math.max(...prices);
+                                  const difference = maxPrice - minPrice;
+
+                                  if (difference === 0) {
+                                    return "These products have the same price.";
+                                  }
+
+                                  const cheaperProduct =
+                                    comparisonProducts.find(
+                                      (p) => Number(p.price) === minPrice,
+                                    );
+
+                                  return `${cheaperProduct?.name ?? "The lower-priced product"} is $${difference.toFixed(
+                                    2,
+                                  )} cheaper.`;
+                                })()}
+                              </p>
+                            </div>
                           </div>
-                        ))}
+                        )}
                       </div>
                     )}
+
+                    {/* ================================================= */}
+                    {/* NORMAL PRODUCT CARDS */}
+                    {/* ================================================= */}
+
+                    {!comparison &&
+                      item.role === "assistant" &&
+                      item.products &&
+                      item.products.length > 0 && (
+                        <div className="mt-2 space-y-3">
+                          {item.products.map((product) => (
+                            <div
+                              key={product.id}
+                              className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                            >
+                              {/* Product Image */}
+                              <div className="relative h-36 w-full overflow-hidden bg-gray-100">
+                                {product.image ? (
+                                  <img
+                                    src={product.image}
+                                    alt={product.name}
+                                    className="h-full w-full object-cover transition duration-300 hover:scale-105"
+                                  />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 text-5xl">
+                                    🛍️
+                                  </div>
+                                )}
+
+                                {/* Category */}
+                                {product.category && (
+                                  <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-blue-700 shadow-sm backdrop-blur-sm">
+                                    {product.category}
+                                  </span>
+                                )}
+
+                                {/* Stock Badge */}
+                                <span
+                                  className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm ${
+                                    product.stock > 0
+                                      ? "bg-green-100/95 text-green-700"
+                                      : "bg-red-100/95 text-red-700"
+                                  }`}
+                                >
+                                  {product.stock > 0
+                                    ? `${product.stock} in stock`
+                                    : "Sold out"}
+                                </span>
+                              </div>
+
+                              {/* Product Information */}
+                              <div className="p-3.5">
+                                <h3 className="line-clamp-1 text-sm font-bold text-gray-900">
+                                  {product.name}
+                                </h3>
+
+                                <p className="mt-1 line-clamp-2 min-h-[36px] text-[11px] leading-4 text-gray-500">
+                                  {product.description ||
+                                    "No description available."}
+                                </p>
+
+                                <div className="mt-3 flex items-center justify-between gap-2">
+                                  <span className="text-lg font-extrabold text-blue-600">
+                                    ${Number(product.price).toFixed(2)}
+                                  </span>
+
+                                  {product.stock > 0 ? (
+                                    <span className="text-[10px] font-medium text-green-600">
+                                      Available now
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-medium text-red-500">
+                                      Currently unavailable
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Actions */}
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                  <Link
+                                    href={`/products/${product.id}`}
+                                    className="flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                                  >
+                                    View Product
+                                  </Link>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddToCart(product)}
+                                    disabled={product.stock <= 0}
+                                    className={`h-9 rounded-xl text-[11px] font-semibold text-white transition ${
+                                      product.stock <= 0
+                                        ? "cursor-not-allowed bg-gray-300"
+                                        : addedProducts.includes(product.id)
+                                          ? "bg-green-500"
+                                          : "bg-blue-600 hover:bg-blue-700"
+                                    }`}
+                                  >
+                                    {product.stock <= 0
+                                      ? "Sold Out"
+                                      : addedProducts.includes(product.id)
+                                        ? "✓ Added"
+                                        : "Add to Cart"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Loading */}
             {loading && (
