@@ -1,10 +1,8 @@
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
-
 import os
 import re
 import requests
@@ -18,17 +16,10 @@ load_dotenv()
 
 
 # ============================================================
-# FASTAPI
+# APP
 # ============================================================
 
-app = FastAPI(
-    title="ShopEase AI Service"
-)
-
-
-# ============================================================
-# CORS
-# ============================================================
+app = FastAPI(title="ShopEase AI Service")
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,9 +43,12 @@ client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
-PRODUCTS_API_URL = (
-    "http://localhost:3001/products"
-)
+
+# ============================================================
+# SHOP PRODUCTS API
+# ============================================================
+
+PRODUCTS_API_URL = "http://localhost:3001/products"
 
 
 # ============================================================
@@ -81,20 +75,20 @@ class ChatResponse(BaseModel):
 
 
 # ============================================================
-# HEALTH CHECK
+# PRODUCT HELPERS
 # ============================================================
 
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "service": "ShopEase AI",
-    }
+def get_category_name(product):
+    category = product.get("category")
 
+    if isinstance(category, dict):
+        return str(category.get("name", ""))
 
-# ============================================================
-# GET PRODUCTS FROM SHOP EASE BACKEND
-# ============================================================
+    if category is None:
+        return ""
+
+    return str(category)
+
 
 def get_products():
     try:
@@ -107,33 +101,24 @@ def get_products():
 
         data = response.json()
 
-        # Backend may return:
-        #
-        # [...]
-        #
-        # OR:
-        #
-        # {"data": [...]}
+        if isinstance(data, list):
+            return data
 
         if isinstance(data, dict):
-            products = data.get(
-                "data",
-                [],
-            )
-        else:
-            products = data
+            if isinstance(data.get("products"), list):
+                return data["products"]
 
-        if not isinstance(products, list):
-            return []
+            if isinstance(data.get("data"), list):
+                return data["data"]
 
-        return products
+        return []
+
+    except requests.RequestException as error:
+        print("Products API error:", error)
+        return []
 
     except Exception as error:
-        print(
-            "Product API error:",
-            error,
-        )
-
+        print("Unexpected products error:", error)
         return []
 
 
@@ -151,16 +136,11 @@ def extract_budget(message: str):
     ]
 
     for pattern in patterns:
-        match = re.search(
-            pattern,
-            text,
-        )
+        match = re.search(pattern, text)
 
         if match:
             try:
-                return float(
-                    match.group(1)
-                )
+                return float(match.group(1))
             except ValueError:
                 pass
 
@@ -168,7 +148,7 @@ def extract_budget(message: str):
 
 
 # ============================================================
-# SHOPPING KEYWORDS / SYNONYMS
+# SEARCH GROUPS
 # ============================================================
 
 SEARCH_GROUPS = {
@@ -253,180 +233,114 @@ SEARCH_GROUPS = {
 
 
 # ============================================================
-# FIND SEARCH TERMS
+# SEARCH TERM EXTRACTION
 # ============================================================
 
 def extract_search_terms(message: str):
     text = message.lower()
 
-    matched_groups = []
+    terms = []
 
-    for group, keywords in SEARCH_GROUPS.items():
-
+    for group_name, keywords in SEARCH_GROUPS.items():
         for keyword in keywords:
-
             if keyword in text:
-                matched_groups.append(group)
+                terms.append(group_name)
                 break
 
-    return matched_groups
-
-
-# ============================================================
-# GET CATEGORY NAME
-# ============================================================
-
-def get_category_name(product):
-    category = product.get(
-        "category",
-        "",
-    )
-
-    if isinstance(category, dict):
-        return str(
-            category.get(
-                "name",
-                "",
-            )
-        )
-
-    return str(category)
+    return list(dict.fromkeys(terms))
 
 
 # ============================================================
 # PRODUCT MATCHING
 # ============================================================
 
-def product_matches(
-    product,
-    search_groups,
-):
-    if not search_groups:
-        return True
+def product_matches(product, message: str):
+    text = message.lower()
 
     name = str(
-        product.get(
-            "name",
-            "",
-        )
+        product.get("name", "")
     ).lower()
 
     description = str(
-        product.get(
-            "description",
-            "",
-        )
+        product.get("description", "") or ""
     ).lower()
 
-    category = get_category_name(
-        product
-    ).lower()
+    category = get_category_name(product).lower()
 
     searchable_text = (
-        f"{name} "
-        f"{description} "
-        f"{category}"
+        f"{name} {description} {category}"
     )
 
-    for group in search_groups:
+    search_terms = extract_search_terms(message)
 
-        keywords = SEARCH_GROUPS.get(
-            group,
-            [],
-        )
+    if not search_terms:
+        return True
+
+    for term in search_terms:
+        keywords = SEARCH_GROUPS.get(term, [])
 
         for keyword in keywords:
-
-            if keyword.lower() in searchable_text:
+            if keyword in searchable_text:
                 return True
 
     return False
 
 
 # ============================================================
-# SCORE PRODUCTS
+# PRODUCT SCORING
 # ============================================================
 
-def score_product(
-    product,
-    message,
-    search_groups,
-):
+def score_product(product, message: str):
     text = message.lower()
 
     name = str(
-        product.get(
-            "name",
-            "",
-        )
+        product.get("name", "")
     ).lower()
 
     description = str(
-        product.get(
-            "description",
-            "",
-        )
+        product.get("description", "") or ""
     ).lower()
 
-    category = get_category_name(
-        product
-    ).lower()
+    category = get_category_name(product).lower()
 
     searchable_text = (
-        f"{name} "
-        f"{description} "
-        f"{category}"
+        f"{name} {description} {category}"
     )
 
     score = 0
 
-    # Exact product name
-    if name and name in text:
-        score += 100
+    search_terms = extract_search_terms(message)
 
-    # Category match
-    if category and category in text:
-        score += 50
+    for term in search_terms:
+        keywords = SEARCH_GROUPS.get(term, [])
 
-    # Search group match
-    for group in search_groups:
+        for keyword in keywords:
 
-        for keyword in SEARCH_GROUPS.get(
-            group,
-            [],
-        ):
+            if keyword in name:
+                score += 10
 
-            if keyword.lower() in searchable_text:
-                score += 20
+            elif keyword in category:
+                score += 8
 
-    # Individual word matches
-    words = re.findall(
-        r"[a-zA-Z]+",
-        text,
-    )
+            elif keyword in description:
+                score += 5
+
+    words = [
+        word.strip(".,!?")
+        for word in text.split()
+        if len(word.strip(".,!?")) >= 4
+    ]
 
     for word in words:
-
-        if len(word) < 3:
-            continue
-
         if word in searchable_text:
-            score += 5
+            score += 2
 
-    # Prefer products in stock
-    try:
-        stock = int(
-            product.get(
-                "stock",
-                0,
-            )
-        )
+    stock = int(
+        product.get("stock", 0) or 0
+    )
 
-        if stock > 0:
-            score += 3
-
-    except Exception:
-        pass
+    if stock > 0:
+        score += 2
 
     return score
 
@@ -437,96 +351,56 @@ def score_product(
 
 def find_relevant_products(
     products,
-    message,
+    message: str,
     budget=None,
 ):
-    search_groups = extract_search_terms(
-        message
-    )
-
     candidates = []
 
     for product in products:
 
         try:
             price = float(
-                product.get(
-                    "price",
-                    0,
-                )
+                product.get("price", 0) or 0
             )
 
-        except Exception:
+        except (TypeError, ValueError):
             continue
 
-        # Budget filter
-        if (
-            budget is not None
-            and price > budget
-        ):
+        if budget is not None and price > budget:
             continue
 
-        # Category filter
-        if search_groups:
+        if product_matches(product, message):
 
-            if not product_matches(
+            score = score_product(
                 product,
-                search_groups,
-            ):
-                continue
+                message,
+            )
 
-        score = score_product(
-            product,
-            message,
-            search_groups,
-        )
-
-        candidates.append(
-            {
-                "product": product,
-                "score": score,
-            }
-        )
-
-    # Sort by:
-    # 1. relevance
-    # 2. in-stock
-    # 3. lower price
+            candidates.append(
+                (score, product)
+            )
 
     candidates.sort(
         key=lambda item: (
-            item["score"],
-
+            item[0],
             int(
-                item["product"].get(
-                    "stock",
-                    0,
-                )
-            ) > 0,
-
-            -float(
-                item["product"].get(
-                    "price",
-                    0,
-                )
+                item[1].get("stock", 0) or 0
             ),
         ),
         reverse=True,
     )
 
     return [
-        item["product"]
-        for item in candidates[:10]
+        product
+        for score, product in candidates[:5]
     ]
 
 
 # ============================================================
-# PRODUCT COMPARISON DETECTION
+# COMPARISON DETECTION
 # ============================================================
 
-def is_comparison_request(
-    message: str,
-):
+def is_comparison_request(message: str):
     text = message.lower()
 
     comparison_words = [
@@ -553,7 +427,7 @@ def is_comparison_request(
 
 def find_comparison_products(
     products,
-    message,
+    message: str,
 ):
     text = message.lower()
 
@@ -562,21 +436,16 @@ def find_comparison_products(
     for product in products:
 
         name = str(
-            product.get(
-                "name",
-                "",
-            )
+            product.get("name", "")
         ).lower()
 
         if not name:
             continue
 
-        # Exact full product name
         if name in text:
             matches.append(product)
             continue
 
-        # Match important product-name words
         words = name.split()
 
         important_words = [
@@ -594,114 +463,360 @@ def find_comparison_products(
         ):
             matches.append(product)
 
-    # Remove duplicates
     unique_products = []
 
     seen_ids = set()
 
     for product in matches:
 
-        product_id = product.get(
-            "id"
-        )
+        product_id = product.get("id")
 
         if product_id not in seen_ids:
 
-            seen_ids.add(
-                product_id
-            )
+            seen_ids.add(product_id)
 
-            unique_products.append(
-                product
-            )
+            unique_products.append(product)
 
     return unique_products[:3]
 
 
 # ============================================================
-# PRODUCT FORMAT
+# RECOMMENDATION DETECTION
 # ============================================================
 
-def create_product_cards(products):
-    cards = []
+def is_recommendation_request(message: str):
+    text = message.lower()
+
+    recommendation_words = [
+        "recommend",
+        "recommendation",
+        "suggest",
+        "suggestion",
+        "what should i buy",
+        "what should i get",
+        "what do you recommend",
+        "which should i buy",
+        "which one should i buy",
+        "help me choose",
+        "good choice",
+        "best for me",
+        "best product for",
+        "suitable for",
+        "good for",
+    ]
+
+    return any(
+        word in text
+        for word in recommendation_words
+    )
+
+
+# ============================================================
+# SMART RECOMMENDATION SEARCH
+# ============================================================
+
+def find_recommendation_products(
+    products: list[dict],
+    message: str,
+    budget: float | None = None,
+) -> list[dict]:
+
+    text = message.lower()
+
+    # --------------------------------------------------------
+    # Recommendation groups
+    # --------------------------------------------------------
+
+    recommendation_groups = {
+
+        "gaming": [
+            "gaming",
+            "gamer",
+            "game",
+            "games",
+        ],
+
+        "phone": [
+            "phone",
+            "smartphone",
+            "mobile",
+            "iphone",
+            "android",
+        ],
+
+        "laptop": [
+            "laptop",
+            "notebook",
+            "computer",
+        ],
+
+        "keyboard": [
+            "keyboard",
+            "typing",
+            "mechanical keyboard",
+        ],
+
+        "mouse": [
+            "mouse",
+            "mice",
+            "gaming mouse",
+        ],
+
+        "audio": [
+            "audio",
+            "speaker",
+            "speakers",
+            "headphone",
+            "headphones",
+            "earphone",
+            "earphones",
+            "music",
+            "sound",
+        ],
+
+        "watch": [
+            "watch",
+            "watches",
+            "smartwatch",
+            "smart watch",
+            "fitness watch",
+        ],
+
+        "camera": [
+            "camera",
+            "photography",
+            "photo",
+        ],
+
+        "accessories": [
+            "accessory",
+            "accessories",
+            "case",
+            "cases",
+            "cover",
+            "covers",
+        ],
+    }
+
+    # --------------------------------------------------------
+    # Detect requested groups
+    # --------------------------------------------------------
+
+    requested_groups = []
+
+    for group, keywords in recommendation_groups.items():
+
+        if any(
+            keyword in text
+            for keyword in keywords
+        ):
+            requested_groups.append(group)
+
+    # --------------------------------------------------------
+    # Apply budget
+    # --------------------------------------------------------
+
+    candidates = []
 
     for product in products:
 
         try:
-
-            category = product.get(
-                "category"
+            price = float(
+                product.get("price", 0) or 0
             )
 
-            # NestJS returns category as:
-            #
-            # {
-            #     "id": 1,
-            #     "name": "Electronics"
-            # }
+        except (TypeError, ValueError):
+            continue
 
-            if isinstance(
-                category,
-                dict,
+        if budget is not None and price > budget:
+            continue
+
+        candidates.append(product)
+
+    if not candidates:
+        return []
+
+    # --------------------------------------------------------
+    # Score products
+    # --------------------------------------------------------
+
+    scored_products = []
+
+    message_words = re.findall(
+        r"[a-z0-9]+",
+        text,
+    )
+
+    for product in candidates:
+
+        name = str(
+            product.get("name", "")
+        ).lower()
+
+        description = str(
+            product.get("description", "") or ""
+        ).lower()
+
+        category = get_category_name(
+            product
+        ).lower()
+
+        searchable_text = (
+            f"{name} {description} {category}"
+        )
+
+        score = 0
+
+        # ----------------------------------------------------
+        # Strong category matching
+        # ----------------------------------------------------
+
+        for group in requested_groups:
+
+            keywords = recommendation_groups[group]
+
+            if any(
+                keyword in name
+                for keyword in keywords
             ):
-                category_name = category.get(
-                    "name"
-                )
-            else:
-                category_name = category
+                score += 10
 
-            cards.append(
-                ProductCard(
-                    id=int(
-                        product.get(
-                            "id"
-                        )
-                    ),
+            if any(
+                keyword in category
+                for keyword in keywords
+            ):
+                score += 8
 
-                    name=str(
-                        product.get(
-                            "name",
-                            "Unnamed product",
-                        )
-                    ),
+            if any(
+                keyword in description
+                for keyword in keywords
+            ):
+                score += 5
 
-                    description=product.get(
-                        "description"
-                    ),
+        # ----------------------------------------------------
+        # General keyword matching
+        # ----------------------------------------------------
 
-                    price=float(
-                        product.get(
-                            "price",
-                            0,
-                        )
-                    ),
+        for word in message_words:
 
-                    stock=int(
-                        product.get(
-                            "stock",
-                            0,
-                        )
-                    ),
+            if (
+                len(word) >= 4
+                and word in searchable_text
+            ):
+                score += 2
 
-                    image=product.get(
-                        "image"
-                    ),
+        # ----------------------------------------------------
+        # Stock availability
+        # ----------------------------------------------------
 
-                    category=category_name,
-                )
-            )
+        stock = int(
+            product.get("stock", 0) or 0
+        )
 
-        except Exception as error:
+        if stock > 0:
+            score += 3
+        else:
+            score -= 5
 
-            print(
-                "Product formatting error:",
-                repr(error),
-            )
+        # ----------------------------------------------------
+        # If a category was explicitly requested,
+        # reject products with no meaningful match.
+        # ----------------------------------------------------
 
-            print(
-                "Problem product:",
+        if requested_groups and score <= 3:
+            continue
+
+        scored_products.append(
+            (
+                score,
                 product,
             )
+        )
+
+    # --------------------------------------------------------
+    # Sort recommendations
+    # --------------------------------------------------------
+
+    scored_products.sort(
+        key=lambda item: (
+            item[0],
+            int(
+                item[1].get(
+                    "stock",
+                    0,
+                )
+                or 0
+            ),
+        ),
+        reverse=True,
+    )
+
+    return [
+        product
+        for score, product in scored_products[:3]
+    ]
+
+
+# ============================================================
+# PRODUCT CARDS
+# ============================================================
+
+def create_product_cards(products):
+
+    cards = []
+
+    for product in products:
+
+        category = product.get("category")
+
+        if isinstance(category, dict):
+            category_name = category.get("name")
+        else:
+            category_name = category
+
+        cards.append(
+            ProductCard(
+                id=int(
+                    product.get(
+                        "id",
+                        0,
+                    )
+                ),
+
+                name=str(
+                    product.get(
+                        "name",
+                        "Unknown product",
+                    )
+                ),
+
+                description=product.get(
+                    "description"
+                ),
+
+                price=float(
+                    product.get(
+                        "price",
+                        0,
+                    )
+                    or 0
+                ),
+
+                stock=int(
+                    product.get(
+                        "stock",
+                        0,
+                    )
+                    or 0
+                ),
+
+                image=product.get(
+                    "image"
+                ),
+
+                category=category_name,
+            )
+        )
 
     return cards
 
@@ -710,15 +825,12 @@ def create_product_cards(products):
 # PRODUCT CONTEXT FOR AI
 # ============================================================
 
-def build_product_context(
-    products,
-):
-    if not products:
-        return (
-            "No matching products were found."
-        )
+def build_product_context(products):
 
-    lines = []
+    if not products:
+        return "No matching products were found."
+
+    context_lines = []
 
     for product in products:
 
@@ -726,18 +838,93 @@ def build_product_context(
             product
         )
 
-        lines.append(
+        context_lines.append(
             f"""
 Product ID: {product.get("id")}
 Name: {product.get("name")}
-Category: {category}
-Description: {product.get("description")}
-Price: ${product.get("price")}
-Stock: {product.get("stock")}
-"""
+Description: {product.get("description") or "No description available"}
+Price: ${float(product.get("price", 0) or 0):.2f}
+Stock: {int(product.get("stock", 0) or 0)}
+Category: {category or "Uncategorized"}
+Image: {product.get("image") or "No image"}
+""".strip()
         )
 
-    return "\n".join(lines)
+    return "\n\n".join(
+        context_lines
+    )
+
+
+# ============================================================
+# TEXT CLEANUP
+# ============================================================
+def clean_ai_reply(reply: str) -> str:
+    if not reply:
+        return ""
+
+    # Fix common UTF-8 mojibake such as:
+    # Itâ€™s -> It's
+    # Itâs   -> It's
+    # Whatâ€™s -> What's
+    try:
+        reply = reply.encode("latin1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+
+    # Additional fallback replacements
+    replacements = {
+        "â€™": "'",
+        "â€˜": "'",
+        "â€œ": '"',
+        "â€\x9d": '"',
+        "â€“": "-",
+        "â€”": "-",
+        "â€¦": "...",
+        "Â": "",
+        "â\x80\x99": "'",
+        "â\x80\x98": "'",
+        "â\x80\x9c": '"',
+        "â\x80\x9d": '"',
+        "â\x80\x93": "-",
+        "â\x80\x94": "-",
+        "â\x80\xa6": "...",
+        "Itâs": "It's",
+        "itâs": "it's",
+        "Whatâs": "What's",
+        "whatâs": "what's",
+        "Thatâs": "That's",
+        "thatâs": "that's",
+        "Thereâs": "There's",
+        "thereâs": "there's",
+        "Hereâs": "Here's",
+        "hereâs": "here's",
+        "Youâre": "You're",
+        "youâre": "you're",
+        "Donât": "Don't",
+        "donât": "don't",
+        "Canât": "Can't",
+        "canât": "can't",
+        "Wonât": "Won't",
+        "wonât": "won't",
+        "âs": "'s",
+    }
+
+    for old, new in replacements.items():
+        reply = reply.replace(old, new)
+
+    return reply.strip()
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+@app.get("/health")
+def health():
+
+    return {
+        "status": "ok",
+        "service": "ShopEase AI",
+    }
 
 
 # ============================================================
@@ -748,27 +935,19 @@ Stock: {product.get("stock")}
     "/chat",
     response_model=ChatResponse,
 )
-def chat(
-    request: ChatRequest,
-):
-    user_message = request.message.strip()
+def chat(request: ChatRequest):
 
-    # --------------------------------------------------------
-    # Empty message
-    # --------------------------------------------------------
+    user_message = request.message.strip()
 
     if not user_message:
 
         return ChatResponse(
-            reply=(
-                "Please tell me what product "
-                "you're looking for."
-            ),
+            reply="Please enter a message.",
             products=[],
         )
 
     # --------------------------------------------------------
-    # Get products
+    # Get products from NestJS backend
     # --------------------------------------------------------
 
     products = get_products()
@@ -777,16 +956,15 @@ def chat(
 
         return ChatResponse(
             reply=(
-                "I couldn't access the ShopEase "
-                "product catalog right now. "
-                "Please make sure the ecommerce "
-                "backend is running."
+                "I couldn't load the product catalog "
+                "right now. Please make sure the ShopEase "
+                "backend is running on port 3001."
             ),
             products=[],
         )
 
     # --------------------------------------------------------
-    # Extract budget
+    # Budget
     # --------------------------------------------------------
 
     budget = extract_budget(
@@ -794,7 +972,7 @@ def chat(
     )
 
     # --------------------------------------------------------
-    # Find relevant products
+    # Detect request type
     # --------------------------------------------------------
 
     if is_comparison_request(
@@ -808,8 +986,6 @@ def chat(
             )
         )
 
-        # If comparison detection fails,
-        # use normal smart search.
         if not relevant_products:
 
             relevant_products = (
@@ -819,6 +995,22 @@ def chat(
                     budget,
                 )
             )
+
+        request_type = "comparison"
+
+    elif is_recommendation_request(
+        user_message
+    ):
+
+        relevant_products = (
+            find_recommendation_products(
+                products,
+                user_message,
+                budget,
+            )
+        )
+
+        request_type = "recommendation"
 
     else:
 
@@ -830,36 +1022,89 @@ def chat(
             )
         )
 
-    # --------------------------------------------------------
-    # Broader budget fallback
-    # --------------------------------------------------------
-
-    if (
-        not relevant_products
-        and budget is not None
-    ):
-
-        relevant_products = [
-            product
-            for product in products
-            if float(
-                product.get(
-                    "price",
-                    0,
-                )
-            ) <= budget
-        ][:10]
+        request_type = "search"
 
     # --------------------------------------------------------
-    # Catalog fallback
+    # Fallback
     # --------------------------------------------------------
 
     if not relevant_products:
 
-        relevant_products = products[:10]
+        if budget is not None:
+
+            budget_products = []
+
+            for product in products:
+
+                try:
+                    price = float(
+                        product.get(
+                            "price",
+                            0,
+                        )
+                        or 0
+                    )
+
+                except (TypeError, ValueError):
+                    continue
+
+                if price <= budget:
+                    budget_products.append(
+                        product
+                    )
+
+            budget_products.sort(
+                key=lambda product: (
+                    int(
+                        product.get(
+                            "stock",
+                            0,
+                        )
+                        or 0
+                    ),
+
+                    float(
+                        product.get(
+                            "price",
+                            0,
+                        )
+                        or 0
+                    ),
+                ),
+
+                reverse=True,
+            )
+
+            relevant_products = (
+                budget_products[:5]
+            )
+
+        else:
+
+            relevant_products = products[:5]
 
     # --------------------------------------------------------
-    # AI context
+    # Limit comparison products
+    # --------------------------------------------------------
+
+    if request_type == "comparison":
+
+        relevant_products = (
+            relevant_products[:3]
+        )
+
+    # --------------------------------------------------------
+    # Limit recommendation products
+    # --------------------------------------------------------
+
+    if request_type == "recommendation":
+
+        relevant_products = (
+            relevant_products[:3]
+        )
+
+    # --------------------------------------------------------
+    # Build product context
     # --------------------------------------------------------
 
     product_context = (
@@ -869,119 +1114,138 @@ def chat(
     )
 
     # --------------------------------------------------------
-    # Budget instruction
+    # System prompt
     # --------------------------------------------------------
 
-    budget_instruction = ""
+    system_prompt = f"""
+You are ShopEase Assistant, a helpful shopping assistant
+for an ecommerce website.
 
-    if budget is not None:
+The customer is asking:
 
-        budget_instruction = f"""
-The customer specified a maximum budget
-of ${budget:.2f}.
+{user_message}
 
-Only recommend products at or below
-this budget.
-"""
+Request type:
 
-    # --------------------------------------------------------
-    # Comparison instruction
-    # --------------------------------------------------------
+{request_type}
 
-    comparison_instruction = ""
+Product catalog context:
 
-    if is_comparison_request(
-        user_message
-    ):
+{product_context}
 
-        comparison_instruction = """
-The customer is asking for a product
-comparison.
+IMPORTANT RULES:
 
-Compare only the products provided in
-the catalog context.
+1. Only talk about products that are present in the
+   provided catalog context.
+
+2. Never invent:
+   - products
+   - prices
+   - stock
+   - specifications
+   - categories
+   - features
+
+3. Use the actual catalog price.
+
+4. Use the actual stock value.
+
+5. If a product has stock 0, clearly say that it is
+   currently out of stock.
+
+6. Keep responses concise and useful.
+
+7. Use simple ASCII punctuation when possible.
+
+8. Do not claim that a product is available if its stock
+   is 0.
+
+9. If the customer asks a general question that does not
+   require products, answer normally and briefly.
+
+10. If the customer asks for products, base your answer
+    on the catalog context.
+
+
+COMPARISON RULES:
+
+The customer is asking for a comparison if the request type
+is "comparison".
+
+Compare only the products provided in the catalog context.
 
 Mention their actual:
+
 - prices
 - stock
 - categories
 - descriptions
 
-If the customer asks which is cheaper,
-use the actual catalog prices.
+If the customer asks which is cheaper, calculate the
+difference using the actual catalog prices.
 
-If a product is out of stock, clearly
-mention that.
+If a product is out of stock, clearly mention it.
 
 Do not invent specifications.
+
+
+RECOMMENDATION RULES:
+
+The customer is asking for a recommendation if the request
+type is "recommendation".
+
+Recommend products only from the provided catalog.
+
+Use the customer's:
+
+- purpose
+- category
+- keywords
+- budget
+
+The customer's budget has already been applied to the
+provided product catalog.
+
+If the customer says "under $100", "below $100",
+"less than $100", or a similar budget, do NOT ask
+for their budget again.
+
+Only recommend products whose actual catalog price
+is within the stated budget.
+
+Prefer products that are currently in stock.
+
+Mention the actual catalog price.
+
+Mention stock availability when useful.
+
+Briefly explain why the recommendation fits the customer's
+request.
+
+If several products fit, you may recommend up to 3 products.
+
+Do not invent specifications or features.
+
+If no product fits exactly, explain that clearly and suggest
+the closest available products from the catalog.
+
+IMPORTANT RECOMMENDATION BEHAVIOR:
+
+- The backend has already filtered the products using the
+  customer's budget.
+- Do not ask the customer for their budget again.
+- Do not recommend a product that is outside the provided
+  budget.
+- If the customer says "under $100", treat $100 as the
+  maximum price.
+- Prefer products with stock greater than 0.
+- If an in-stock product matches the requested category,
+  recommend it first.
+- Keep the recommendation short and direct.
 """
 
     # --------------------------------------------------------
-    # AI system prompt
-    # --------------------------------------------------------
-
-    system_prompt = f"""
-You are ShopEase AI, the intelligent
-shopping assistant for an ecommerce website.
-
-Your job is to help customers discover
-products from the REAL ShopEase product catalog.
-
-IMPORTANT RULES:
-
-1. Only recommend products that appear
-   in the provided catalog.
-
-2. Never invent products.
-
-3. Never invent prices.
-
-4. Never invent stock quantities.
-
-5. Use the product information provided
-   below.
-
-6. If stock is 0, clearly tell the customer
-   that the product is currently out of stock.
-
-7. Keep responses friendly and concise.
-
-8. When several products match, mention
-   the most relevant ones.
-
-9. If the customer asks for recommendations,
-   explain briefly why the products match.
-
-10. If the customer asks about a specific
-    product, use its actual catalog information.
-
-11. If there are no good matches, honestly
-    say so.
-
-12. Do not claim that an item has features
-    that are not present in its catalog
-    description.
-
-13. Use simple ASCII characters in your
-    response.
-
-14. Use "-" instead of em dashes or other
-    special dash characters.
-
-15. Do not use corrupted or unusual
-    characters.
-
-{budget_instruction}
-
-{comparison_instruction}
-
-AVAILABLE SHOPPING CATALOG:
-
-{product_context}
-"""
-
-    # --------------------------------------------------------
-    # Generate AI response
+    # Ask OpenAI
     # --------------------------------------------------------
 
     try:
@@ -990,67 +1254,36 @@ AVAILABLE SHOPPING CATALOG:
             model="gpt-6-luna",
             instructions=system_prompt,
             input=user_message,
+            max_output_tokens=500,
         )
 
-        reply = response.output_text.strip()
-
-        # Encoding cleanup
-        reply = (
-            reply
-            .replace("—", "-")
-            .replace("–", "-")
-            .replace("â€”", "-")
-            .replace("â€“", "-")
-        )
+        reply = response.output_text
 
         if not reply:
+            reply = "I couldn't generate a response."
 
-            reply = (
-                "I found some products, "
-                "but I couldn't generate "
-                "a detailed response right now."
-            )
+        reply = clean_ai_reply(
+            reply
+        )
 
     except Exception as error:
 
         print(
             "OpenAI error:",
-            error,
+            repr(error),
         )
 
-        # ----------------------------------------------------
-        # Fallback response
-        # ----------------------------------------------------
+        return ChatResponse(
+            reply=(
+                "I found the matching products, but "
+                "the AI response service returned an error. "
+                "Please check the AI service terminal."
+            ),
 
-        if relevant_products:
-
-            first = relevant_products[0]
-
-            reply = (
-                f"I found "
-                f"{len(relevant_products)} "
-                f"product"
-                f"{'s' if len(relevant_products) != 1 else ''} "
-                f"that may match your request. "
-                f"One option is "
-                f"{first.get('name')} "
-                f"for "
-                f"${float(first.get('price', 0)):.2f}."
-            )
-
-        else:
-
-            reply = (
-                "I couldn't find a matching product."
-            )
-
-    # --------------------------------------------------------
-    # Create product cards
-    # --------------------------------------------------------
-
-    product_cards = create_product_cards(
-        relevant_products
-    )
+            products=create_product_cards(
+                relevant_products
+            ),
+        )
 
     # --------------------------------------------------------
     # Return response
@@ -1058,6 +1291,7 @@ AVAILABLE SHOPPING CATALOG:
 
     return ChatResponse(
         reply=reply,
-        products=product_cards,
+        products=create_product_cards(
+            relevant_products
+        ),
     )
-
