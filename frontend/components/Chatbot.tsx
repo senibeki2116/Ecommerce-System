@@ -1,12 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { useCart } from "../app/Context/CartContext";
 
 const AI_API_URL = "http://127.0.0.1:8000";
+
+type Product = {
+  id: number;
+  name: string;
+  description?: string | null;
+  price: number;
+  stock: number;
+  image?: string | null;
+  category?: string | null;
+};
 
 type Message = {
   role: "user" | "assistant";
   content: string;
+  products?: Product[];
 };
 
 type SpeechRecognitionEvent = Event & {
@@ -40,11 +53,14 @@ declare global {
 }
 
 export default function Chatbot() {
+  const { addToCart } = useCart();
+
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+  const [addedProducts, setAddedProducts] = useState<number[]>([]);
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
@@ -57,7 +73,7 @@ export default function Chatbot() {
   ]);
 
   /*
-   * Stop speech when the chatbot is closed or component is removed.
+   * Stop speech when component is removed.
    */
   useEffect(() => {
     return () => {
@@ -173,6 +189,37 @@ export default function Chatbot() {
     window.speechSynthesis.speak(utterance);
   }
 
+  /*
+   * Add product to cart
+   */
+  function handleAddToCart(product: Product) {
+    if (product.stock <= 0) return;
+
+    addToCart({
+      id: product.id,
+      name: product.name,
+      description: product.description ?? "",
+      price: product.price,
+      stock: product.stock,
+      image: product.image ?? "",
+    });
+
+    setAddedProducts((current) => {
+      if (current.includes(product.id)) {
+        return current;
+      }
+
+      return [...current, product.id];
+    });
+
+    setTimeout(() => {
+      setAddedProducts((current) => current.filter((id) => id !== product.id));
+    }, 1800);
+  }
+
+  /*
+   * Send message to AI service
+   */
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
 
@@ -213,6 +260,7 @@ export default function Chatbot() {
         {
           role: "assistant",
           content: data.reply || "Sorry, I couldn't generate a response.",
+          products: Array.isArray(data.products) ? data.products : [],
         },
       ]);
     } catch (error) {
@@ -238,8 +286,8 @@ export default function Chatbot() {
         <div
           className="
             fixed bottom-24 right-4 z-[100]
-            flex h-[min(600px,calc(100dvh-120px))]
-            w-[min(390px,calc(100vw-32px))]
+            flex h-[min(680px,calc(100dvh-120px))]
+            w-[min(430px,calc(100vw-32px))]
             flex-col overflow-hidden
             rounded-[24px]
             border border-gray-200
@@ -319,7 +367,14 @@ export default function Chatbot() {
                   </div>
                 )}
 
-                <div className="flex max-w-[82%] flex-col gap-1">
+                <div
+                  className={`flex ${
+                    item.role === "assistant"
+                      ? "w-[calc(100%-40px)] max-w-[92%]"
+                      : "max-w-[82%]"
+                  } flex-col gap-1`}
+                >
+                  {/* Message */}
                   <div
                     className={`
                       whitespace-pre-wrap break-words
@@ -335,7 +390,7 @@ export default function Chatbot() {
                     {item.content}
                   </div>
 
-                  {/* Speaker button for assistant messages */}
+                  {/* Speaker button */}
                   {item.role === "assistant" && (
                     <button
                       type="button"
@@ -389,10 +444,117 @@ export default function Chatbot() {
                       )}
                     </button>
                   )}
+
+                  {/* Product Cards */}
+                  {item.role === "assistant" &&
+                    item.products &&
+                    item.products.length > 0 && (
+                      <div className="mt-2 space-y-3">
+                        {item.products.map((product) => (
+                          <div
+                            key={product.id}
+                            className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                          >
+                            {/* Product Image */}
+                            <div className="relative h-36 w-full overflow-hidden bg-gray-100">
+                              {product.image ? (
+                                <img
+                                  src={product.image}
+                                  alt={product.name}
+                                  className="h-full w-full object-cover transition duration-300 hover:scale-105"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 text-5xl">
+                                  🛍️
+                                </div>
+                              )}
+
+                              {/* Category */}
+                              {product.category && (
+                                <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-blue-700 shadow-sm backdrop-blur-sm">
+                                  {product.category}
+                                </span>
+                              )}
+
+                              {/* Stock Badge */}
+                              <span
+                                className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm ${
+                                  product.stock > 0
+                                    ? "bg-green-100/95 text-green-700"
+                                    : "bg-red-100/95 text-red-700"
+                                }`}
+                              >
+                                {product.stock > 0
+                                  ? `${product.stock} in stock`
+                                  : "Sold out"}
+                              </span>
+                            </div>
+
+                            {/* Product Information */}
+                            <div className="p-3.5">
+                              <h3 className="line-clamp-1 text-sm font-bold text-gray-900">
+                                {product.name}
+                              </h3>
+
+                              <p className="mt-1 line-clamp-2 min-h-[36px] text-[11px] leading-4 text-gray-500">
+                                {product.description ||
+                                  "No description available."}
+                              </p>
+
+                              <div className="mt-3 flex items-center justify-between gap-2">
+                                <span className="text-lg font-extrabold text-blue-600">
+                                  ${product.price.toFixed(2)}
+                                </span>
+
+                                {product.stock > 0 ? (
+                                  <span className="text-[10px] font-medium text-green-600">
+                                    Available now
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-medium text-red-500">
+                                    Currently unavailable
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Actions */}
+                              <div className="mt-3 grid grid-cols-2 gap-2">
+                                <Link
+                                  href={`/products/${product.id}`}
+                                  className="flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                                >
+                                  View Product
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddToCart(product)}
+                                  disabled={product.stock <= 0}
+                                  className={`h-9 rounded-xl text-[11px] font-semibold text-white transition ${
+                                    product.stock <= 0
+                                      ? "cursor-not-allowed bg-gray-300"
+                                      : addedProducts.includes(product.id)
+                                        ? "bg-green-500"
+                                        : "bg-blue-600 hover:bg-blue-700"
+                                  }`}
+                                >
+                                  {product.stock <= 0
+                                    ? "Sold Out"
+                                    : addedProducts.includes(product.id)
+                                      ? "✓ Added"
+                                      : "Add to Cart"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                 </div>
               </div>
             ))}
 
+            {/* Loading */}
             {loading && (
               <div className="flex items-end gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100 text-sm">
@@ -405,7 +567,7 @@ export default function Chatbot() {
                   <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]" />
 
                   <span className="ml-1 text-xs text-gray-500">
-                    Thinking...
+                    Finding products...
                   </span>
                 </div>
               </div>
@@ -429,7 +591,7 @@ export default function Chatbot() {
                 className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none disabled:opacity-50"
               />
 
-              {/* Microphone button */}
+              {/* Microphone */}
               <button
                 type="button"
                 onClick={startVoiceInput}
@@ -480,7 +642,7 @@ export default function Chatbot() {
                 )}
               </button>
 
-              {/* Send button */}
+              {/* Send */}
               <button
                 type="submit"
                 disabled={loading || !message.trim()}

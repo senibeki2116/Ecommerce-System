@@ -1,4 +1,5 @@
 
+
 import os
 import re
 
@@ -10,7 +11,16 @@ from openai import OpenAI
 from pydantic import BaseModel
 
 
+# =========================================================
+# Environment
+# =========================================================
+
 load_dotenv()
+
+
+# =========================================================
+# FastAPI
+# =========================================================
 
 app = FastAPI(
     title="Ecommerce AI Service",
@@ -18,9 +28,9 @@ app = FastAPI(
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # CORS
-# ---------------------------------------------------------
+# =========================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,9 +46,9 @@ app.add_middleware(
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # OpenAI
-# ---------------------------------------------------------
+# =========================================================
 
 api_key = os.getenv("OPENAI_API_KEY")
 
@@ -48,28 +58,39 @@ if not api_key:
 client = OpenAI(api_key=api_key)
 
 
-# ---------------------------------------------------------
+# =========================================================
 # ShopEase Backend
-# ---------------------------------------------------------
+# =========================================================
 
 PRODUCTS_API_URL = "http://localhost:3001/products"
 
 
-# ---------------------------------------------------------
-# Models
-# ---------------------------------------------------------
+# =========================================================
+# Request / Response Models
+# =========================================================
 
 class ChatRequest(BaseModel):
     message: str
 
 
+class ProductCard(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    price: float
+    stock: int
+    image: str | None = None
+    category: str | None = None
+
+
 class ChatResponse(BaseModel):
     reply: str
+    products: list[ProductCard] = []
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Basic Routes
-# ---------------------------------------------------------
+# =========================================================
 
 @app.get("/")
 def root():
@@ -87,9 +108,9 @@ def health():
     }
 
 
-# ---------------------------------------------------------
-# Get Products
-# ---------------------------------------------------------
+# =========================================================
+# Get Products From ShopEase Backend
+# =========================================================
 
 def get_products():
     try:
@@ -102,9 +123,21 @@ def get_products():
 
         data = response.json()
 
-        # NestJS may return either:
-        # [products]
-        # or { data: [products] }
+        # NestJS may return:
+        #
+        # [
+        #   product,
+        #   product
+        # ]
+        #
+        # OR:
+        #
+        # {
+        #   "data": [
+        #       product,
+        #       product
+        #   ]
+        # }
 
         if isinstance(data, list):
             return data
@@ -120,9 +153,9 @@ def get_products():
         return []
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Extract Budget
-# ---------------------------------------------------------
+# =========================================================
 
 def extract_budget(message: str):
     patterns = [
@@ -146,14 +179,13 @@ def extract_budget(message: str):
     return None
 
 
-# ---------------------------------------------------------
-# Extract Category / Product Keywords
-# ---------------------------------------------------------
+# =========================================================
+# Find Relevant Products
+# =========================================================
 
 def find_relevant_products(message: str, products: list):
     message_lower = message.lower()
 
-    # Common ecommerce keywords
     keywords = set(
         re.findall(
             r"\b[a-zA-Z0-9]+\b",
@@ -164,8 +196,13 @@ def find_relevant_products(message: str, products: list):
     scored_products = []
 
     for product in products:
-        name = str(product.get("name", "")).lower()
-        description = str(product.get("description", "")).lower()
+        name = str(
+            product.get("name", "")
+        ).lower()
+
+        description = str(
+            product.get("description", "")
+        ).lower()
 
         category_data = product.get("category")
 
@@ -174,7 +211,9 @@ def find_relevant_products(message: str, products: list):
                 category_data.get("name", "")
             ).lower()
         else:
-            category = str(category_data or "").lower()
+            category = str(
+                category_data or ""
+            ).lower()
 
         searchable_text = (
             f"{name} {description} {category}"
@@ -205,9 +244,9 @@ def find_relevant_products(message: str, products: list):
     ]
 
 
-# ---------------------------------------------------------
-# Format Product
-# ---------------------------------------------------------
+# =========================================================
+# Format Product For AI
+# =========================================================
 
 def format_product(product):
     category_data = product.get("category")
@@ -223,46 +262,121 @@ def format_product(product):
     return (
         f"ID: {product.get('id')}\n"
         f"Name: {product.get('name')}\n"
-        f"Description: {product.get('description', 'No description')}\n"
+        f"Description: "
+        f"{product.get('description', 'No description')}\n"
         f"Price: ${product.get('price')}\n"
         f"Stock: {product.get('stock', 0)}\n"
         f"Category: {category}\n"
     )
 
 
-# ---------------------------------------------------------
+# =========================================================
+# Convert Products To Product Cards
+# =========================================================
+
+def create_product_cards(products: list):
+    product_cards = []
+
+    for product in products:
+        try:
+            category_data = product.get("category")
+
+            if isinstance(category_data, dict):
+                category = category_data.get("name")
+            else:
+                category = category_data
+
+            product_cards.append(
+                {
+                    "id": int(
+                        product.get("id")
+                    ),
+                    "name": product.get(
+                        "name",
+                        "Product",
+                    ),
+                    "description": product.get(
+                        "description"
+                    ),
+                    "price": float(
+                        product.get(
+                            "price",
+                            0,
+                        )
+                    ),
+                    "stock": int(
+                        product.get(
+                            "stock",
+                            0,
+                        )
+                    ),
+                    "image": product.get(
+                        "image"
+                    ),
+                    "category": category,
+                }
+            )
+
+        except Exception as error:
+            print(
+                f"Product card conversion error: {error}"
+            )
+
+    return product_cards
+
+
+# =========================================================
 # Chat
-# ---------------------------------------------------------
+# =========================================================
 
 @app.post(
     "/chat",
     response_model=ChatResponse,
 )
 def chat(request: ChatRequest):
-
     try:
+        # -------------------------------------------------
+        # User message
+        # -------------------------------------------------
+
         user_message = request.message.strip()
 
         if not user_message:
             return {
-                "reply": "Please tell me what you're looking for."
+                "reply": (
+                    "Please tell me what "
+                    "you're looking for."
+                ),
+                "products": [],
             }
+
+        # -------------------------------------------------
+        # Get current catalog
+        # -------------------------------------------------
 
         products = get_products()
 
         if not products:
             return {
                 "reply": (
-                    "I couldn't access the ShopEase "
-                    "product catalog right now. "
-                    "Please try again in a moment."
-                )
+                    "I couldn't access the "
+                    "ShopEase product catalog "
+                    "right now. Please try again "
+                    "in a moment."
+                ),
+                "products": [],
             }
 
-        budget = extract_budget(user_message)
+        # -------------------------------------------------
+        # Detect budget
+        # -------------------------------------------------
+
+        budget = extract_budget(
+            user_message
+        )
 
         # -------------------------------------------------
-        # Budget filtering
+        # Find matching products
         # -------------------------------------------------
 
         if budget is not None:
@@ -270,26 +384,32 @@ def chat(request: ChatRequest):
             matching_products = [
                 product
                 for product in products
-                if float(product.get("price", 0))
-                <= budget
+                if float(
+                    product.get(
+                        "price",
+                        0,
+                    )
+                ) <= budget
             ]
 
         else:
 
-            # Try to find products related to the
-            # customer's message.
-            matching_products = find_relevant_products(
-                user_message,
-                products,
+            matching_products = (
+                find_relevant_products(
+                    user_message,
+                    products,
+                )
             )
 
-            # If no keyword match, provide the catalog
-            # so the AI can still understand the request.
+            # If there are no keyword matches,
+            # give the AI a portion of the catalog
+            # so it can still understand the request.
+
             if not matching_products:
                 matching_products = products[:30]
 
         # -------------------------------------------------
-        # Product Context
+        # Product Context For AI
         # -------------------------------------------------
 
         product_context = "\n\n".join(
@@ -298,7 +418,9 @@ def chat(request: ChatRequest):
         )
 
         if not product_context:
-            product_context = "No matching products found."
+            product_context = (
+                "No matching products found."
+            )
 
         # -------------------------------------------------
         # AI Instructions
@@ -308,17 +430,25 @@ def chat(request: ChatRequest):
 You are ShopEase AI, a friendly and intelligent
 ecommerce shopping assistant.
 
-You help customers discover products, compare
-products, understand prices and stock, and make
-shopping decisions.
+You help customers:
+
+- discover products
+- compare products
+- understand prices
+- check stock
+- choose products
+- find products within a budget
+- understand product details
 
 The customer said:
 
 "{user_message}"
 
+
 CURRENT SHOPPING CATALOG:
 
 {product_context}
+
 
 IMPORTANT RULES:
 
@@ -345,8 +475,8 @@ IMPORTANT RULES:
 9. If several products match, provide a short
    useful list.
 
-10. If the customer asks for a comparison, compare
-    only products available in the catalog.
+10. If the customer asks for a comparison,
+    compare only products available in the catalog.
 
 11. If the customer's request is unclear, ask a
     short clarifying question.
@@ -361,9 +491,23 @@ IMPORTANT RULES:
 15. You are an ecommerce assistant, so prioritize
     useful shopping information over general explanations.
 
+16. Do not claim that a product is available if
+    its stock is 0.
+
+17. When recommending products, use the exact
+    product name from the catalog.
+
+18. When discussing prices, use the exact price
+    from the catalog.
+
+
 BUDGET:
 
-{f"${budget:.2f}" if budget is not None else "No specific budget provided."}
+{
+    f"${budget:.2f}"
+    if budget is not None
+    else "No specific budget provided."
+}
 """
 
         # -------------------------------------------------
@@ -380,12 +524,31 @@ BUDGET:
 
         if not reply:
             reply = (
-                "Sorry, I couldn't generate a response "
-                "right now. Please try again."
+                "Sorry, I couldn't generate "
+                "a response right now. "
+                "Please try again."
             )
 
+        # -------------------------------------------------
+        # Create Structured Product Cards
+        # -------------------------------------------------
+
+        product_cards = create_product_cards(
+            matching_products
+        )
+
+        # Limit cards shown to the frontend.
+        # This prevents a huge chatbot response.
+
+        product_cards = product_cards[:10]
+
+        # -------------------------------------------------
+        # Final Response
+        # -------------------------------------------------
+
         return {
-            "reply": reply
+            "reply": reply,
+            "products": product_cards,
         }
 
     except Exception as error:
@@ -396,8 +559,8 @@ BUDGET:
 
         raise HTTPException(
             status_code=500,
-            detail="AI service failed to process the request.",
+            detail=(
+                "AI service failed to "
+                "process the request."
+            ),
         )
-
-
-
