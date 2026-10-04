@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { networkInterfaces } from 'node:os';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -7,8 +8,18 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? 3001);
 
   const frontendOrigins = [
-    process.env.FRONTEND_URL,
-  ].filter(Boolean) as string[];
+    ...(process.env.FRONTEND_URL ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  ];
+
+  const machineIpv4Addresses = new Set(
+    Object.values(networkInterfaces())
+      .flatMap((addresses) => addresses ?? [])
+      .filter((address) => address.family === 'IPv4')
+      .map((address) => address.address),
+  );
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -25,13 +36,17 @@ async function bootstrap() {
         return;
       }
 
-      callback(
-        null,
+      const isLoopback =
         hostname === 'localhost' ||
-          hostname === '127.0.0.1' ||
-          hostname === '[::1]' ||
-          hostname === '::1',
-      );
+        hostname === '127.0.0.1' ||
+        hostname === '[::1]' ||
+        hostname === '::1';
+      const isLocalNetworkFrontend =
+        origin.startsWith('http://') &&
+        new URL(origin).port === '3000' &&
+        machineIpv4Addresses.has(hostname);
+
+      callback(null, isLoopback || isLocalNetworkFrontend);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,

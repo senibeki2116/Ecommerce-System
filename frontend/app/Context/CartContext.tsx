@@ -7,6 +7,7 @@ import {
   useState,
   ReactNode,
 } from "react";
+import { getApiUrl } from "../../lib/api";
 
 type Product = {
   id: number;
@@ -42,7 +43,7 @@ type CartContextType = {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = getApiUrl();
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);

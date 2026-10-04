@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useCart } from "../app/Context/CartContext";
+import { getApiUrl, getServiceUrl } from "../lib/api";
 
-const AI_API_URL =
-  process.env.NEXT_PUBLIC_AI_API_URL || "http://127.0.0.1:8000";
+const AI_API_URL = getServiceUrl(
+  process.env.NEXT_PUBLIC_AI_API_URL,
+  "http://127.0.0.1:8000",
+);
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const BACKEND_URL = getApiUrl();
 
 type ProductCategory = {
   id?: number;
@@ -208,6 +211,49 @@ export default function Chatbot() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
+  /*
+   * Allows the homepage AI card to open the chatbot.
+   *
+   * Example:
+   * window.dispatchEvent(
+   *   new CustomEvent("open-ai-chatbot", {
+   *     detail: { message: "Show me phones" },
+   *   }),
+   * );
+   */
+  useEffect(() => {
+    const handleOpenChatbot = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        message?: string;
+        autoSend?: boolean;
+      }>;
+
+      setIsOpen(true);
+
+      const incomingMessage = customEvent.detail?.message?.trim();
+
+      if (incomingMessage) {
+        setMessage(incomingMessage);
+
+        if (customEvent.detail?.autoSend) {
+          setTimeout(() => {
+            const form = document.querySelector(
+              "[data-chatbot-form]",
+            ) as HTMLFormElement | null;
+
+            form?.requestSubmit();
+          }, 100);
+        }
+      }
+    };
+
+    window.addEventListener("open-ai-chatbot", handleOpenChatbot);
+
+    return () => {
+      window.removeEventListener("open-ai-chatbot", handleOpenChatbot);
+    };
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -379,17 +425,7 @@ export default function Chatbot() {
 
     const normalized = normalizeText(query);
 
-    /*
-     * PRICE FILTERS
-     *
-     * Examples:
-     * under $100
-     * below $100
-     * less than $100
-     * cheaper than $100
-     * under 100
-     */
-
+    // Price: under / below / less than / cheaper than
     const underPriceMatch = normalized.match(
       /(?:under|below|less than|cheaper than)\s*\$?\s*(\d+(?:\.\d+)?)/,
     );
@@ -403,10 +439,7 @@ export default function Chatbot() {
         .slice(0, 6);
     }
 
-    /*
-     * ABOVE PRICE FILTER
-     */
-
+    // Price: above / over / more than / greater than
     const abovePriceMatch = normalized.match(
       /(?:above|over|more than|greater than)\s*\$?\s*(\d+(?:\.\d+)?)/,
     );
@@ -420,10 +453,7 @@ export default function Chatbot() {
         .slice(0, 6);
     }
 
-    /*
-     * CHEAPEST PRODUCTS
-     */
-
+    // Cheapest
     if (
       normalized.includes("cheapest") ||
       normalized.includes("cheap products") ||
@@ -435,10 +465,7 @@ export default function Chatbot() {
         .slice(0, 6);
     }
 
-    /*
-     * MOST EXPENSIVE PRODUCTS
-     */
-
+    // Most expensive
     if (
       normalized.includes("most expensive") ||
       normalized.includes("highest price") ||
@@ -449,10 +476,7 @@ export default function Chatbot() {
         .slice(0, 6);
     }
 
-    /*
-     * OUT OF STOCK
-     */
-
+    // Out of stock
     if (
       normalized.includes("out of stock") ||
       normalized.includes("sold out") ||
@@ -461,17 +485,10 @@ export default function Chatbot() {
       return products.filter((product) => product.stock <= 0).slice(0, 6);
     }
 
-    /*
-     * AVAILABLE PRODUCTS
-     */
-
+    // Available products
     if (normalized.includes("available") || normalized.includes("in stock")) {
       return products.filter((product) => product.stock > 0).slice(0, 6);
     }
-
-    /*
-     * CATEGORY / PRODUCT KEYWORDS
-     */
 
     const categoryKeywords = [
       "phone",
@@ -549,10 +566,6 @@ export default function Chatbot() {
       }
     }
 
-    /*
-     * SEARCH BY INDIVIDUAL WORDS
-     */
-
     const ignoredWords = [
       "show",
       "find",
@@ -600,14 +613,7 @@ export default function Chatbot() {
       }
     }
 
-    /*
-     * GENERAL RECOMMENDATION
-     *
-     * If the user asks "What do you recommend?"
-     * return available products sorted by popularity
-     * proxy: stock + price balance.
-     */
-
+    // General recommendations
     if (
       normalized.includes("recommend") ||
       normalized.includes("suggest") ||
@@ -718,10 +724,6 @@ export default function Chatbot() {
     setLoading(true);
 
     try {
-      /*
-       * Handle normal conversation locally.
-       */
-
       const localResponse = getLocalResponse(trimmedMessage);
 
       if (localResponse) {
@@ -735,15 +737,6 @@ export default function Chatbot() {
 
         return;
       }
-
-      /*
-       * IMPORTANT:
-       *
-       * Search the backend FIRST for product-related
-       * questions. This makes "under $100",
-       * "phones", "recommend", etc. reliable even
-       * when the AI service has an error.
-       */
 
       const normalized = normalizeText(trimmedMessage);
 
@@ -778,11 +771,6 @@ export default function Chatbot() {
       if (isProductRequest) {
         backendProducts = await findProducts(trimmedMessage);
       }
-
-      /*
-       * For direct product searches, use backend
-       * results immediately.
-       */
 
       if (backendProducts.length > 0) {
         let directReply = "I found these products for you:";
@@ -836,18 +824,8 @@ export default function Chatbot() {
           },
         ]);
 
-        /*
-         * We already have the correct backend
-         * products, so no need to wait for AI.
-         */
-
         return;
       }
-
-      /*
-       * If the backend did not find products,
-       * ask the AI service.
-       */
 
       try {
         const aiResult = await askAI(trimmedMessage);
@@ -884,10 +862,6 @@ export default function Chatbot() {
       } catch (aiError) {
         console.error("AI service error:", aiError);
 
-        /*
-         * Final fallback.
-         */
-
         const fallbackProducts = await findProducts(trimmedMessage);
 
         if (fallbackProducts.length > 0) {
@@ -920,7 +894,7 @@ export default function Chatbot() {
         {
           role: "assistant",
           content:
-            "Sorry 😔 I couldn't connect to the shopping assistant right now. Please make sure the backend is running on port 3001.",
+            "Sorry 😔 I couldn't connect to the shopping assistant right now. Please make sure the backend is running on port 3001 and the AI service is running on port 8000.",
         },
       ]);
     } finally {
@@ -1247,6 +1221,7 @@ export default function Chatbot() {
       {!isOpen && (
         <button
           type="button"
+          data-chatbot-trigger
           onClick={() => setIsOpen(true)}
           aria-label="Open ShopEase assistant"
           className="fixed bottom-5 right-5 z-100 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-indigo-600 text-3xl text-white shadow-[0_12px_35px_rgba(37,99,235,0.35)] transition duration-300 hover:scale-105 hover:shadow-[0_16px_40px_rgba(37,99,235,0.45)] sm:bottom-6 sm:right-6"
@@ -1258,6 +1233,7 @@ export default function Chatbot() {
 
       {isOpen && (
         <div className="fixed bottom-4 right-4 z-100 flex h-[min(720px,calc(100dvh-32px))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-[26px] border border-gray-200 bg-white shadow-[0_25px_80px_rgba(15,23,42,0.25)] sm:bottom-6 sm:right-6">
+          {/* Header */}
           <div className="relative overflow-hidden bg-linear-to-r from-blue-600 via-blue-600 to-indigo-600 px-5 py-5 text-white">
             <div className="absolute -right-8 -top-12 h-36 w-36 rounded-full bg-white/10" />
             <div className="absolute -bottom-12 right-20 h-24 w-24 rounded-full bg-white/10" />
@@ -1296,6 +1272,7 @@ export default function Chatbot() {
                   type="button"
                   onClick={() => {
                     setIsOpen(false);
+
                     recognitionRef.current?.stop();
 
                     if (
@@ -1317,6 +1294,7 @@ export default function Chatbot() {
             </div>
           </div>
 
+          {/* Quick Questions */}
           <div className="border-b border-gray-100 bg-white px-4 py-3">
             <div className="flex gap-2 overflow-x-auto pb-1">
               {QUICK_QUESTIONS.map((question) => (
@@ -1339,6 +1317,7 @@ export default function Chatbot() {
             </div>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-4 py-5">
             <div className="text-center">
               <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
@@ -1428,9 +1407,7 @@ export default function Chatbot() {
 
                 <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 shadow-sm">
                   <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500" />
-
                   <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:150ms]" />
-
                   <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]" />
 
                   <span className="ml-1 text-xs text-gray-500">
@@ -1443,8 +1420,10 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Input */}
           <div className="border-t border-gray-100 bg-white p-4">
             <form
+              data-chatbot-form
               onSubmit={sendMessage}
               className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-1.5 transition focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50"
             >

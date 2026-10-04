@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useCart } from "./Context/CartContext";
+import Chatbot from "../components/Chatbot";
+import { getApiUrl } from "../lib/api";
 
 type Product = {
   id: number;
@@ -31,7 +33,7 @@ type WishlistResponse = {
   items: WishlistItem[];
 };
 
-const API_URL = "http://localhost:3001";
+const API_URL = getApiUrl();
 
 const categoryFallbackImages: Record<string, string> = {
   electronics:
@@ -55,10 +57,13 @@ const categoryFallbackImages: Record<string, string> = {
 };
 
 const defaultCategoryImage =
-  "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900&auto=format&fit=crop";
+  "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1000&auto=format&fit=crop";
 
 const defaultProductImage =
   "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1000&q=80";
+
+const heroImage =
+  "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1400&q=90";
 
 export default function HomePage() {
   const { addToCart, cartCount } = useCart();
@@ -73,38 +78,24 @@ export default function HomePage() {
 
   const [error, setError] = useState("");
   const [categoryError, setCategoryError] = useState("");
-  const [search, setSearch] = useState("");
 
+  const [search, setSearch] = useState("");
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
 
-  // =========================================================
-  // CHECK LOGIN
-  // =========================================================
-
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     setIsLoggedIn(Boolean(token));
   }, []);
 
-  // =========================================================
-  // GET TOKEN
-  // =========================================================
-
   const getToken = () => {
-    if (typeof window === "undefined") {
-      return null;
-    }
+    if (typeof window === "undefined") return null;
 
     return localStorage.getItem("accessToken");
   };
-
-  // =========================================================
-  // FETCH PRODUCTS
-  // =========================================================
 
   const fetchProducts = async () => {
     try {
@@ -117,7 +108,7 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to load products. Status: ${response.status}`);
+        throw new Error(`Products request failed: ${response.status}`);
       }
 
       const data = await response.json();
@@ -131,8 +122,8 @@ export default function HomePage() {
             : [];
 
       setProducts(productList);
-    } catch (error) {
-      console.error("Product error:", error);
+    } catch (err) {
+      console.error("Product error:", err);
 
       setError(
         "Could not load products. Please make sure the backend is running on port 3001.",
@@ -141,10 +132,6 @@ export default function HomePage() {
       setLoading(false);
     }
   };
-
-  // =========================================================
-  // FETCH CATEGORIES
-  // =========================================================
 
   const fetchCategories = async () => {
     try {
@@ -157,9 +144,7 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to load categories. Status: ${response.status}`,
-        );
+        throw new Error(`Categories request failed: ${response.status}`);
       }
 
       const data = await response.json();
@@ -173,8 +158,8 @@ export default function HomePage() {
             : [];
 
       setCategories(categoryList);
-    } catch (error) {
-      console.error("Category error:", error);
+    } catch (err) {
+      console.error("Category error:", err);
 
       setCategoryError("Could not load categories.");
       setCategories([]);
@@ -182,10 +167,6 @@ export default function HomePage() {
       setCategoriesLoading(false);
     }
   };
-
-  // =========================================================
-  // FETCH WISHLIST
-  // =========================================================
 
   const fetchWishlist = async () => {
     const token = getToken();
@@ -210,7 +191,7 @@ export default function HomePage() {
       }
 
       if (!response.ok) {
-        throw new Error(`Failed to load wishlist. Status: ${response.status}`);
+        throw new Error(`Wishlist request failed: ${response.status}`);
       }
 
       const data: WishlistResponse = await response.json();
@@ -220,25 +201,18 @@ export default function HomePage() {
         : [];
 
       setWishlist(ids);
-    } catch (error) {
-      console.error("Wishlist error:", error);
+    } catch (err) {
+      console.error("Wishlist error:", err);
+
       setWishlist([]);
     }
   };
-
-  // =========================================================
-  // INITIAL LOAD
-  // =========================================================
 
   useEffect(() => {
     fetchProducts();
     fetchCategories();
     fetchWishlist();
   }, []);
-
-  // =========================================================
-  // LOGOUT
-  // =========================================================
 
   const handleLogout = () => {
     localStorage.removeItem("accessToken");
@@ -250,27 +224,16 @@ export default function HomePage() {
     window.location.href = "/";
   };
 
-  // =========================================================
-  // ADD TO CART
-  // =========================================================
-
   const handleAddToCart = (product: Product) => {
-    if (product.stock <= 0) {
-      return;
-    }
+    if (product.stock <= 0) return;
 
     addToCart(product);
-
     setAddedProductId(product.id);
 
     window.setTimeout(() => {
       setAddedProductId(null);
     }, 1500);
   };
-
-  // =========================================================
-  // WISHLIST
-  // =========================================================
 
   const toggleWishlist = async (productId: number) => {
     const token = getToken();
@@ -284,9 +247,9 @@ export default function HomePage() {
     try {
       setWishlistLoading(true);
 
-      const isCurrentlyWishlisted = wishlist.includes(productId);
+      const isWishlisted = wishlist.includes(productId);
 
-      if (isCurrentlyWishlisted) {
+      if (isWishlisted) {
         const response = await fetch(`${API_URL}/wishlist/${productId}`, {
           method: "DELETE",
           headers: {
@@ -295,10 +258,10 @@ export default function HomePage() {
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
+          const data = await response.json().catch(() => null);
 
           throw new Error(
-            errorData?.message || "Could not remove product from wishlist.",
+            data?.message || "Could not remove product from wishlist.",
           );
         }
 
@@ -316,26 +279,20 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
+        const data = await response.json().catch(() => null);
 
-        throw new Error(
-          errorData?.message || "Could not add product to wishlist.",
-        );
+        throw new Error(data?.message || "Could not add product to wishlist.");
       }
 
-      setWishlist((current) => {
-        if (current.includes(productId)) {
-          return current;
-        }
-
-        return [...current, productId];
-      });
-    } catch (error) {
-      console.error("Wishlist error:", error);
+      setWishlist((current) =>
+        current.includes(productId) ? current : [...current, productId],
+      );
+    } catch (err) {
+      console.error("Wishlist error:", err);
 
       alert(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : "Something went wrong with wishlist.",
       );
     } finally {
@@ -343,16 +300,10 @@ export default function HomePage() {
     }
   };
 
-  // =========================================================
-  // SEARCH
-  // =========================================================
-
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return products;
-    }
+    if (!query) return products;
 
     return products.filter((product) => {
       const name = product.name?.toLowerCase() || "";
@@ -363,10 +314,6 @@ export default function HomePage() {
   }, [products, search]);
 
   const featuredProducts = filteredProducts.slice(0, 8);
-
-  // =========================================================
-  // CATEGORY IMAGE
-  // =========================================================
 
   const getCategoryImage = (category: Category) => {
     const name = category.name?.trim().toLowerCase() || "";
@@ -379,28 +326,18 @@ export default function HomePage() {
       return category.image;
     }
 
-    const exactMatch = categoryFallbackImages[name];
-
-    if (exactMatch) {
-      return exactMatch;
+    if (categoryFallbackImages[name]) {
+      return categoryFallbackImages[name];
     }
 
-    const keywordMatch = Object.keys(categoryFallbackImages).find((key) =>
+    const keyword = Object.keys(categoryFallbackImages).find((key) =>
       name.includes(key),
     );
 
-    if (keywordMatch) {
-      return categoryFallbackImages[keywordMatch];
-    }
-
-    return defaultCategoryImage;
+    return keyword ? categoryFallbackImages[keyword] : defaultCategoryImage;
   };
 
-  // =========================================================
-  // NEWSLETTER
-  // =========================================================
-
-  const handleNewsletterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleNewsletterSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!newsletterEmail.trim()) {
@@ -408,81 +345,127 @@ export default function HomePage() {
       return;
     }
 
-    setNewsletterMessage(
-      "Thank you! You are now subscribed to E-Shop updates.",
-    );
+    setNewsletterMessage("Thanks! You're now subscribed to E-Shop.");
 
     setNewsletterEmail("");
   };
 
-  // =========================================================
-  // PAGE
-  // =========================================================
+  /*
+   * Opens the real floating chatbot.
+   *
+   * Chatbot.tsx must have data-chatbot-trigger
+   * on its floating open button.
+   */
+  const openAIChatbot = () => {
+    const chatbotButton = document.querySelector(
+      "[data-chatbot-trigger]",
+    ) as HTMLButtonElement | null;
+
+    if (chatbotButton) {
+      chatbotButton.click();
+      return;
+    }
+
+    window.scrollTo({
+      top: document.body.scrollHeight,
+      behavior: "smooth",
+    });
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
+    <div className="min-h-screen bg-white text-slate-950">
+      {/* ====================================================== */}
+      {/* TOP ANNOUNCEMENT */}
+      {/* ====================================================== */}
 
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 md:px-8">
+      <div className="bg-slate-950 px-4 py-2.5 text-center text-xs font-bold text-white">
+        <span className="text-blue-400">●</span> Free delivery on qualifying
+        orders · Secure checkout · AI shopping assistant
+      </div>
+
+      {/* ====================================================== */}
+      {/* HEADER */}
+      {/* ====================================================== */}
+
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-18 max-w-7xl items-center gap-5 px-5 md:px-8">
           {/* LOGO */}
 
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl text-white shadow-lg shadow-blue-200">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-lg shadow-lg">
               🛍️
             </div>
 
             <div>
-              <p className="text-lg font-black tracking-tight text-slate-950">
-                E-Shop
-              </p>
+              <p className="text-lg font-black tracking-tight">E-Shop</p>
 
-              <p className="hidden text-[10px] font-bold uppercase tracking-widest text-slate-400 sm:block">
+              <p className="hidden text-[8px] font-bold uppercase tracking-[0.25em] text-slate-400 sm:block">
                 Shop smarter
               </p>
             </div>
           </Link>
 
-          {/* DESKTOP NAVIGATION */}
+          {/* DESKTOP NAV */}
 
           <nav className="hidden items-center gap-1 lg:flex">
             <Link
               href="/"
-              className="rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-600"
+              className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-950"
             >
-              🏠 Home
+              Home
             </Link>
 
             <Link
               href="/products"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
             >
-              🛍️ Products
+              Shop
             </Link>
 
             <Link
               href="/categories"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
             >
-              🗂️ Categories
+              Categories
             </Link>
 
             <Link
               href="/orders"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
             >
-              📦 Orders
+              Orders
             </Link>
+          </nav>
 
+          {/* SEARCH */}
+
+          <div className="ml-auto hidden max-w-sm flex-1 xl:block">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                ⌕
+              </span>
+
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search products..."
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-slate-400 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          {/* ACTIONS */}
+
+          <div className="flex items-center gap-2">
             <Link
               href="/wishlist"
-              className="relative rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-red-500"
+              className="relative hidden h-10 w-10 items-center justify-center rounded-xl text-xl text-slate-600 transition hover:bg-slate-100 hover:text-red-500 sm:flex"
+              aria-label="Wishlist"
             >
-              ♥ Wishlist
+              ♡
               {wishlist.length > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-black text-white">
                   {wishlist.length}
                 </span>
               )}
@@ -490,33 +473,30 @@ export default function HomePage() {
 
             <Link
               href="/cart"
-              className="relative rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-lg text-slate-600 transition hover:bg-slate-100"
+              aria-label="Cart"
             >
-              🛒 Cart
+              🛒
               {cartCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] font-black text-white">
                   {cartCount}
                 </span>
               )}
             </Link>
-          </nav>
 
-          {/* ACCOUNT */}
-
-          <div className="flex items-center gap-2">
             {isLoggedIn ? (
               <>
                 <Link
                   href="/profile"
-                  className="hidden rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:text-blue-600 sm:block"
+                  className="hidden rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold transition hover:border-slate-950 sm:block"
                 >
-                  👤 Account
+                  Account
                 </Link>
 
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-600"
+                  className="hidden rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-600 sm:block"
                 >
                   Logout
                 </button>
@@ -524,9 +504,9 @@ export default function HomePage() {
             ) : (
               <Link
                 href="/login"
-                className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+                className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-600 sm:px-5"
               >
-                🔐 Login
+                Login
               </Link>
             )}
           </div>
@@ -535,143 +515,131 @@ export default function HomePage() {
         {/* MOBILE NAV */}
 
         <div className="border-t border-slate-100 lg:hidden">
-          <div className="mx-auto flex max-w-7xl items-center justify-between overflow-x-auto px-3 py-2">
+          <div className="flex gap-2 overflow-x-auto px-4 py-2.5">
             <Link
               href="/"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl bg-blue-50 px-3 py-2 text-[10px] font-bold text-blue-600"
+              className="shrink-0 rounded-lg bg-slate-950 px-4 py-2 text-xs font-bold text-white"
             >
-              <span className="text-lg">🏠</span>
               Home
             </Link>
 
             <Link
               href="/products"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
+              className="shrink-0 rounded-lg bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600"
             >
-              <span className="text-lg">🛍️</span>
-              Products
+              Shop
             </Link>
 
             <Link
               href="/categories"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
+              className="shrink-0 rounded-lg bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600"
             >
-              <span className="text-lg">🗂️</span>
               Categories
             </Link>
 
             <Link
-              href="/orders"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
-            >
-              <span className="text-lg">📦</span>
-              Orders
-            </Link>
-
-            <Link
               href="/wishlist"
-              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
+              className="shrink-0 rounded-lg bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600"
             >
-              <span className="text-lg">♥</span>
               Wishlist
-              {wishlist.length > 0 && (
-                <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] text-white">
-                  {wishlist.length}
-                </span>
-              )}
             </Link>
 
             <Link
-              href="/cart"
-              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
+              href="/orders"
+              className="shrink-0 rounded-lg bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600"
             >
-              <span className="text-lg">🛒</span>
-              Cart
-              {cartCount > 0 && (
-                <span className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] text-white">
-                  {cartCount}
-                </span>
-              )}
+              Orders
             </Link>
           </div>
         </div>
       </header>
 
-      {/* =====================================================
-          HERO
-      ===================================================== */}
+      {/* ====================================================== */}
+      {/* MOBILE SEARCH */}
+      {/* ====================================================== */}
 
-      <section className="relative overflow-hidden bg-white">
-        <div className="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-blue-100 blur-3xl" />
+      <div className="border-b border-slate-100 bg-white px-5 py-3 xl:hidden">
+        <div className="relative mx-auto max-w-7xl">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+            ⌕
+          </span>
 
-        <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-violet-100 blur-3xl" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search products..."
+            className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium outline-none focus:border-slate-400 focus:bg-white"
+          />
+        </div>
+      </div>
 
-        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 py-14 md:px-8 md:py-20 lg:grid-cols-2">
+      {/* ====================================================== */}
+      {/* HERO */}
+      {/* ====================================================== */}
+
+      <section className="overflow-hidden bg-slate-50">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-12 md:px-8 md:py-16 lg:grid-cols-[0.95fr_1.05fr] lg:py-20">
           <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-600">
-              ✨ Welcome to E-Shop
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-blue-600" />
+              New shopping experience
             </div>
 
-            <h1 className="text-4xl font-black leading-tight tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            <h1 className="max-w-2xl text-5xl font-black leading-[0.98] tracking-tighter sm:text-6xl lg:text-7xl">
               Everything you need.
-              <span className="block text-blue-600">All in one place.</span>
+              <span className="mt-2 block text-blue-600">
+                All in one place.
+              </span>
             </h1>
 
-            <p className="mt-5 max-w-xl text-base leading-7 text-slate-500 md:text-lg">
-              Discover quality products, compare prices, save your favorites and
-              shop with confidence.
+            <p className="mt-7 max-w-xl text-base leading-7 text-slate-500 md:text-lg">
+              Discover quality products, explore new categories, save your
+              favorites and shop with confidence.
             </p>
 
-            {/* SEARCH */}
-
-            <div className="mt-8 flex max-w-xl flex-col gap-3 sm:flex-row">
-              <div className="relative flex-1">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-slate-400">
-                  🔍
-                </span>
-
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search products..."
-                  className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-5 text-sm font-medium shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                />
-              </div>
-
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/products"
-                className="flex h-14 items-center justify-center rounded-2xl bg-slate-950 px-7 text-sm font-black text-white transition hover:bg-blue-600"
+                className="inline-flex h-13 items-center justify-center rounded-xl bg-slate-950 px-7 text-sm font-black text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-blue-600"
               >
-                Browse All
+                Explore Products
+                <span className="ml-3">→</span>
+              </Link>
+
+              <Link
+                href="/categories"
+                className="inline-flex h-13 items-center justify-center rounded-xl border border-slate-200 bg-white px-7 text-sm font-black text-slate-700 transition hover:border-slate-400"
+              >
+                Browse Categories
               </Link>
             </div>
 
-            {/* STATS */}
-
-            <div className="mt-8 flex flex-wrap gap-8">
+            <div className="mt-10 flex flex-wrap gap-7 border-t border-slate-200 pt-7">
               <div>
-                <p className="text-2xl font-black text-slate-950">
-                  {products.length}+
-                </p>
+                <p className="text-2xl font-black">{products.length}+</p>
 
-                <p className="text-xs font-semibold text-slate-400">Products</p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  Products
+                </p>
               </div>
 
-              <div>
-                <p className="text-2xl font-black text-slate-950">
-                  {categories.length}+
-                </p>
+              <div className="h-10 w-px bg-slate-200" />
 
-                <p className="text-xs font-semibold text-slate-400">
+              <div>
+                <p className="text-2xl font-black">{categories.length}+</p>
+
+                <p className="mt-1 text-xs font-bold text-slate-400">
                   Categories
                 </p>
               </div>
 
-              <div>
-                <p className="text-2xl font-black text-slate-950">100%</p>
+              <div className="h-10 w-px bg-slate-200" />
 
-                <p className="text-xs font-semibold text-slate-400">Secure</p>
+              <div>
+                <p className="text-2xl font-black">100%</p>
+
+                <p className="mt-1 text-xs font-bold text-slate-400">Secure</p>
               </div>
             </div>
           </div>
@@ -679,50 +647,50 @@ export default function HomePage() {
           {/* HERO IMAGE */}
 
           <div className="relative">
-            <div className="overflow-hidden rounded-4xl border border-white bg-white p-3 shadow-2xl shadow-blue-100">
-              <div className="relative h-87.5 overflow-hidden rounded-3xl bg-blue-100 sm:h-107.5">
-                <img
-                  src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1200&q=85"
-                  alt="E-Shop shopping"
-                  className="h-full w-full object-cover transition duration-700 hover:scale-105"
-                />
+            <div className="relative overflow-hidden rounded-4xl bg-slate-900 shadow-2xl">
+              <img
+                src={heroImage}
+                alt="E-Shop shopping experience"
+                className="h-105 w-full object-cover transition duration-700 hover:scale-105 sm:h-125"
+              />
 
-                <div className="absolute inset-x-5 bottom-5 rounded-2xl border border-white/50 bg-white/90 p-4 shadow-xl backdrop-blur">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-xl text-white">
-                        🛍️
-                      </div>
+              <div className="absolute inset-0 bg-linear-to-t from-slate-950/70 via-transparent to-slate-950/10" />
 
-                      <div>
-                        <p className="text-sm font-black text-slate-900">
-                          Shop smarter
-                        </p>
+              <div className="absolute bottom-6 left-6 right-6">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/60">
+                      E-Shop Collection
+                    </p>
 
-                        <p className="text-xs text-slate-500">
-                          Quality products, better prices
-                        </p>
-                      </div>
-                    </div>
+                    <p className="mt-2 text-2xl font-black text-white sm:text-3xl">
+                      Shop smarter.
+                    </p>
+                  </div>
 
-                    <span className="text-xl">✨</span>
+                  <div className="hidden rounded-2xl bg-white/95 px-4 py-3 shadow-xl sm:block">
+                    <p className="text-xs font-bold text-slate-400">Shopping</p>
+
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      Made simple
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="absolute -bottom-5 -left-3 rounded-2xl border border-white bg-white px-5 py-4 shadow-xl sm:-left-8">
+            <div className="absolute -bottom-5 -left-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-xl sm:-left-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-lg">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-lg text-emerald-600">
                   ✓
                 </div>
 
                 <div>
-                  <p className="text-sm font-black text-slate-900">
-                    Secure Shopping
-                  </p>
+                  <p className="text-sm font-black">Secure shopping</p>
 
-                  <p className="text-xs text-slate-400">Shop with confidence</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Shop with confidence
+                  </p>
                 </div>
               </div>
             </div>
@@ -730,802 +698,817 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* =====================================================
-          QUICK ACTION BAR
-      ===================================================== */}
+      {/* ====================================================== */}
+      {/* CATEGORY SECTION */}
+      {/* ====================================================== */}
 
-      <section className="border-y border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between md:px-8">
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-              Your Shopping
-            </p>
-
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              Manage your cart and favorite products
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/categories"
-              className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
-            >
-              🗂️ Categories
-            </Link>
-
-            <Link
-              href="/wishlist"
-              className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-red-200 hover:text-red-500"
-            >
-              ♥ Wishlist
-              {wishlist.length > 0 && (
-                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-black text-white">
-                  {wishlist.length}
-                </span>
-              )}
-            </Link>
-
-            <Link
-              href="/cart"
-              className="relative flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-blue-600"
-            >
-              🛒 Cart
-              {cartCount > 0 && (
-                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-black">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          CATEGORIES
-      ===================================================== */}
-
-      <section className="border-b border-slate-200 bg-slate-50">
-        <div className="mx-auto max-w-7xl px-5 py-14 md:px-8">
-          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <section className="bg-white py-16 md:py-20">
+        <div className="mx-auto max-w-7xl px-5 md:px-8">
+          <div className="flex items-end justify-between gap-5">
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-blue-600">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">
                 Explore
               </p>
 
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-                Shop by Category
+              <h2 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
+                Shop by category
               </h2>
 
-              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                Find exactly what you are looking for by browsing our product
-                categories.
+              <p className="mt-2 text-sm text-slate-500">
+                Find exactly what you're looking for.
               </p>
             </div>
 
             <Link
               href="/categories"
-              className="w-fit rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
+              className="hidden rounded-xl border border-slate-200 px-5 py-3 text-sm font-black transition hover:border-slate-950 sm:block"
             >
-              View All Categories →
+              View all →
             </Link>
           </div>
 
-          {categoriesLoading ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white"
-                >
-                  <div className="h-40 animate-pulse bg-slate-200" />
-
-                  <div className="p-4">
-                    <div className="h-5 w-2/3 animate-pulse rounded bg-slate-200" />
-
-                    <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-200" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : categoryError ? (
-            <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-center">
-              <p className="font-bold text-red-700">{categoryError}</p>
-
-              <button
-                type="button"
-                onClick={fetchCategories}
-                className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700"
-              >
-                Try Again
-              </button>
-            </div>
-          ) : categories.length === 0 ? (
-            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
-                🗂️
+          <div className="mt-8">
+            {categoriesLoading ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-44 animate-pulse rounded-2xl bg-slate-100"
+                  />
+                ))}
               </div>
+            ) : categoryError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-7 text-center">
+                <p className="font-bold text-red-700">{categoryError}</p>
 
-              <h3 className="mt-4 text-xl font-black text-slate-950">
-                No categories yet
-              </h3>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Categories created by the administrator will appear here.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-              {categories.slice(0, 10).map((category) => (
-                <Link
-                  key={category.id}
-                  href={`/products?category=${encodeURIComponent(
-                    category.name,
-                  )}`}
-                  className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
+                <button
+                  type="button"
+                  onClick={fetchCategories}
+                  className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white"
                 >
-                  <div className="relative h-40 overflow-hidden bg-slate-100">
+                  Try Again
+                </button>
+              </div>
+            ) : categories.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center">
+                <p className="text-3xl">🗂️</p>
+
+                <p className="mt-3 font-black">No categories available</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                {categories.slice(0, 10).map((category) => (
+                  <Link
+                    key={category.id}
+                    href={`/products?category=${encodeURIComponent(
+                      category.name,
+                    )}`}
+                    className="group relative h-44 overflow-hidden rounded-2xl bg-slate-900"
+                  >
                     <img
                       src={getCategoryImage(category)}
                       alt={category.name}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
+                      className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
                       onError={(event) => {
                         event.currentTarget.onerror = null;
                         event.currentTarget.src = defaultCategoryImage;
                       }}
                     />
 
-                    <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/10 to-transparent" />
+                    <div className="absolute inset-0 bg-linear-to-t from-slate-950/80 via-slate-950/10 to-transparent" />
 
-                    <div className="absolute bottom-3 left-3">
-                      <span className="rounded-full bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-800 shadow-sm">
-                        Explore
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4">
-                    <div>
-                      <h3 className="line-clamp-1 text-base font-black text-slate-950 transition group-hover:text-blue-600">
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <p className="text-lg font-black text-white">
                         {category.name}
-                      </h3>
+                      </p>
 
-                      <p className="mt-1 text-xs font-semibold text-slate-400">
-                        Browse products
+                      <p className="mt-1 text-xs font-medium text-white/70">
+                        Explore →
                       </p>
                     </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition group-hover:bg-blue-600 group-hover:text-white">
-                      →
-                    </div>
+      {/* ====================================================== */}
+      {/* PRODUCTS */}
+      {/* ====================================================== */}
+
+      <section className="bg-slate-50 py-16 md:py-20">
+        <div className="mx-auto max-w-7xl px-5 md:px-8">
+          <div className="flex items-end justify-between gap-5">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">
+                Trending now
+              </p>
+
+              <h2 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
+                Popular products
+              </h2>
+
+              <p className="mt-2 text-sm text-slate-500">
+                Products ready to become your next favorite.
+              </p>
+            </div>
+
+            <Link
+              href="/products"
+              className="hidden rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-600 sm:block"
+            >
+              View all →
+            </Link>
+          </div>
+
+          {error && (
+            <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 p-5">
+              <p className="font-bold text-red-700">{error}</p>
+
+              <button
+                type="button"
+                onClick={fetchProducts}
+                className="mt-3 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                >
+                  <div className="h-70 animate-pulse bg-slate-200" />
+
+                  <div className="space-y-3 p-5">
+                    <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
+
+                    <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
+
+                    <div className="h-11 animate-pulse rounded-xl bg-slate-200" />
                   </div>
-                </Link>
+                </div>
               ))}
+            </div>
+          ) : featuredProducts.length === 0 ? (
+            <div className="mt-8 rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-2xl">
+                🔍
+              </div>
+
+              <h3 className="mt-5 text-xl font-black">No products found</h3>
+
+              <p className="mt-2 text-sm text-slate-500">Try another search.</p>
+
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="mt-5 rounded-xl bg-slate-950 px-6 py-3 text-sm font-black text-white"
+              >
+                Show all products
+              </button>
+            </div>
+          ) : (
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {featuredProducts.map((product) => {
+                const isWishlisted = wishlist.includes(product.id);
+                const isAdded = addedProductId === product.id;
+
+                return (
+                  <article
+                    key={product.id}
+                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-2xl hover:shadow-slate-200/70"
+                  >
+                    <div className="relative h-70 overflow-hidden bg-slate-100">
+                      <img
+                        src={
+                          product.image?.trim()
+                            ? product.image
+                            : defaultProductImage
+                        }
+                        alt={product.name}
+                        className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src = defaultProductImage;
+                        }}
+                      />
+
+                      <div className="absolute left-4 top-4">
+                        <span
+                          className={`rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide shadow-lg ${
+                            product.stock > 0
+                              ? "text-emerald-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {product.stock > 0 ? "In stock" : "Out of stock"}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={wishlistLoading}
+                        onClick={() => toggleWishlist(product.id)}
+                        aria-label={
+                          isWishlisted
+                            ? "Remove from wishlist"
+                            : "Add to wishlist"
+                        }
+                        className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-xl shadow-lg transition hover:scale-110 ${
+                          isWishlisted
+                            ? "text-red-500"
+                            : "text-slate-500 hover:text-red-500"
+                        }`}
+                      >
+                        {isWishlisted ? "♥" : "♡"}
+                      </button>
+
+                      <Link
+                        href={`/products/${product.id}`}
+                        className="absolute bottom-4 right-4 flex h-10 w-10 translate-y-3 items-center justify-center rounded-full bg-white text-lg opacity-0 shadow-xl transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 hover:bg-slate-950 hover:text-white"
+                        aria-label={`View ${product.name}`}
+                      >
+                        ↗
+                      </Link>
+                    </div>
+
+                    <div className="p-5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm tracking-wide text-amber-400">
+                          ★★★★★
+                        </span>
+
+                        <span className="text-xs font-bold text-slate-400">
+                          Popular
+                        </span>
+                      </div>
+
+                      <Link href={`/products/${product.id}`}>
+                        <h3 className="mt-2 line-clamp-1 text-lg font-black transition hover:text-blue-600">
+                          {product.name}
+                        </h3>
+                      </Link>
+
+                      <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
+                        {product.description ||
+                          "Quality product with great value."}
+                      </p>
+
+                      <div className="mt-5 flex items-end justify-between">
+                        <p className="text-2xl font-black">
+                          ${Number(product.price).toFixed(2)}
+                        </p>
+
+                        <p className="text-xs font-bold text-slate-400">
+                          {product.stock > 0
+                            ? `${product.stock} available`
+                            : "Unavailable"}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={product.stock <= 0}
+                        onClick={() => handleAddToCart(product)}
+                        className={`mt-5 flex h-12 w-full items-center justify-center rounded-xl text-sm font-black transition ${
+                          product.stock <= 0
+                            ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                            : isAdded
+                              ? "bg-emerald-500 text-white"
+                              : "bg-slate-950 text-white hover:bg-blue-600"
+                        }`}
+                      >
+                        {product.stock <= 0
+                          ? "Out of Stock"
+                          : isAdded
+                            ? "✓ Added to Cart"
+                            : "🛒 Add to Cart"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+
+          {!loading && products.length > 8 && (
+            <div className="mt-10 text-center sm:hidden">
+              <Link
+                href="/products"
+                className="inline-flex rounded-xl bg-slate-950 px-7 py-3.5 text-sm font-black text-white"
+              >
+                Explore all products →
+              </Link>
             </div>
           )}
         </div>
       </section>
 
-      {/* =====================================================
-          PRODUCTS
-      ===================================================== */}
+      {/* ====================================================== */}
+      {/* AI SHOPPING ASSISTANT */}
+      {/* ====================================================== */}
 
-      <main className="mx-auto max-w-7xl px-5 py-12 md:px-8 md:py-16">
-        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-black uppercase tracking-widest text-blue-600">
-              Our Collection
-            </p>
+      <section className="bg-white px-5 py-16 md:px-8 md:py-20">
+        <div className="mx-auto max-w-7xl">
+          <div className="relative overflow-hidden rounded-4xl bg-slate-950 px-6 py-8 shadow-2xl sm:px-8 md:px-12 md:py-12 lg:px-16 lg:py-16">
+            {/* Background decoration */}
 
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-              Popular Products
-            </h2>
+            <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
 
-            <p className="mt-2 text-sm text-slate-500">
-              Discover products you will love.
-            </p>
-          </div>
+            <div className="pointer-events-none absolute -bottom-40 left-1/3 h-96 w-96 rounded-full bg-violet-600/15 blur-3xl" />
 
-          <Link
-            href="/products"
-            className="w-fit rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
-          >
-            View All Products →
-          </Link>
-        </div>
+            <div className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/5 blur-3xl" />
 
-        {error && (
-          <div className="mb-8 rounded-2xl border border-red-200 bg-red-50 p-5">
-            <p className="font-bold text-red-700">{error}</p>
+            <div className="relative grid items-center gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-16">
+              {/* LEFT */}
 
-            <button
-              type="button"
-              onClick={fetchProducts}
-              className="mt-3 rounded-xl bg-red-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-red-700"
-            >
-              Try Again
-            </button>
-          </div>
-        )}
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.15em] text-blue-300">
+                  <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/20">
+                    <span className="absolute h-7 w-7 animate-ping rounded-full bg-blue-400/20" />
 
-        {loading ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div
-                key={index}
-                className="overflow-hidden rounded-3xl bg-white shadow-sm"
-              >
-                <div className="h-72 animate-pulse bg-slate-200" />
-
-                <div className="space-y-3 p-5">
-                  <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
-
-                  <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
-
-                  <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
-
-                  <div className="h-11 animate-pulse rounded-xl bg-slate-200" />
+                    <span className="relative text-sm">🤖</span>
+                  </span>
+                  AI Shopping Assistant
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : featuredProducts.length === 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-4xl">
-              🔍
-            </div>
 
-            <h3 className="mt-5 text-2xl font-black">No products found</h3>
+                <h2 className="mt-6 max-w-2xl text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl md:text-5xl">
+                  Your personal
+                  <span className="block bg-linear-to-r from-blue-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">
+                    AI shopping expert.
+                  </span>
+                </h2>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Try searching for another product.
-            </p>
+                <p className="mt-5 max-w-xl text-sm leading-7 text-slate-400 md:text-base">
+                  Not sure what to buy? Just ask. Our AI assistant can search
+                  products, recommend the best options, compare products and
+                  help you find something within your budget.
+                </p>
 
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="mt-6 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
-            >
-              Show All Products
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {featuredProducts.map((product) => {
-              const isWishlisted = wishlist.includes(product.id);
-              const isAdded = addedProductId === product.id;
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={openAIChatbot}
+                    className="group inline-flex h-13 items-center justify-center rounded-xl bg-blue-600 px-7 text-sm font-black text-white shadow-xl shadow-blue-600/20 transition duration-300 hover:-translate-y-1 hover:bg-blue-500 hover:shadow-2xl hover:shadow-blue-600/30"
+                  >
+                    <span className="mr-2 text-lg">🤖</span>
+                    Start Chatting
+                    <span className="ml-3 transition-transform duration-300 group-hover:translate-x-1">
+                      →
+                    </span>
+                  </button>
 
-              return (
-                <article
-                  key={product.id}
-                  className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/70"
-                >
-                  <div className="relative h-72 overflow-hidden bg-slate-100">
-                    <img
-                      src={
-                        product.image && product.image.trim() !== ""
-                          ? product.image
-                          : defaultProductImage
-                      }
-                      alt={product.name}
-                      className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
-                      onError={(event) => {
-                        event.currentTarget.onerror = null;
-                        event.currentTarget.src = defaultProductImage;
-                      }}
-                    />
+                  <Link
+                    href="/products"
+                    className="inline-flex h-13 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-7 text-sm font-black text-white backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/10"
+                  >
+                    Browse Products
+                  </Link>
+                </div>
 
-                    <div className="absolute left-4 top-4">
-                      {product.stock > 0 ? (
-                        <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-emerald-600 shadow-md">
-                          ✓ In Stock
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-red-600 shadow-md">
-                          Out of Stock
-                        </span>
-                      )}
+                <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
+                      🔎
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={wishlistLoading}
-                      onClick={() => toggleWishlist(product.id)}
-                      aria-label={
-                        isWishlisted
-                          ? "Remove from wishlist"
-                          : "Add to wishlist"
-                      }
-                      className={`absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-xl shadow-md backdrop-blur transition hover:scale-110 ${
-                        isWishlisted
-                          ? "text-red-500"
-                          : "text-slate-400 hover:text-red-500"
-                      }`}
-                    >
-                      {isWishlisted ? "♥" : "♡"}
-                    </button>
+                    <div>
+                      <p className="text-xs font-black text-white">
+                        Smart Search
+                      </p>
 
-                    <Link
-                      href={`/products/${product.id}`}
-                      className="absolute bottom-4 right-4 flex h-11 w-11 translate-y-4 items-center justify-center rounded-full bg-white text-lg text-slate-900 opacity-0 shadow-lg transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 hover:bg-blue-600 hover:text-white"
-                    >
-                      ↗
-                    </Link>
+                      <p className="mt-0.5 text-[10px] text-slate-500">
+                        Find products fast
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="p-5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm tracking-wide text-amber-400">
-                        ★★★★★
-                      </span>
-
-                      <span className="text-xs font-semibold text-slate-400">
-                        4.8
-                      </span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-lg">
+                      ✨
                     </div>
 
-                    <Link href={`/products/${product.id}`}>
-                      <h3 className="mt-2 line-clamp-1 text-lg font-black text-slate-950 transition hover:text-blue-600">
-                        {product.name}
-                      </h3>
-                    </Link>
+                    <div>
+                      <p className="text-xs font-black text-white">
+                        Recommendations
+                      </p>
 
-                    <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
-                      {product.description ||
-                        "Quality product with great value."}
-                    </p>
+                      <p className="mt-0.5 text-[10px] text-slate-500">
+                        Personalized help
+                      </p>
+                    </div>
+                  </div>
 
-                    <div className="mt-4 flex items-end justify-between">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                          Price
-                        </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-lg">
+                      ⚡
+                    </div>
 
-                        <p className="mt-1 text-2xl font-black text-slate-950">
-                          ${Number(product.price).toFixed(2)}
-                        </p>
+                    <div>
+                      <p className="text-xs font-black text-white">
+                        Instant Answers
+                      </p>
+
+                      <p className="mt-0.5 text-[10px] text-slate-500">
+                        Available anytime
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT CHAT PREVIEW */}
+
+              <div className="relative">
+                <div className="absolute -inset-1 rounded-4xl bg-linear-to-r from-blue-600/30 via-violet-600/20 to-cyan-500/20 blur-xl" />
+
+                <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-2xl backdrop-blur-xl">
+                  {/* HEADER */}
+
+                  <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-violet-600 text-xl shadow-lg shadow-blue-500/20">
+                        🤖
+                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-slate-900 bg-emerald-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                        </span>
                       </div>
 
-                      <span className="text-xs font-semibold text-slate-400">
-                        {product.stock > 0
-                          ? `${product.stock} left`
-                          : "Unavailable"}
-                      </span>
+                      <div>
+                        <p className="text-sm font-black text-white">
+                          E-Shop AI
+                        </p>
+
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+
+                          <span className="text-[11px] font-medium text-emerald-400">
+                            Online
+                          </span>
+
+                          <span className="text-[11px] text-slate-600">•</span>
+
+                          <span className="text-[11px] text-slate-500">
+                            Ready to help
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
+                    <div className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 sm:block">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                        AI Online
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CONVERSATION */}
+
+                  <div className="space-y-4 p-5 md:p-6">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-sm">
+                        🤖
+                      </div>
+
+                      <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-white/10 px-4 py-3">
+                        <p className="text-sm leading-6 text-slate-200">
+                          👋 Hi! I'm your E-Shop AI assistant. What are you
+                          looking for today?
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <div className="max-w-[80%] rounded-2xl rounded-br-md bg-blue-600 px-4 py-3 shadow-lg shadow-blue-600/10">
+                        <p className="text-sm leading-6 text-white">
+                          I need a good phone under $500.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-sm">
+                        🤖
+                      </div>
+
+                      <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-white/10 px-4 py-3">
+                        <p className="text-sm leading-6 text-slate-300">
+                          Great choice! I can find phones within your budget and
+                          help you compare them.
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={openAIChatbot}
+                          className="mt-3 text-xs font-black text-blue-400 transition hover:text-blue-300"
+                        >
+                          View recommendations →
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* QUICK QUESTIONS */}
+
+                    <div className="pt-2">
+                      <p className="mb-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                        Quick questions
+                      </p>
+
+                      <div className="grid grid-cols-1 gap-2">
+                        <button
+                          type="button"
+                          onClick={openAIChatbot}
+                          className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-3 text-left transition duration-200 hover:border-blue-500/20 hover:bg-blue-500/10"
+                        >
+                          <span className="text-xs font-medium text-slate-300">
+                            📱 Show me phones under $500
+                          </span>
+
+                          <span className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-400">
+                            →
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={openAIChatbot}
+                          className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-3 text-left transition duration-200 hover:border-blue-500/20 hover:bg-blue-500/10"
+                        >
+                          <span className="text-xs font-medium text-slate-300">
+                            🎮 What gaming product do you recommend?
+                          </span>
+
+                          <span className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-400">
+                            →
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={openAIChatbot}
+                          className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-3 text-left transition duration-200 hover:border-blue-500/20 hover:bg-blue-500/10"
+                        >
+                          <span className="text-xs font-medium text-slate-300">
+                            💻 Compare laptops for me
+                          </span>
+
+                          <span className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-400">
+                            →
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* INPUT PREVIEW */}
+
+                  <div className="border-t border-white/10 bg-slate-950/50 p-4">
                     <button
                       type="button"
-                      onClick={() => handleAddToCart(product)}
-                      disabled={product.stock <= 0}
-                      className={`mt-5 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-black transition ${
-                        product.stock <= 0
-                          ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                          : isAdded
-                            ? "bg-emerald-500 text-white"
-                            : "bg-slate-950 text-white hover:bg-blue-600 hover:shadow-lg hover:shadow-blue-200"
-                      }`}
+                      onClick={openAIChatbot}
+                      className="group flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-blue-500/30 hover:bg-white/10"
                     >
-                      {product.stock <= 0 ? (
-                        "Out of Stock"
-                      ) : isAdded ? (
-                        <>
-                          <span>✓</span>
-                          Added to Cart
-                        </>
-                      ) : (
-                        <>
-                          <span>🛒</span>
-                          Add to Cart
-                        </>
-                      )}
+                      <span className="text-xs text-slate-500">
+                        Ask your AI assistant anything...
+                      </span>
+
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm text-white transition group-hover:bg-blue-500">
+                        ↑
+                      </span>
                     </button>
                   </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-
-        {!loading && products.length > 8 && (
-          <div className="mt-10 flex justify-center">
-            <Link
-              href="/products"
-              className="rounded-2xl bg-blue-600 px-8 py-4 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 hover:shadow-xl"
-            >
-              View All Products →
-            </Link>
-          </div>
-        )}
-      </main>
-
-      {/* =====================================================
-          WHY CHOOSE US
-      ===================================================== */}
-
-      <section className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-              Why E-Shop
-            </p>
-
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-              Shopping made simple
-            </h2>
-
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              We focus on making every part of your shopping experience
-              convenient, secure and reliable.
-            </p>
-          </div>
-
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7 transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl text-white shadow-lg shadow-blue-200">
-                🚚
+                </div>
               </div>
-
-              <h3 className="mt-5 text-lg font-black text-slate-950">
-                Fast & Reliable Delivery
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                We work to get your orders delivered safely and conveniently.
-              </p>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7 transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-lg shadow-emerald-100">
-                🔒
+            {/* BOTTOM TRUST ROW */}
+
+            <div className="relative mt-10 flex flex-col gap-4 border-t border-white/10 pt-7 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex -space-x-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-blue-500 text-xs">
+                    👤
+                  </div>
+
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-violet-500 text-xs">
+                    👩
+                  </div>
+
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-emerald-500 text-xs">
+                    🧑
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  Your smart shopping companion is ready.
+                </p>
               </div>
 
-              <h3 className="mt-5 text-lg font-black text-slate-950">
-                Secure Shopping
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Your account and shopping experience are protected with secure
-                authentication and payment processing.
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7 transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600 text-2xl text-white shadow-lg shadow-violet-100">
-                💬
-              </div>
-
-              <h3 className="mt-5 text-lg font-black text-slate-950">
-                Customer Support
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Need help? Our support team is here to help you with your
-                shopping experience.
-              </p>
+              <button
+                type="button"
+                onClick={openAIChatbot}
+                className="text-left text-xs font-black text-blue-400 transition hover:text-blue-300 sm:text-right"
+              >
+                Open AI Assistant →
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* =====================================================
-          ABOUT US
-      ===================================================== */}
+      {/* ====================================================== */}
+      {/* PROMOTIONAL BANNER */}
+      {/* ====================================================== */}
 
-      <section
-        id="about"
-        className="scroll-mt-24 border-t border-slate-200 bg-slate-50"
-      >
-        <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-16 md:px-8 lg:grid-cols-2">
-          <div className="overflow-hidden rounded-4xl bg-white p-3 shadow-xl">
-            <div className="relative h-80 overflow-hidden rounded-3xl">
-              <img
-                src="https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1200&q=85"
-                alt="E-Shop shopping experience"
-                className="h-full w-full object-cover"
-              />
+      <section className="px-5 py-16 md:px-8 md:py-20">
+        <div className="mx-auto max-w-7xl overflow-hidden rounded-4xl bg-slate-950">
+          <div className="relative grid items-center gap-10 px-7 py-12 md:px-12 lg:grid-cols-[1fr_.8fr] lg:py-16">
+            <div className="relative z-10">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">
+                Discover more
+              </p>
 
-              <div className="absolute inset-0 bg-linear-to-t from-slate-950/70 via-transparent to-transparent" />
+              <h2 className="mt-4 max-w-2xl text-3xl font-black tracking-tight text-white md:text-5xl">
+                Better products.
+                <span className="block text-blue-400">Better shopping.</span>
+              </h2>
 
-              <div className="absolute bottom-6 left-6">
-                <p className="text-sm font-bold text-white">E-Shop</p>
+              <p className="mt-5 max-w-xl text-sm leading-7 text-slate-400 md:text-base">
+                Explore our growing collection and find products designed to fit
+                your everyday life.
+              </p>
 
-                <p className="mt-1 text-xs text-white/70">
-                  Making online shopping easier
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-              About Us
-            </p>
-
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
-              More than a store.
-              <span className="block text-blue-600">A better way to shop.</span>
-            </h2>
-
-            <p className="mt-5 text-sm leading-7 text-slate-500">
-              E-Shop is designed to make online shopping simple, convenient and
-              enjoyable. Browse products, explore categories, save your favorite
-              items and manage your orders from one place.
-            </p>
-
-            <p className="mt-4 text-sm leading-7 text-slate-500">
-              Whether you are looking for electronics, fashion, gaming products,
-              accessories or everyday essentials, our goal is to give you a
-              smooth shopping experience from discovery to delivery.
-            </p>
-
-            <div className="mt-7 flex flex-wrap gap-3">
               <Link
                 href="/products"
-                className="rounded-2xl bg-blue-600 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+                className="mt-7 inline-flex rounded-xl bg-white px-6 py-3.5 text-sm font-black text-slate-950 transition hover:bg-blue-500 hover:text-white"
               >
-                Start Shopping
-              </Link>
-
-              <Link
-                href="/categories"
-                className="rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-black text-slate-700 transition hover:border-blue-200 hover:text-blue-600"
-              >
-                Explore Categories
+                Start Shopping →
               </Link>
             </div>
-          </div>
-        </div>
-      </section>
 
-      {/* =====================================================
-          LOCATION + CONTACT
-      ===================================================== */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <p className="text-2xl">🚚</p>
 
-      <section
-        id="contact"
-        className="scroll-mt-24 border-t border-slate-200 bg-white"
-      >
-        <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* LOCATION */}
-
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl text-white">
-                📍
-              </div>
-
-              <p className="mt-5 text-xs font-black uppercase tracking-widest text-blue-600">
-                Our Location
-              </p>
-
-              <h3 className="mt-2 text-xl font-black text-slate-950">
-                Main Store
-              </h3>
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Visit our store or shop online from anywhere. Our online store
-                is available whenever you need it.
-              </p>
-
-              <div className="mt-5 rounded-2xl bg-white p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Store Hours
+                <p className="mt-4 text-sm font-black text-white">
+                  Reliable Delivery
                 </p>
 
-                <p className="mt-2 text-sm font-bold text-slate-800">
-                  Monday – Saturday
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Convenient order delivery.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <p className="text-2xl">🔒</p>
+
+                <p className="mt-4 text-sm font-black text-white">
+                  Secure Checkout
                 </p>
 
-                <p className="mt-1 text-sm text-slate-500">8:00 AM – 8:00 PM</p>
-              </div>
-            </div>
-
-            {/* CONTACT */}
-
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white">
-                📞
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Shop with confidence.
+                </p>
               </div>
 
-              <p className="mt-5 text-xs font-black uppercase tracking-widest text-emerald-600">
-                Contact Us
-              </p>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <p className="text-2xl">♡</p>
 
-              <h3 className="mt-2 text-xl font-black text-slate-950">
-                We are here to help
-              </h3>
+                <p className="mt-4 text-sm font-black text-white">
+                  Save Favorites
+                </p>
 
-              <div className="mt-5 space-y-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white">
-                    📧
-                  </span>
-
-                  <div>
-                    <p className="text-xs font-bold text-slate-400">Email</p>
-
-                    <a
-                      href="mailto:support@eshop.com"
-                      className="text-sm font-bold text-slate-800 hover:text-blue-600"
-                    >
-                      support@eshop.com
-                    </a>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white">
-                    ☎️
-                  </span>
-
-                  <div>
-                    <p className="text-xs font-bold text-slate-400">Phone</p>
-
-                    <a
-                      href="tel:+251900000000"
-                      className="text-sm font-bold text-slate-800 hover:text-blue-600"
-                    >
-                      +251 900 000 000
-                    </a>
-                  </div>
-                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Keep products you love.
+                </p>
               </div>
 
-              <Link
-                href="/profile"
-                className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-600"
+              <button
+                type="button"
+                onClick={openAIChatbot}
+                className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left backdrop-blur transition hover:border-blue-500/30 hover:bg-blue-500/10"
               >
-                Contact Support →
-              </Link>
-            </div>
+                <p className="text-2xl">🤖</p>
 
-            {/* DELIVERY */}
+                <p className="mt-4 text-sm font-black text-white">
+                  AI Assistant
+                </p>
 
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600 text-2xl text-white">
-                🚚
-              </div>
-
-              <p className="mt-5 text-xs font-black uppercase tracking-widest text-violet-600">
-                Delivery
-              </p>
-
-              <h3 className="mt-2 text-xl font-black text-slate-950">
-                Delivered to your door
-              </h3>
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Place your order online and we will prepare it for delivery.
-                Track your orders from your account.
-              </p>
-
-              <Link
-                href="/orders"
-                className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:border-violet-200 hover:text-violet-600"
-              >
-                Track My Orders →
-              </Link>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Get shopping recommendations.
+                </p>
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* =====================================================
-          FAQ
-      ===================================================== */}
+      {/* ====================================================== */}
+      {/* TRUST FEATURES */}
+      {/* ====================================================== */}
 
-      <section
-        id="faq"
-        className="scroll-mt-24 border-t border-slate-200 bg-slate-50"
-      >
-        <div className="mx-auto max-w-4xl px-5 py-16 md:px-8">
-          <div className="text-center">
-            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
-              Help Center
-            </p>
+      <section className="border-y border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-7xl divide-y divide-slate-200 px-5 md:grid-cols-3 md:divide-x md:divide-y-0 md:px-8">
+          <div className="flex items-center gap-4 py-7 md:px-8 md:first:pl-0">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xl">
+              🚚
+            </div>
 
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-              Frequently Asked Questions
-            </h2>
-
-            <p className="mt-3 text-sm text-slate-500">
-              Quick answers to common questions about shopping with E-Shop.
-            </p>
-          </div>
-
-          <div className="mt-10 space-y-4">
-            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <summary className="cursor-pointer list-none font-black text-slate-950">
-                How do I place an order?
-              </summary>
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Browse our products, add the items you want to your cart, review
-                your order and complete the checkout process.
-              </p>
-            </details>
-
-            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <summary className="cursor-pointer list-none font-black text-slate-950">
-                Can I save products for later?
-              </summary>
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Yes. Log in to your account and use the wishlist button to save
-                products you are interested in.
-              </p>
-            </details>
-
-            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <summary className="cursor-pointer list-none font-black text-slate-950">
-                How can I check my order?
-              </summary>
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Open the Orders section from your account to view your order
-                history and order status.
-              </p>
-            </details>
-
-            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <summary className="cursor-pointer list-none font-black text-slate-950">
-                How can I contact customer support?
-              </summary>
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                You can contact our support team using the contact information
-                provided in the Contact Us section.
-              </p>
-            </details>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          NEWSLETTER
-      ===================================================== */}
-
-      <section className="bg-blue-600">
-        <div className="mx-auto max-w-7xl px-5 py-14 md:px-8">
-          <div className="grid items-center gap-8 lg:grid-cols-2">
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-blue-200">
-                Stay Updated
+              <p className="text-sm font-black">Fast & reliable</p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Convenient delivery options
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 py-7 md:px-8">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-xl">
+              🔒
+            </div>
+
+            <div>
+              <p className="text-sm font-black">Secure shopping</p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Your account stays protected
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={openAIChatbot}
+            className="flex items-center gap-4 py-7 text-left md:px-8 md:last:pr-0"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-xl transition group-hover:scale-105">
+              🤖
+            </div>
+
+            <div>
+              <p className="text-sm font-black">AI shopping help</p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Smart recommendations anytime
+              </p>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      {/* ====================================================== */}
+      {/* NEWSLETTER */}
+      {/* ====================================================== */}
+
+      <section className="bg-slate-50 px-5 py-16 md:px-8 md:py-20">
+        <div className="mx-auto max-w-5xl rounded-4xl bg-blue-600 px-7 py-10 md:px-12 md:py-14">
+          <div className="grid items-center gap-8 lg:grid-cols-[1fr_.9fr]">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
+                Stay updated
               </p>
 
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-white">
-                Get the latest from E-Shop
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-white md:text-4xl">
+                Don't miss what is new.
               </h2>
 
               <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100">
-                Subscribe to receive new product announcements, shopping tips
-                and special updates.
+                Subscribe for new products, special updates and shopping
+                inspiration.
               </p>
             </div>
 
             <form
               onSubmit={handleNewsletterSubmit}
-              className="rounded-3xl bg-white/10 p-3 backdrop-blur"
+              className="rounded-2xl bg-white/10 p-2"
             >
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   type="email"
                   value={newsletterEmail}
-                  onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder="Enter your email address"
-                  className="h-14 flex-1 rounded-2xl border border-white/20 bg-white px-5 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:ring-4 focus:ring-white/20"
+                  onChange={(event) => setNewsletterEmail(event.target.value)}
+                  placeholder="Your email address"
+                  className="h-12 min-w-0 flex-1 rounded-xl bg-white px-4 text-sm font-medium text-slate-950 outline-none placeholder:text-slate-400"
                 />
 
                 <button
                   type="submit"
-                  className="h-14 rounded-2xl bg-slate-950 px-7 text-sm font-black text-white transition hover:bg-slate-800"
+                  className="h-12 rounded-xl bg-slate-950 px-6 text-sm font-black text-white transition hover:bg-slate-800"
                 >
                   Subscribe
                 </button>
               </div>
 
               {newsletterMessage && (
-                <p className="px-3 pt-3 text-xs font-bold text-white">
+                <p className="px-2 pt-2 text-xs font-bold text-white">
                   {newsletterMessage}
                 </p>
               )}
@@ -1534,103 +1517,40 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* =====================================================
-          FINAL CTA
-      ===================================================== */}
+      {/* ====================================================== */}
+      {/* FOOTER */}
+      {/* ====================================================== */}
 
-      <section className="bg-slate-950">
-        <div className="mx-auto max-w-7xl px-5 py-16 text-center md:px-8">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-3xl shadow-xl shadow-blue-950">
-            🛍️
-          </div>
-
-          <h2 className="mt-6 text-3xl font-black text-white md:text-4xl">
-            Ready to start shopping?
-          </h2>
-
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400">
-            Explore our collection, discover your favorites and enjoy a simple
-            online shopping experience.
-          </p>
-
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link
-              href="/products"
-              className="rounded-2xl bg-blue-600 px-7 py-3.5 text-sm font-black text-white transition hover:bg-blue-500"
-            >
-              Explore Products
-            </Link>
-
-            <Link
-              href="/categories"
-              className="rounded-2xl border border-slate-700 bg-slate-900 px-7 py-3.5 text-sm font-black text-white transition hover:bg-slate-800"
-            >
-              Browse Categories
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          PROFESSIONAL FOOTER
-      ===================================================== */}
-
-      <footer className="border-t border-slate-800 bg-slate-950 text-white">
+      <footer className="bg-slate-950 text-white">
         <div className="mx-auto max-w-7xl px-5 py-14 md:px-8">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
             {/* BRAND */}
 
             <div>
               <Link href="/" className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
                   🛍️
                 </div>
 
                 <div>
                   <p className="text-lg font-black">E-Shop</p>
 
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-slate-500">
                     Shop smarter
                   </p>
                 </div>
               </Link>
 
               <p className="mt-5 max-w-xs text-sm leading-6 text-slate-400">
-                Your modern online shopping destination for quality products,
-                great value and a better shopping experience.
+                A modern shopping destination built to make discovering and
+                buying products simple.
               </p>
-
-              <div className="mt-5 flex gap-2">
-                <a
-                  href="#"
-                  aria-label="Facebook"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-black text-slate-300 transition hover:bg-blue-600 hover:text-white"
-                >
-                  f
-                </a>
-
-                <a
-                  href="#"
-                  aria-label="Instagram"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-black text-slate-300 transition hover:bg-pink-600 hover:text-white"
-                >
-                  ◎
-                </a>
-
-                <a
-                  href="#"
-                  aria-label="Twitter"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-black text-slate-300 transition hover:bg-sky-500 hover:text-white"
-                >
-                  𝕏
-                </a>
-              </div>
             </div>
 
             {/* SHOP */}
 
             <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-white">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em]">
                 Shop
               </h3>
 
@@ -1662,6 +1582,23 @@ export default function HomePage() {
                 >
                   Shopping Cart
                 </Link>
+              </div>
+            </div>
+
+            {/* ACCOUNT */}
+
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-[0.2em]">
+                Account
+              </h3>
+
+              <div className="mt-5 space-y-3">
+                <Link
+                  href="/profile"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  My Profile
+                </Link>
 
                 <Link
                   href="/orders"
@@ -1669,146 +1606,68 @@ export default function HomePage() {
                 >
                   My Orders
                 </Link>
-              </div>
-            </div>
 
-            {/* COMPANY */}
-
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-white">
-                Company
-              </h3>
-
-              <div className="mt-5 space-y-3">
-                <a
-                  href="#about"
+                <Link
+                  href="/login"
                   className="block text-sm text-slate-400 transition hover:text-white"
                 >
-                  About Us
-                </a>
-
-                <a
-                  href="#contact"
-                  className="block text-sm text-slate-400 transition hover:text-white"
-                >
-                  Contact Us
-                </a>
-
-                <a
-                  href="#faq"
-                  className="block text-sm text-slate-400 transition hover:text-white"
-                >
-                  FAQ
-                </a>
-
-                <a
-                  href="#"
-                  className="block text-sm text-slate-400 transition hover:text-white"
-                >
-                  Privacy Policy
-                </a>
-
-                <a
-                  href="#"
-                  className="block text-sm text-slate-400 transition hover:text-white"
-                >
-                  Terms & Conditions
-                </a>
+                  Login
+                </Link>
               </div>
             </div>
 
             {/* CONTACT */}
 
             <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-white">
-                Get In Touch
+              <h3 className="text-xs font-black uppercase tracking-[0.2em]">
+                Contact
               </h3>
 
               <div className="mt-5 space-y-4">
-                <div className="flex gap-3">
-                  <span className="text-lg">📍</span>
+                <div>
+                  <p className="text-xs font-bold text-slate-600">Email</p>
 
-                  <div>
-                    <p className="text-xs font-bold text-slate-500">Location</p>
-
-                    <p className="mt-1 text-sm text-slate-400">Main Store</p>
-                  </div>
+                  <a
+                    href="mailto:support@eshop.com"
+                    className="mt-1 block text-sm text-slate-400 transition hover:text-white"
+                  >
+                    support@eshop.com
+                  </a>
                 </div>
 
-                <div className="flex gap-3">
-                  <span className="text-lg">📧</span>
+                <div>
+                  <p className="text-xs font-bold text-slate-600">Phone</p>
 
-                  <div>
-                    <p className="text-xs font-bold text-slate-500">Email</p>
-
-                    <a
-                      href="mailto:support@eshop.com"
-                      className="mt-1 block text-sm text-slate-400 hover:text-white"
-                    >
-                      support@eshop.com
-                    </a>
-                  </div>
+                  <a
+                    href="tel:+251900000000"
+                    className="mt-1 block text-sm text-slate-400 transition hover:text-white"
+                  >
+                    +251 900 000 000
+                  </a>
                 </div>
 
-                <div className="flex gap-3">
-                  <span className="text-lg">📞</span>
-
-                  <div>
-                    <p className="text-xs font-bold text-slate-500">Phone</p>
-
-                    <a
-                      href="tel:+251900000000"
-                      className="mt-1 block text-sm text-slate-400 hover:text-white"
-                    >
-                      +251 900 000 000
-                    </a>
-                  </div>
-                </div>
+                <p className="text-sm text-slate-400">📍 Main Store</p>
               </div>
             </div>
           </div>
 
-          {/* FOOTER BOTTOM */}
+          <div className="mt-12 flex flex-col gap-3 border-t border-slate-800 pt-7 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+            <p className="text-xs text-slate-500">
+              © 2026 E-Shop. All rights reserved.
+            </p>
 
-          <div className="mt-12 border-t border-slate-800 pt-7">
-            <div className="flex flex-col gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-              <p className="text-xs text-slate-500">
-                © 2026 E-Shop. All rights reserved.
-              </p>
-
-              <div className="flex flex-wrap justify-center gap-5 sm:justify-end">
-                <a
-                  href="#"
-                  className="text-xs text-slate-500 transition hover:text-white"
-                >
-                  Privacy
-                </a>
-
-                <a
-                  href="#"
-                  className="text-xs text-slate-500 transition hover:text-white"
-                >
-                  Terms
-                </a>
-
-                <a
-                  href="#contact"
-                  className="text-xs text-slate-500 transition hover:text-white"
-                >
-                  Contact
-                </a>
-
-                <a
-                  href="#about"
-                  className="text-xs text-slate-500 transition hover:text-white"
-                >
-                  About
-                </a>
-              </div>
-            </div>
+            <p className="text-xs text-slate-500">
+              Built for a better shopping experience.
+            </p>
           </div>
         </div>
       </footer>
+
+      {/* ====================================================== */}
+      {/* FLOATING AI CHATBOT */}
+      {/* ====================================================== */}
+
+      <Chatbot />
     </div>
   );
 }
