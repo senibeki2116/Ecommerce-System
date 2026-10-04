@@ -7,16 +7,18 @@ import { useCart } from "../app/Context/CartContext";
 const AI_API_URL =
   process.env.NEXT_PUBLIC_AI_API_URL || "http://127.0.0.1:8000";
 
-const BACKEND_URL = "http://localhost:3001";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 type Product = {
   id: number;
   name: string;
   description?: string | null;
   price: number;
-  stock: number;
+  stock?: number;
   image?: string | null;
-  category?: string | null;
+  images?: string[];
+  imageUrl?: string | null;
+  category?: string | { id?: number; name?: string } | null;
 };
 
 type Message = {
@@ -25,25 +27,16 @@ type Message = {
   products?: Product[];
 };
 
-type SpeechRecognitionEventLike = Event & {
-  results: {
-    [index: number]: {
-      [index: number]: {
-        transcript: string;
-      };
-    };
-  };
-};
-
 type SpeechRecognitionInstance = {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
   start: () => void;
   stop: () => void;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onstart: (() => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: unknown) => void) | null;
+  onresult: ((event: unknown) => void) | null;
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
@@ -55,12 +48,18 @@ declare global {
   }
 }
 
-const quickQuestions = [
+const QUICK_QUESTIONS = [
   "Show me phones",
   "What do you recommend?",
   "Show products under $100",
   "Compare laptops",
 ];
+
+const INITIAL_MESSAGE: Message = {
+  role: "assistant",
+  content:
+    "Hi! 👋 I'm your ShopEase AI assistant. I can help you find products, compare items, check prices, manage your cart, and choose something that fits your needs.",
+};
 
 function cleanMarkdown(text: string): string {
   return text
@@ -73,75 +72,124 @@ function cleanMarkdown(text: string): string {
     .trim();
 }
 
-function isComparisonMessage(message: string): boolean {
-  const text = message.toLowerCase();
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[^\w\s$.-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isComparisonMessage(text: string): boolean {
+  const normalized = text.toLowerCase();
 
   return (
-    text.includes("compare") ||
-    text.includes("comparison") ||
-    text.includes("difference between") ||
-    text.includes("versus") ||
-    text.includes(" vs ")
+    /\bcompare\b/.test(normalized) ||
+    /\bcomparison\b/.test(normalized) ||
+    /\bdifference\b/.test(normalized) ||
+    /\bversus\b/.test(normalized) ||
+    /\bvs\b/.test(normalized) ||
+    /\bwhich one is better\b/.test(normalized) ||
+    /\bwhich is better\b/.test(normalized)
   );
 }
 
-function getProductImage(product: Product): string {
-  if (product.image) {
-    if (product.image.startsWith("http")) {
-      return product.image;
-    }
+function getCategoryName(
+  category?: string | { id?: number; name?: string } | null,
+): string {
+  if (!category) return "Product";
 
-    return `${BACKEND_URL}${product.image.startsWith("/") ? "" : "/"}${
-      product.image
-    }`;
+  if (typeof category === "string") {
+    return category;
   }
 
-  return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600";
+  return category.name || "Product";
+}
+
+function getProductImage(product: {
+  image?: string | null;
+  images?: string[];
+  imageUrl?: string | null;
+}): string {
+  const image =
+    product.image ||
+    product.imageUrl ||
+    (product.images && product.images.length > 0 ? product.images[0] : null);
+
+  if (!image) {
+    return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop";
+  }
+
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  return `${BACKEND_URL}${image.startsWith("/") ? "" : "/"}${image}`;
 }
 
 export default function Chatbot() {
-  const { addToCart } = useCart();
+  const {
+    cart,
+    cartCount,
+    cartTotal,
+    loading: cartLoading,
+    addToCart,
+    removeFromCart,
+    increaseQuantity,
+    decreaseQuantity,
+    clearCart,
+  } = useCart();
 
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showCartSummary, setShowCartSummary] = useState(false);
+  const [clearCartPending, setClearCartPending] = useState(false);
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi! 👋 I'm your ShopEase AI assistant. I can help you find products, compare items, check prices, and choose something that fits your needs.",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
-  // Auto scroll
+  /*
+   * ---------------------------------------------------------
+   * AUTO SCROLL
+   * ---------------------------------------------------------
+   */
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
     });
   }, [messages, isLoading]);
 
-  // Focus input when opening
+  /*
+   * ---------------------------------------------------------
+   * FOCUS INPUT
+   * ---------------------------------------------------------
+   */
+
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
         inputRef.current?.focus();
-      }, 150);
+      }, 100);
     }
   }, [isOpen]);
 
-  // Stop speech when component unmounts
+  /*
+   * ---------------------------------------------------------
+   * CLEANUP
+   * ---------------------------------------------------------
+   */
+
   useEffect(() => {
     return () => {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      window.speechSynthesis?.cancel();
 
       if (recognitionRef.current) {
         recognitionRef.current.stop();
@@ -149,20 +197,20 @@ export default function Chatbot() {
     };
   }, []);
 
+  /*
+   * ---------------------------------------------------------
+   * TEXT TO SPEECH
+   * ---------------------------------------------------------
+   */
+
   const speakText = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      return;
-    }
+    if (typeof window === "undefined") return;
 
     window.speechSynthesis.cancel();
 
-    const cleanText = cleanMarkdown(text);
+    const cleaned = cleanMarkdown(text);
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
+    const utterance = new SpeechSynthesisUtterance(cleaned);
 
     utterance.onstart = () => {
       setIsSpeaking(true);
@@ -180,30 +228,38 @@ export default function Chatbot() {
   };
 
   const stopSpeaking = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
+    if (typeof window === "undefined") return;
+
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
   };
 
+  /*
+   * ---------------------------------------------------------
+   * VOICE INPUT
+   * ---------------------------------------------------------
+   */
+
   const startVoiceInput = () => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
 
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert(
-        "Voice input is not supported in this browser. Please use Google Chrome or Microsoft Edge.",
-      );
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            "Voice input is not supported by your browser. Please use Chrome or Edge.",
+        },
+      ]);
       return;
     }
 
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+    if (isListening) {
+      recognitionRef.current?.stop();
       return;
     }
 
@@ -213,12 +269,8 @@ export default function Chatbot() {
     recognition.interimResults = false;
     recognition.lang = "en-US";
 
-    recognition.onresult = (event: SpeechRecognitionEventLike) => {
-      const transcript = event.results[0]?.[0]?.transcript;
-
-      if (transcript) {
-        setInput(transcript);
-      }
+    recognition.onstart = () => {
+      setIsListening(true);
     };
 
     recognition.onend = () => {
@@ -229,27 +281,90 @@ export default function Chatbot() {
       setIsListening(false);
     };
 
+    recognition.onresult = (event: unknown) => {
+      const speechEvent = event as {
+        results: {
+          [key: number]: {
+            [key: number]: {
+              transcript: string;
+            };
+          };
+        };
+      };
+
+      const transcript = speechEvent.results?.[0]?.[0]?.transcript || "";
+
+      if (transcript) {
+        setInput(transcript);
+      }
+    };
+
     recognitionRef.current = recognition;
 
-    setIsListening(true);
-    recognition.start();
-  };
-
-  const handleAddToCart = (product: Product) => {
     try {
-      addToCart({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.image || "",
-        stock: product.stock,
-      } as never);
-    } catch (error) {
-      console.error("Add to cart error:", error);
+      recognition.start();
+    } catch {
+      setIsListening(false);
     }
   };
 
-  const fetchFallbackProducts = async (): Promise<Product[]> => {
+  /*
+   * ---------------------------------------------------------
+   * ADD PRODUCT TO CART
+   * ---------------------------------------------------------
+   */
+
+  const handleAddToCart = async (product: Product) => {
+    if ((product.stock ?? 0) <= 0) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Sorry, ${product.name} is currently out of stock.`,
+        },
+      ]);
+
+      return;
+    }
+
+    try {
+      await addToCart({
+        id: product.id,
+        name: product.name,
+        description: product.description || "",
+        price: Number(product.price),
+        stock: product.stock ?? 0,
+        image: product.image || null,
+        images: product.images,
+        imageUrl: product.imageUrl || null,
+        category: product.category || null,
+      });
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `🛒 ${product.name} has been added to your cart.`,
+        },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `I couldn't add ${product.name} to your cart. Please try again.`,
+        },
+      ]);
+    }
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * FETCH PRODUCTS
+   * ---------------------------------------------------------
+   */
+
+  const fetchProducts = async (): Promise<Product[]> => {
     try {
       const response = await fetch(`${BACKEND_URL}/products`);
 
@@ -263,35 +378,900 @@ export default function Chatbot() {
         return data;
       }
 
-      if (Array.isArray(data?.products)) {
+      if (Array.isArray(data.products)) {
         return data.products;
       }
 
       return [];
-    } catch (error) {
-      console.error("Fallback product fetch failed:", error);
+    } catch {
       return [];
     }
   };
 
-  const sendMessage = async (messageText?: string) => {
-    const text = (messageText ?? input).trim();
+  /*
+   * ---------------------------------------------------------
+   * FIND CART PRODUCT
+   * ---------------------------------------------------------
+   */
 
-    if (!text || isLoading) {
+  const findCartProduct = (text: string) => {
+    const normalized = normalizeText(text);
+
+    return cart.find((item: any) => {
+      const productName = normalizeText(item.name || "");
+
+      if (!productName) return false;
+
+      if (normalized.includes(productName)) {
+        return true;
+      }
+
+      const words = productName
+        .split(" ")
+        .filter((word: string) => word.length > 2);
+
+      return words.some((word: string) => normalized.includes(word));
+    });
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * FIND LAST PRODUCTS SHOWN BY ASSISTANT
+   *
+   * This is the memory that allows:
+   *
+   * "Show me phones"
+   * "Add the first one"
+   *
+   * ---------------------------------------------------------
+   */
+
+  const getLatestShownProducts = (): Product[] => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+
+      if (
+        message.role === "assistant" &&
+        message.products &&
+        message.products.length > 0
+      ) {
+        return message.products;
+      }
+    }
+
+    return [];
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * FIND REFERENCED PRODUCT
+   * ---------------------------------------------------------
+   */
+
+  const findReferencedProduct = (text: string): Product | null => {
+    const normalized = normalizeText(text);
+
+    const products = getLatestShownProducts();
+
+    if (!products.length) {
+      return null;
+    }
+
+    const positions: Array<[RegExp, number]> = [
+      [/\b(first|1st|one)\b/, 0],
+      [/\b(second|2nd|two)\b/, 1],
+      [/\b(third|3rd|three)\b/, 2],
+      [/\b(fourth|4th|four)\b/, 3],
+      [/\b(fifth|5th|five)\b/, 4],
+      [/\b(sixth|6th|six)\b/, 5],
+    ];
+
+    for (const [pattern, index] of positions) {
+      if (pattern.test(normalized)) {
+        return products[index] || null;
+      }
+    }
+
+    const genericReference =
+      /\b(that one|this one|that product|this product|that phone|this phone|that laptop|this laptop|it)\b/.test(
+        normalized,
+      );
+
+    if (genericReference) {
+      return products[0] || null;
+    }
+
+    const namedProduct = products.find((product) =>
+      normalized.includes(normalizeText(product.name)),
+    );
+
+    return namedProduct || null;
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * PRODUCT REFERENCE ACTIONS
+   *
+   * Examples:
+   *
+   * Add the first one
+   * Buy the second one
+   * Remove that phone
+   * Increase the first one
+   * Decrease the second one
+   * ---------------------------------------------------------
+   */
+
+  const handleProductReferenceAction = async (
+    text: string,
+  ): Promise<boolean> => {
+    const normalized = normalizeText(text);
+
+    const referencePattern =
+      /\b(first|1st|one|second|2nd|two|third|3rd|three|fourth|4th|fourth|four|fifth|5th|five|sixth|6th|six|that one|this one|that product|this product|that phone|this phone|that laptop|this laptop|it)\b/;
+
+    const latestProducts = getLatestShownProducts();
+
+    const namedReference =
+      latestProducts.length > 0 &&
+      latestProducts.some((product) =>
+        normalized.includes(normalizeText(product.name)),
+      );
+
+    const hasReference = referencePattern.test(normalized) || namedReference;
+
+    if (!hasReference) {
+      return false;
+    }
+
+    const product = findReferencedProduct(text);
+
+    if (!product) {
+      return false;
+    }
+
+    const wantsAdd = /\b(add|buy|purchase|get|put|place)\b/.test(normalized);
+
+    const wantsRemove = /\b(remove|delete|take out)\b/.test(normalized);
+
+    const wantsIncrease = /\b(increase|raise|more|add another)\b/.test(
+      normalized,
+    );
+
+    const wantsDecrease = /\b(decrease|reduce|less|lower)\b/.test(normalized);
+
+    /*
+     * ADD
+     */
+
+    if (wantsAdd) {
+      await handleAddToCart(product);
+      return true;
+    }
+
+    /*
+     * REMOVE
+     */
+
+    if (wantsRemove) {
+      const cartItem = cart.find(
+        (item: any) => Number(item.id) === Number(product.id),
+      );
+
+      if (!cartItem) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `${product.name} is not currently in your cart.`,
+          },
+        ]);
+
+        return true;
+      }
+
+      try {
+        await removeFromCart(cartItem.id);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `🗑️ ${product.name} has been removed from your cart.`,
+          },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `I couldn't remove ${product.name} from your cart.`,
+          },
+        ]);
+      }
+
+      return true;
+    }
+
+    /*
+     * INCREASE
+     */
+
+    if (wantsIncrease) {
+      const cartItem = cart.find(
+        (item: any) => Number(item.id) === Number(product.id),
+      );
+
+      if (!cartItem) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `${product.name} is not currently in your cart.`,
+          },
+        ]);
+
+        return true;
+      }
+
+      try {
+        await increaseQuantity(cartItem.id);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `➕ Increased the quantity of ${product.name}.`,
+          },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `I couldn't increase the quantity of ${product.name}.`,
+          },
+        ]);
+      }
+
+      return true;
+    }
+
+    /*
+     * DECREASE
+     */
+
+    if (wantsDecrease) {
+      const cartItem = cart.find(
+        (item: any) => Number(item.id) === Number(product.id),
+      );
+
+      if (!cartItem) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `${product.name} is not currently in your cart.`,
+          },
+        ]);
+
+        return true;
+      }
+
+      try {
+        await decreaseQuantity(cartItem.id);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `➖ Decreased the quantity of ${product.name}.`,
+          },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `I couldn't decrease the quantity of ${product.name}.`,
+          },
+        ]);
+      }
+
+      return true;
+    }
+
+    return false;
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * CART COMMANDS
+   * ---------------------------------------------------------
+   */
+
+  const handleCartQuestion = async (text: string): Promise<boolean> => {
+    const normalized = normalizeText(text);
+
+    /*
+     * IMPORTANT:
+     *
+     * Check pending confirmation BEFORE checking whether
+     * the message contains "cart".
+     *
+     * This fixes:
+     *
+     * "Clear my cart"
+     * "Are you sure?"
+     * "Yes"
+     */
+
+    if (clearCartPending) {
+      const confirmed =
+        /^(yes|yes clear it|confirm|do it|clear it|okay clear it)$/i.test(
+          normalized,
+        );
+
+      const cancelled = /^(no|cancel|don't|do not|keep it|never mind)$/i.test(
+        normalized,
+      );
+
+      if (confirmed) {
+        try {
+          await clearCart();
+
+          setClearCartPending(false);
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "🧹 Your cart has been cleared.",
+            },
+          ]);
+        } catch {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "I couldn't clear your cart. Please try again.",
+            },
+          ]);
+        }
+
+        return true;
+      }
+
+      if (cancelled) {
+        setClearCartPending(false);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "No problem 👍 I kept everything in your cart.",
+          },
+        ]);
+
+        return true;
+      }
+    }
+
+    const isCartQuestion =
+      /\bcart\b/.test(normalized) || /\bbasket\b/.test(normalized);
+
+    if (!isCartQuestion) {
+      return false;
+    }
+
+    /*
+     * SHOW CART
+     */
+
+    if (
+      normalized.includes("what") ||
+      normalized.includes("show") ||
+      normalized.includes("items") ||
+      normalized.includes("contents")
+    ) {
+      if (!cart.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "🛒 Your cart is currently empty.",
+          },
+        ]);
+      } else {
+        const itemText = cart
+          .map((item: any) => `• ${item.name} × ${item.quantity || 1}`)
+          .join("\n");
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `🛒 Here's what's in your cart:\n\n${itemText}\n\nTotal: $${Number(
+              cartTotal,
+            ).toFixed(2)}`,
+          },
+        ]);
+      }
+
+      return true;
+    }
+
+    /*
+     * TOTAL
+     */
+
+    if (normalized.includes("total") || normalized.includes("how much")) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `🧾 Your cart total is $${Number(cartTotal).toFixed(2)}.`,
+        },
+      ]);
+
+      return true;
+    }
+
+    /*
+     * CLEAR CART
+     */
+
+    if (normalized.includes("clear") || normalized.includes("empty")) {
+      if (!cart.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Your cart is already empty.",
+          },
+        ]);
+
+        return true;
+      }
+
+      setClearCartPending(true);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            "⚠️ Are you sure you want to clear your entire cart? Reply “yes” to confirm or “no” to cancel.",
+        },
+      ]);
+
+      return true;
+    }
+
+    /*
+     * REMOVE PRODUCT BY NAME
+     */
+
+    if (
+      normalized.includes("remove") ||
+      normalized.includes("delete") ||
+      normalized.includes("take out")
+    ) {
+      const cartItem = findCartProduct(text);
+
+      if (!cartItem) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              "I couldn't identify which cart item you want to remove. Try saying something like: “Remove the iPhone 17 from my cart.”",
+          },
+        ]);
+
+        return true;
+      }
+
+      try {
+        await removeFromCart(cartItem.id);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `🗑️ ${cartItem.name} has been removed from your cart.`,
+          },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "I couldn't remove that item from your cart.",
+          },
+        ]);
+      }
+
+      return true;
+    }
+
+    /*
+     * INCREASE PRODUCT BY NAME
+     */
+
+    if (
+      normalized.includes("increase") ||
+      normalized.includes("add another") ||
+      normalized.includes("one more")
+    ) {
+      const cartItem = findCartProduct(text);
+
+      if (!cartItem) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              "I couldn't identify the product whose quantity you want to increase.",
+          },
+        ]);
+
+        return true;
+      }
+
+      try {
+        await increaseQuantity(cartItem.id);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `➕ Increased the quantity of ${cartItem.name}.`,
+          },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "I couldn't increase that product's quantity.",
+          },
+        ]);
+      }
+
+      return true;
+    }
+
+    /*
+     * DECREASE PRODUCT BY NAME
+     */
+
+    if (
+      normalized.includes("decrease") ||
+      normalized.includes("reduce") ||
+      normalized.includes("one less")
+    ) {
+      const cartItem = findCartProduct(text);
+
+      if (!cartItem) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content:
+              "I couldn't identify the product whose quantity you want to decrease.",
+          },
+        ]);
+
+        return true;
+      }
+
+      try {
+        await decreaseQuantity(cartItem.id);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `➖ Decreased the quantity of ${cartItem.name}.`,
+          },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "I couldn't decrease that product's quantity.",
+          },
+        ]);
+      }
+
+      return true;
+    }
+
+    /*
+     * GENERIC CART MESSAGE
+     */
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `🛒 You currently have ${cartCount} ${
+          cartCount === 1 ? "item" : "items"
+        } in your cart, with a total of $${Number(cartTotal).toFixed(2)}.
+
+You can ask me:
+• “What's in my cart?”
+• “How much is my cart?”
+• “Remove the iPhone 17”
+• “Increase the headphones quantity”`,
+      },
+    ]);
+
+    return true;
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * NORMAL CONVERSATION DETECTION
+   *
+   * This is VERY IMPORTANT.
+   *
+   * "thanks", "thank you", "okay", etc. should not receive
+   * product cards.
+   * ---------------------------------------------------------
+   */
+
+  const getLocalConversationReply = (text: string): string | null => {
+    const normalized = normalizeText(text);
+
+    /*
+     * THANK YOU
+     */
+
+    if (
+      /^(thanks|thank you|thank's|thx|thanks a lot|thank you so much|many thanks)$/.test(
+        normalized,
+      )
+    ) {
+      return "You're welcome! 😊 Let me know if you need anything else.";
+    }
+
+    /*
+     * GOODBYE
+     */
+
+    if (/^(bye|goodbye|see you|see ya|talk to you later)$/.test(normalized)) {
+      return "Goodbye! 👋 Have a great day and come back anytime.";
+    }
+
+    /*
+     * GREETING
+     */
+
+    if (
+      /^(hi|hello|hey|hey there|good morning|good afternoon|good evening)$/.test(
+        normalized,
+      )
+    ) {
+      return "Hi! 👋 What can I help you find today?";
+    }
+
+    /*
+     * SIMPLE ACKNOWLEDGEMENT
+     */
+
+    if (
+      /^(okay|ok|alright|great|perfect|cool|nice|got it|understood)$/.test(
+        normalized,
+      )
+    ) {
+      return "Great! 😊 I'm here whenever you need help.";
+    }
+
+    return null;
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * DETECT WHETHER USER ACTUALLY WANTS PRODUCTS
+   *
+   * We do NOT simply trust data.products from the AI.
+   *
+   * This prevents old product recommendations from appearing
+   * after "thanks", "okay", etc.
+   * ---------------------------------------------------------
+   */
+
+  const isProductRequest = (
+    text: string,
+    previousMessages: Message[],
+  ): boolean => {
+    const normalized = normalizeText(text);
+
+    /*
+     * Explicit product searches
+     */
+
+    const explicitProductWords =
+      /\b(product|products|phone|phones|smartphone|smartphones|laptop|laptops|computer|computers|keyboard|keyboards|headphone|headphones|tablet|tablets|camera|cameras|monitor|monitors|watch|watches|electronics|accessories)\b/;
+
+    if (explicitProductWords.test(normalized)) {
+      return true;
+    }
+
+    /*
+     * Price/product requests
+     */
+
+    if (
+      /\b(under|below|less than|cheaper|cheap|price|cost|expensive|affordable|budget)\b/.test(
+        normalized,
+      )
+    ) {
+      return true;
+    }
+
+    /*
+     * Recommendations
+     */
+
+    if (
+      /\b(recommend|recommendation|suggest|suggestion|best|better)\b/.test(
+        normalized,
+      )
+    ) {
+      return true;
+    }
+
+    /*
+     * Comparison
+     */
+
+    if (isComparisonMessage(text)) {
+      return true;
+    }
+
+    /*
+     * Product actions
+     */
+
+    if (
+      /\b(add|buy|purchase|remove|delete|increase|decrease)\b/.test(normalized)
+    ) {
+      return true;
+    }
+
+    /*
+     * Follow-up references such as:
+     *
+     * "Which one is better?"
+     * "What about the second one?"
+     *
+     * But only when products were actually shown before.
+     */
+
+    const hasPreviousProducts = previousMessages.some(
+      (message) =>
+        message.role === "assistant" &&
+        message.products &&
+        message.products.length > 0,
+    );
+
+    if (
+      hasPreviousProducts &&
+      /\b(one|first|second|third|fourth|fifth|sixth|that|this|it)\b/.test(
+        normalized,
+      )
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * SEND MESSAGE
+   * ---------------------------------------------------------
+   */
+
+  const sendMessage = async (customText?: string) => {
+    const text = (customText ?? input).trim();
+
+    if (!text || isLoading || cartLoading) {
       return;
     }
 
+    /*
+     * Save history BEFORE adding the current user message.
+     */
+
+    const history = messages.slice(-10).map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+
+    /*
+     * Determine intent BEFORE modifying messages.
+     */
+
+    const productRequest = isProductRequest(text, messages);
+
+    const localReply = getLocalConversationReply(text);
+
     setInput("");
 
-    const userMessage: Message = {
-      role: "user",
-      content: text,
-    };
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: text,
+      },
+    ]);
 
-    setMessages((previous) => [...previous, userMessage]);
+    /*
+     * -------------------------------------------------------
+     * LOCAL NORMAL CONVERSATION
+     *
+     * "thanks" will stop here.
+     *
+     * No AI product response.
+     * No product cards.
+     * -------------------------------------------------------
+     */
+
+    if (localReply) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: localReply,
+        },
+      ]);
+
+      return;
+    }
+
     setIsLoading(true);
 
     try {
+      /*
+       * -----------------------------------------------------
+       * PRODUCT REFERENCE ACTION
+       *
+       * Example:
+       * "add the first one"
+       * -----------------------------------------------------
+       */
+
+      const handledReference = await handleProductReferenceAction(text);
+
+      if (handledReference) {
+        return;
+      }
+
+      /*
+       * -----------------------------------------------------
+       * CART COMMAND
+       * -----------------------------------------------------
+       */
+
+      const handledCart = await handleCartQuestion(text);
+
+      if (handledCart) {
+        return;
+      }
+
+      /*
+       * -----------------------------------------------------
+       * AI REQUEST
+       *
+       * Conversation history is now included.
+       * -----------------------------------------------------
+       */
+
       const response = await fetch(`${AI_API_URL}/chat`, {
         method: "POST",
         headers: {
@@ -299,6 +1279,7 @@ export default function Chatbot() {
         },
         body: JSON.stringify({
           message: text,
+          history,
         }),
       });
 
@@ -308,55 +1289,111 @@ export default function Chatbot() {
 
       const data = await response.json();
 
-      let products: Product[] = Array.isArray(data?.products)
-        ? data.products
-        : [];
+      let reply =
+        data.reply ||
+        data.message ||
+        "I'm sorry, I couldn't generate a response.";
 
-      // If AI returns no products for a product-related question,
-      // try the backend as a fallback.
+      reply = cleanMarkdown(String(reply));
+
+      /*
+       * -----------------------------------------------------
+       * IMPORTANT PRODUCT FIX
+       *
+       * We only accept products from the AI when the CURRENT
+       * user message actually asks about products.
+       *
+       * This prevents:
+       *
+       * "thanks"
+       *
+       * from displaying old product cards.
+       * -----------------------------------------------------
+       */
+
+      let products: Product[] = [];
+
+      if (productRequest && Array.isArray(data.products)) {
+        products = data.products;
+      }
+
+      /*
+       * -----------------------------------------------------
+       * FALLBACK PRODUCT SEARCH
+       *
+       * Only run this if the user actually asked for products.
+       * Never run this for normal conversation.
+       * -----------------------------------------------------
+       */
+
       if (
+        productRequest &&
         products.length === 0 &&
-        (text.toLowerCase().includes("product") ||
-          text.toLowerCase().includes("phone") ||
-          text.toLowerCase().includes("laptop") ||
-          text.toLowerCase().includes("camera") ||
-          text.toLowerCase().includes("headphone") ||
-          text.toLowerCase().includes("show me") ||
-          text.toLowerCase().includes("recommend") ||
-          text.toLowerCase().includes("compare"))
+        !isComparisonMessage(text)
       ) {
-        const fallbackProducts = await fetchFallbackProducts();
+        const allProducts = await fetchProducts();
 
-        if (fallbackProducts.length > 0) {
-          products = fallbackProducts.slice(0, 6);
+        if (allProducts.length > 0) {
+          const normalized = normalizeText(text);
+
+          const keywords = normalized
+            .split(" ")
+            .filter((word) => word.length > 2);
+
+          const filtered = allProducts.filter((product) => {
+            const productText = normalizeText(
+              `${product.name} ${
+                product.description || ""
+              } ${getCategoryName(product.category)}`,
+            );
+
+            return keywords.some((keyword) => productText.includes(keyword));
+          });
+
+          products =
+            filtered.length > 0
+              ? filtered.slice(0, 6)
+              : allProducts.slice(0, 6);
         }
       }
 
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: cleanMarkdown(
-          data?.reply ||
-            "I'm sorry, I couldn't find an answer. Please try asking in another way.",
-        ),
-        products,
-      };
+      /*
+       * -----------------------------------------------------
+       * AI RESPONSE
+       *
+       * If productRequest is FALSE, products is ALWAYS [].
+       * -----------------------------------------------------
+       */
 
-      setMessages((previous) => [...previous, assistantMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: reply,
+          products: products.length > 0 ? products : undefined,
+        },
+      ]);
     } catch (error) {
       console.error("Chatbot error:", error);
 
-      setMessages((previous) => [
-        ...previous,
+      setMessages((prev) => [
+        ...prev,
         {
           role: "assistant",
           content:
-            "I'm having trouble connecting to the AI assistant right now. Please make sure the AI service is running on port 8000.",
+            "Sorry 😕 I couldn't connect to the AI assistant right now. Please make sure the AI service is running on port 8000.",
         },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  /*
+   * ---------------------------------------------------------
+   * ENTER KEY
+   * ---------------------------------------------------------
+   */
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -365,98 +1402,67 @@ export default function Chatbot() {
     }
   };
 
+  /*
+   * ---------------------------------------------------------
+   * CLEAR CHAT
+   * ---------------------------------------------------------
+   */
+
   const clearChat = () => {
     stopSpeaking();
+    setClearCartPending(false);
 
-    setMessages([
-      {
-        role: "assistant",
-        content:
-          "Chat cleared! 👋 What are you looking for today? I can help you find products, compare items, or recommend something.",
-      },
-    ]);
-
-    setInput("");
+    setMessages([INITIAL_MESSAGE]);
   };
 
-  const renderComparison = (products: Product[]) => {
-    if (products.length < 2) {
-      return null;
-    }
+  /*
+   * ---------------------------------------------------------
+   * PRODUCT COMPARISON
+   * ---------------------------------------------------------
+   */
 
+  const renderComparison = (products: Product[]) => {
     const comparisonProducts = products.slice(0, 4);
 
     return (
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">⚖️</span>
-            <h3 className="font-semibold text-slate-800">Product Comparison</h3>
-          </div>
-        </div>
-
+      <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200">
-                <th className="px-4 py-3 font-semibold text-slate-600">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 font-semibold text-gray-700">
                   Product
                 </th>
-
-                {comparisonProducts.map((product) => (
-                  <th
-                    key={product.id}
-                    className="min-w-[150px] px-4 py-3 font-semibold text-slate-800"
-                  >
-                    {product.name}
-                  </th>
-                ))}
+                <th className="px-4 py-3 font-semibold text-gray-700">Price</th>
+                <th className="px-4 py-3 font-semibold text-gray-700">Stock</th>
+                <th className="px-4 py-3 font-semibold text-gray-700">
+                  Category
+                </th>
               </tr>
             </thead>
 
             <tbody>
-              <tr className="border-b border-slate-100">
-                <td className="px-4 py-3 font-medium text-slate-500">Price</td>
+              {comparisonProducts.map((product) => (
+                <tr key={product.id} className="border-t border-gray-100">
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    {product.name}
+                  </td>
 
-                {comparisonProducts.map((product) => (
-                  <td
-                    key={product.id}
-                    className="px-4 py-3 font-bold text-indigo-600"
-                  >
+                  <td className="px-4 py-3 font-semibold text-green-600">
                     ${Number(product.price).toFixed(2)}
                   </td>
-                ))}
-              </tr>
 
-              <tr className="border-b border-slate-100">
-                <td className="px-4 py-3 font-medium text-slate-500">Stock</td>
-
-                {comparisonProducts.map((product) => (
-                  <td key={product.id} className="px-4 py-3">
-                    {product.stock > 0 ? (
-                      <span className="font-medium text-emerald-600">
-                        {product.stock} available
-                      </span>
-                    ) : (
-                      <span className="font-medium text-red-500">
-                        Out of stock
-                      </span>
-                    )}
+                  <td className="px-4 py-3">
+                    {(product.stock ?? 0) > 0
+                      ? `${product.stock} left`
+                      : "Out of stock"}
                   </td>
-                ))}
-              </tr>
 
-              <tr>
-                <td className="px-4 py-3 font-medium text-slate-500">
-                  Category
-                </td>
-
-                {comparisonProducts.map((product) => (
-                  <td key={product.id} className="px-4 py-3 text-slate-700">
-                    {product.category || "General"}
+                  <td className="px-4 py-3 text-gray-600">
+                    {getCategoryName(product.category)}
                   </td>
-                ))}
-              </tr>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -464,181 +1470,283 @@ export default function Chatbot() {
     );
   };
 
+  /*
+   * ---------------------------------------------------------
+   * PRODUCT CARDS
+   * ---------------------------------------------------------
+   */
+
   const renderProducts = (products: Product[], comparison = false) => {
-    if (!products || products.length === 0) {
-      return null;
-    }
+    if (!products.length) return null;
 
     if (comparison) {
       return renderComparison(products);
     }
 
     return (
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {products.slice(0, 6).map((product) => (
-          <div
-            key={product.id}
-            className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-lg"
-          >
-            <div className="relative h-40 overflow-hidden bg-slate-100">
-              <img
-                src={getProductImage(product)}
-                alt={product.name}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                onError={(event) => {
-                  event.currentTarget.src =
-                    "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600";
-                }}
-              />
+      <div className="mt-4 grid grid-cols-1 gap-3">
+        {products.slice(0, 6).map((product) => {
+          const inStock = (product.stock ?? 0) > 0;
 
-              {product.stock > 0 && (
-                <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow">
-                  In Stock
-                </span>
-              )}
+          return (
+            <div
+              key={product.id}
+              className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+            >
+              <div className="flex gap-3 p-3">
+                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                  <img
+                    src={getProductImage(product)}
+                    alt={product.name}
+                    className="h-full w-full object-cover"
+                    onError={(event) => {
+                      event.currentTarget.src =
+                        "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop";
+                    }}
+                  />
 
-              {product.stock <= 0 && (
-                <span className="absolute left-2 top-2 rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow">
-                  Out of Stock
-                </span>
-              )}
-            </div>
-
-            <div className="p-3">
-              <div className="mb-1 flex items-start justify-between gap-2">
-                <h4 className="line-clamp-2 text-sm font-bold text-slate-800">
-                  {product.name}
-                </h4>
-
-                {product.category && (
-                  <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600">
-                    {product.category}
+                  <span
+                    className={`absolute left-1.5 top-1.5 rounded-full px-2 py-1 text-[10px] font-bold ${
+                      inStock
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {inStock ? "In Stock" : "Out of Stock"}
                   </span>
-                )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                    {getCategoryName(product.category)}
+                  </div>
+
+                  <h3 className="truncate text-sm font-bold text-gray-900">
+                    {product.name}
+                  </h3>
+
+                  <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+                    {product.description ||
+                      "Quality product available at ShopEase."}
+                  </p>
+
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-base font-extrabold text-green-600">
+                      ${Number(product.price).toFixed(2)}
+                    </span>
+
+                    <span className="text-[11px] text-gray-500">
+                      {inStock ? `${product.stock} left` : "Unavailable"}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <p className="mb-3 line-clamp-2 min-h-[32px] text-xs leading-5 text-slate-500">
-                {product.description ||
-                  "Quality product available in our store."}
-              </p>
-
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-lg font-extrabold text-indigo-600">
-                  ${Number(product.price).toFixed(2)}
-                </span>
-
-                <span className="text-xs text-slate-400">
-                  {product.stock > 0 ? `${product.stock} left` : "Unavailable"}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex gap-2 border-t border-gray-100 bg-gray-50 p-2">
                 <Link
                   href={`/products/${product.id}`}
-                  className="flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600"
+                  className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-center text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
                 >
                   View
                 </Link>
 
                 <button
                   type="button"
-                  disabled={product.stock <= 0}
+                  disabled={!inStock || cartLoading}
                   onClick={() => handleAddToCart(product)}
-                  className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="flex-1 rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
                 >
-                  {product.stock > 0 ? "Add to Cart" : "Unavailable"}
+                  {inStock ? "Add to Cart" : "Out of Stock"}
                 </button>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
 
+  /*
+   * ---------------------------------------------------------
+   * CART SUMMARY
+   * ---------------------------------------------------------
+   */
+
+  const renderCartSummary = () => {
+    return (
+      <div className="border-b border-gray-200 bg-gray-50 p-3">
+        {cart.length === 0 ? (
+          <div className="rounded-2xl bg-white p-4 text-center shadow-sm">
+            <div className="mb-2 text-3xl">🛒</div>
+
+            <p className="text-sm font-semibold text-gray-800">
+              Your cart is empty
+            </p>
+
+            <p className="mt-1 text-xs text-gray-500">
+              Add some products to get started.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Your Cart</p>
+
+                <p className="text-xs text-gray-500">
+                  {cartCount} {cartCount === 1 ? "item" : "items"}
+                </p>
+              </div>
+
+              <p className="text-base font-extrabold text-green-600">
+                ${Number(cartTotal).toFixed(2)}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {cart.slice(0, 4).map((item: any) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-2 rounded-xl bg-white p-2"
+                >
+                  <img
+                    src={getProductImage(item)}
+                    alt={item.name}
+                    className="h-10 w-10 rounded-lg object-cover"
+                  />
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-gray-800">
+                      {item.name}
+                    </p>
+
+                    <p className="text-[11px] text-gray-500">
+                      Qty: {item.quantity || 1}
+                    </p>
+                  </div>
+
+                  <p className="text-xs font-bold text-gray-700">
+                    $
+                    {(Number(item.price) * Number(item.quantity || 1)).toFixed(
+                      2,
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {cart.length > 4 && (
+              <p className="mt-2 text-center text-[11px] text-gray-500">
+                + {cart.length - 4} more items
+              </p>
+            )}
+
+            <Link
+              href="/cart"
+              className="mt-3 block rounded-xl bg-gray-900 px-4 py-2.5 text-center text-xs font-bold text-white transition hover:bg-gray-800"
+            >
+              Open Cart
+            </Link>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * UI
+   * ---------------------------------------------------------
+   */
+
   return (
     <>
-      {/* Floating chatbot button */}
       {!isOpen && (
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          aria-label="Open AI shopping assistant"
-          className="group fixed bottom-6 right-6 z-[9999] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-indigo-500/40"
+          className="fixed bottom-6 right-6 z-9999 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-green-500 to-emerald-700 text-2xl text-white shadow-2xl transition duration-200 hover:scale-105"
+          aria-label="Open ShopEase AI"
         >
-          <span className="absolute inset-0 animate-ping rounded-full bg-indigo-500 opacity-20" />
-
-          <div className="relative flex flex-col items-center justify-center">
-            <span className="text-2xl">🤖</span>
-          </div>
-
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500">
-            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+          <span className="relative">
+            🤖
+            <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-green-300" />
           </span>
         </button>
       )}
 
-      {/* Chat window */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 z-[9999] flex h-[min(760px,calc(100vh-32px))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
-          {/* Header */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-purple-700 to-pink-600 px-5 py-4 text-white">
-            <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute -bottom-12 left-20 h-32 w-32 rounded-full bg-cyan-300/10 blur-2xl" />
+        <div className="fixed bottom-4 right-4 z-9999 flex h-[min(760px,calc(100vh-32px))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl">
+          {/* HEADER */}
 
-            <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-2xl shadow-inner backdrop-blur">
-                  🤖
-                  <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-indigo-700 bg-emerald-400" />
-                </div>
-
-                <div>
-                  <h2 className="text-base font-bold">ShopEase AI</h2>
-
-                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-white/80">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
-                    <span>Online • Ready to help</span>
-                  </div>
-                </div>
+          <div className="flex items-center justify-between bg-linear-to-r from-green-600 to-emerald-700 px-4 py-4 text-white">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-2xl backdrop-blur">
+                🤖
               </div>
 
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={clearChat}
-                  title="Clear conversation"
-                  className="rounded-xl p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
-                >
-                  🗑️
-                </button>
+              <div>
+                <h2 className="text-base font-bold">ShopEase AI</h2>
 
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  title="Close"
-                  className="rounded-xl p-2 text-lg text-white/80 transition hover:bg-white/10 hover:text-white"
-                >
-                  ×
-                </button>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-green-300" />
+
+                  <span className="text-[11px] text-green-50">
+                    Online • Ready to help
+                  </span>
+                </div>
               </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowCartSummary((prev) => !prev)}
+                className="rounded-xl p-2 text-white/90 transition hover:bg-white/10"
+                title="Cart"
+              >
+                🛒
+              </button>
+
+              <button
+                type="button"
+                onClick={clearChat}
+                className="rounded-xl p-2 text-white/90 transition hover:bg-white/10"
+                title="Clear chat"
+              >
+                🧹
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="rounded-xl p-2 text-white/90 transition hover:bg-white/10"
+                title="Close"
+              >
+                ✕
+              </button>
             </div>
           </div>
 
-          {/* Quick suggestions */}
-          {messages.length <= 1 && (
-            <div className="border-b border-slate-100 bg-white px-4 py-3">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          {/* CART */}
+
+          {showCartSummary && renderCartSummary()}
+
+          {/* QUICK QUESTIONS */}
+
+          {messages.length <= 1 && !showCartSummary && (
+            <div className="border-b border-gray-100 bg-white px-3 py-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
                 Try asking
               </p>
 
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {quickQuestions.map((question) => (
+                {QUICK_QUESTIONS.map((question) => (
                   <button
                     key={question}
                     type="button"
                     onClick={() => sendMessage(question)}
-                    className="shrink-0 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-600 transition hover:border-indigo-300 hover:bg-indigo-100"
+                    className="shrink-0 rounded-full border border-green-100 bg-green-50 px-3 py-2 text-xs font-medium text-green-700 transition hover:bg-green-100"
                   >
                     {question}
                   </button>
@@ -647,74 +1755,59 @@ export default function Chatbot() {
             </div>
           )}
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white px-4 py-4">
+          {/* MESSAGES */}
+
+          <div className="flex-1 overflow-y-auto bg-linear-to-b from-gray-50 to-white px-3 py-4">
             <div className="space-y-4">
               {messages.map((message, index) => {
                 const comparison =
-                  message.role === "assistant" &&
                   message.products &&
-                  message.products.length >= 2 &&
-                  isComparisonMessage(
-                    messages[index - 1]?.content || message.content,
-                  );
+                  message.products.length > 0 &&
+                  isComparisonMessage(messages[index - 1]?.content || "");
 
                 return (
                   <div
-                    key={`${message.role}-${index}`}
+                    key={`${index}-${message.role}`}
                     className={`flex ${
                       message.role === "user" ? "justify-end" : "justify-start"
                     }`}
                   >
                     <div
                       className={`max-w-[92%] ${
-                        message.role === "user" ? "" : "w-full"
+                        message.role === "user" ? "items-end" : "items-start"
                       }`}
                     >
-                      <div
-                        className={`flex items-end gap-2 ${
-                          message.role === "user"
-                            ? "flex-row-reverse"
-                            : "flex-row"
-                        }`}
-                      >
-                        <div
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm ${
-                            message.role === "user"
-                              ? "bg-indigo-100 text-indigo-700"
-                              : "bg-gradient-to-br from-indigo-600 to-purple-600 text-white"
-                          }`}
-                        >
-                          {message.role === "user" ? "👤" : "🤖"}
-                        </div>
-
-                        <div
-                          className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
-                            message.role === "user"
-                              ? "rounded-br-md bg-indigo-600 text-white shadow-md"
-                              : "rounded-bl-md border border-slate-200 bg-white text-slate-700 shadow-sm"
-                          }`}
-                        >
-                          {message.content}
-                        </div>
+                      <div className="mb-1 flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-gray-400">
+                          {message.role === "user" ? "You" : "ShopEase AI"}
+                        </span>
                       </div>
 
-                      {/* Assistant actions */}
-                      {message.role === "assistant" && (
-                        <div className="ml-10 mt-1 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => speakText(message.content)}
-                            className="rounded-lg px-2 py-1 text-[11px] text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600"
-                          >
-                            🔊 Listen
-                          </button>
+                      <div
+                        className={`whitespace-pre-line rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                          message.role === "user"
+                            ? "rounded-br-md bg-green-600 text-white shadow-sm"
+                            : "rounded-bl-md border border-gray-100 bg-white text-gray-700 shadow-sm"
+                        }`}
+                      >
+                        {message.content}
+                      </div>
 
-                          {isSpeaking && (
+                      {message.role === "assistant" && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          {!isSpeaking ? (
+                            <button
+                              type="button"
+                              onClick={() => speakText(message.content)}
+                              className="text-[10px] font-medium text-gray-400 transition hover:text-green-600"
+                            >
+                              🔊 Listen
+                            </button>
+                          ) : (
                             <button
                               type="button"
                               onClick={stopSpeaking}
-                              className="rounded-lg px-2 py-1 text-[11px] text-red-500 transition hover:bg-red-50"
+                              className="text-[10px] font-medium text-red-500 transition hover:text-red-600"
                             >
                               ⏹ Stop
                             </button>
@@ -722,44 +1815,33 @@ export default function Chatbot() {
                         </div>
                       )}
 
-                      {message.role === "assistant" &&
-                        message.products &&
-                        message.products.length > 0 && (
-                          <>
-                            {comparison
-                              ? renderComparison(message.products)
-                              : renderProducts(message.products)}
-                          </>
-                        )}
+                      {message.products &&
+                        message.products.length > 0 &&
+                        (productRequestForDisplay(messages, index) ||
+                          comparison) &&
+                        renderProducts(message.products, Boolean(comparison))}
                     </div>
                   </div>
                 );
               })}
 
-              {/* Typing indicator */}
               {isLoading && (
-                <div className="flex items-end gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-sm text-white">
-                    🤖
-                  </div>
-
-                  <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <div className="flex justify-start">
+                  <div className="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 shadow-sm">
                     <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-green-500" />
                       <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-indigo-400"
-                        style={{ animationDelay: "0ms" }}
+                        className="h-2 w-2 animate-bounce rounded-full bg-green-500"
+                        style={{
+                          animationDelay: "120ms",
+                        }}
                       />
                       <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-purple-400"
-                        style={{ animationDelay: "150ms" }}
+                        className="h-2 w-2 animate-bounce rounded-full bg-green-500"
+                        style={{
+                          animationDelay: "240ms",
+                        }}
                       />
-                      <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-pink-400"
-                        style={{ animationDelay: "300ms" }}
-                      />
-                      <span className="ml-1 text-xs text-slate-400">
-                        AI is thinking...
-                      </span>
                     </div>
                   </div>
                 </div>
@@ -769,66 +1851,124 @@ export default function Chatbot() {
             </div>
           </div>
 
-          {/* Bottom area */}
-          <div className="border-t border-slate-200 bg-white p-3">
-            {/* Active status */}
-            <div className="mb-2 flex items-center justify-between px-1">
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                AI shopping assistant active
-              </div>
+          {/* INPUT */}
 
-              {isListening && (
-                <span className="flex items-center gap-1 text-[11px] font-medium text-red-500">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                  Listening...
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-inner focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
+          <div className="border-t border-gray-200 bg-white p-3">
+            <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-2 focus-within:border-green-400 focus-within:bg-white">
               <input
                 ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask me about products..."
-                disabled={isLoading}
-                className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+                placeholder="Ask me anything..."
+                disabled={isLoading || cartLoading}
+                className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-gray-800 outline-none placeholder:text-gray-400"
               />
 
               <button
                 type="button"
                 onClick={startVoiceInput}
                 disabled={isLoading}
-                title={isListening ? "Stop listening" : "Voice input"}
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
+                className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${
                   isListening
-                    ? "animate-pulse bg-red-500 text-white"
-                    : "bg-white text-slate-500 shadow-sm hover:bg-indigo-50 hover:text-indigo-600"
-                } disabled:cursor-not-allowed disabled:opacity-50`}
+                    ? "bg-red-100 text-red-600"
+                    : "text-gray-500 hover:bg-green-100 hover:text-green-600"
+                }`}
+                title={isListening ? "Stop listening" : "Voice input"}
               >
-                🎙️
+                🎤
               </button>
 
               <button
                 type="button"
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || isLoading}
-                title="Send message"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md transition hover:scale-105 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+                disabled={!input.trim() || isLoading || cartLoading}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                title="Send"
               >
                 ➤
               </button>
             </div>
 
-            <p className="mt-2 text-center text-[10px] text-slate-400">
-              Press Enter to send • 🎙️ Voice enabled
+            <p className="mt-2 text-center text-[10px] text-gray-400">
+              ShopEase AI • Smart shopping assistant
             </p>
           </div>
         </div>
       )}
     </>
   );
+}
+
+/*
+ * ---------------------------------------------------------
+ * PRODUCT DISPLAY CHECK
+ *
+ * This extra protection ensures that even if the backend
+ * accidentally returns products for "thanks", "okay", etc.,
+ * the UI does NOT display them.
+ * ---------------------------------------------------------
+ */
+
+function productRequestForDisplay(
+  messages: Message[],
+  assistantIndex: number,
+): boolean {
+  const previousUserMessage = [...messages]
+    .slice(0, assistantIndex)
+    .reverse()
+    .find((message) => message.role === "user");
+
+  if (!previousUserMessage) {
+    return false;
+  }
+
+  const text = normalizeText(previousUserMessage.content);
+
+  /*
+   * Never display products for these conversational messages.
+   */
+
+  if (
+    /^(thanks|thank you|thank's|thx|thanks a lot|thank you so much|many thanks|okay|ok|alright|great|perfect|cool|nice|got it|understood|bye|goodbye|see you|see ya)$/.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+
+  /*
+   * Product-related requests.
+   */
+
+  if (
+    /\b(product|products|phone|phones|smartphone|smartphones|laptop|laptops|computer|computers|keyboard|keyboards|headphone|headphones|tablet|tablets|camera|cameras|monitor|monitors|watch|watches|electronics|accessories)\b/.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    /\b(recommend|recommendation|suggest|suggestion|best|better|compare|comparison|difference|versus|vs|price|cost|under|below|budget|cheaper)\b/.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+
+  /*
+   * Reference follow-up.
+   */
+
+  if (
+    /\b(first|second|third|fourth|fifth|sixth|one|two|three|four|five|six|that one|this one|that product|this product|it)\b/.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 }

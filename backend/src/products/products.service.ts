@@ -32,13 +32,36 @@ export class ProductsService {
 
   // GET ALL PRODUCTS
   async findAll() {
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       orderBy: {
         createdAt: 'desc',
       },
       include: {
         category: true,
+        reviews: {
+          select: {
+            rating: true,
+          },
+        },
       },
+    });
+
+    return products.map((product) => {
+      const totalReviews = product.reviews.length;
+
+      const averageRating =
+        totalReviews > 0
+          ? product.reviews.reduce((sum, review) => sum + review.rating, 0) /
+            totalReviews
+          : 0;
+
+      const { reviews, ...productData } = product;
+
+      return {
+        ...productData,
+        totalReviews,
+        averageRating: Number(averageRating.toFixed(1)),
+      };
     });
   }
 
@@ -48,6 +71,11 @@ export class ProductsService {
       where: { id },
       include: {
         category: true,
+        reviews: {
+          select: {
+            rating: true,
+          },
+        },
       },
     });
 
@@ -55,7 +83,21 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
-    return product;
+    const totalReviews = product.reviews.length;
+
+    const averageRating =
+      totalReviews > 0
+        ? product.reviews.reduce((sum, review) => sum + review.rating, 0) /
+          totalReviews
+        : 0;
+
+    const { reviews, ...productData } = product;
+
+    return {
+      ...productData,
+      totalReviews,
+      averageRating: Number(averageRating.toFixed(1)),
+    };
   }
 
   // UPDATE PRODUCT
