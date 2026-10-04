@@ -31,35 +31,25 @@ type WishlistResponse = {
   items: WishlistItem[];
 };
 
-// IMPORTANT:
-// Your backend is confirmed to be running on port 3001.
 const API_URL = "http://localhost:3001";
 
 const categoryFallbackImages: Record<string, string> = {
   electronics:
     "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=900&auto=format&fit=crop",
-
   accessories:
     "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=900&auto=format&fit=crop",
-
   cameras:
     "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=900&auto=format&fit=crop",
-
   audio:
     "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=900&auto=format&fit=crop",
-
   gaming:
     "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=900&auto=format&fit=crop",
-
   fashion:
     "https://images.unsplash.com/photo-1445205170230-053b83016050?w=900&auto=format&fit=crop",
-
   shoes:
     "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=900&auto=format&fit=crop",
-
   beauty:
     "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=900&auto=format&fit=crop",
-
   sports:
     "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=900&auto=format&fit=crop",
 };
@@ -87,6 +77,9 @@ export default function HomePage() {
 
   const [addedProductId, setAddedProductId] = useState<number | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterMessage, setNewsletterMessage] = useState("");
 
   // =========================================================
   // CHECK LOGIN
@@ -118,22 +111,16 @@ export default function HomePage() {
       setLoading(true);
       setError("");
 
-      console.log("Fetching products from:", `${API_URL}/products`);
-
       const response = await fetch(`${API_URL}/products`, {
         method: "GET",
         cache: "no-store",
       });
-
-      console.log("Products response:", response.status);
 
       if (!response.ok) {
         throw new Error(`Failed to load products. Status: ${response.status}`);
       }
 
       const data = await response.json();
-
-      console.log("Products data:", data);
 
       const productList: Product[] = Array.isArray(data)
         ? data
@@ -164,14 +151,10 @@ export default function HomePage() {
       setCategoriesLoading(true);
       setCategoryError("");
 
-      console.log("Fetching categories from:", `${API_URL}/categories`);
-
       const response = await fetch(`${API_URL}/categories`, {
         method: "GET",
         cache: "no-store",
       });
-
-      console.log("Categories response:", response.status);
 
       if (!response.ok) {
         throw new Error(
@@ -180,8 +163,6 @@ export default function HomePage() {
       }
 
       const data = await response.json();
-
-      console.log("Categories data:", data);
 
       const categoryList: Category[] = Array.isArray(data)
         ? data
@@ -381,10 +362,6 @@ export default function HomePage() {
     });
   }, [products, search]);
 
-  // =========================================================
-  // FEATURED PRODUCTS
-  // =========================================================
-
   const featuredProducts = filteredProducts.slice(0, 8);
 
   // =========================================================
@@ -417,6 +394,25 @@ export default function HomePage() {
     }
 
     return defaultCategoryImage;
+  };
+
+  // =========================================================
+  // NEWSLETTER
+  // =========================================================
+
+  const handleNewsletterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!newsletterEmail.trim()) {
+      setNewsletterMessage("Please enter your email address.");
+      return;
+    }
+
+    setNewsletterMessage(
+      "Thank you! You are now subscribed to E-Shop updates.",
+    );
+
+    setNewsletterEmail("");
   };
 
   // =========================================================
@@ -454,7 +450,7 @@ export default function HomePage() {
           <nav className="hidden items-center gap-1 lg:flex">
             <Link
               href="/"
-              className="rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-600 transition hover:bg-blue-100"
+              className="rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-600"
             >
               🏠 Home
             </Link>
@@ -550,7 +546,7 @@ export default function HomePage() {
 
             <Link
               href="/products"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
             >
               <span className="text-lg">🛍️</span>
               Products
@@ -558,7 +554,7 @@ export default function HomePage() {
 
             <Link
               href="/categories"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
             >
               <span className="text-lg">🗂️</span>
               Categories
@@ -566,7 +562,7 @@ export default function HomePage() {
 
             <Link
               href="/orders"
-              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+              className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
             >
               <span className="text-lg">📦</span>
               Orders
@@ -574,7 +570,7 @@ export default function HomePage() {
 
             <Link
               href="/wishlist"
-              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-red-500"
+              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
             >
               <span className="text-lg">♥</span>
               Wishlist
@@ -587,7 +583,7 @@ export default function HomePage() {
 
             <Link
               href="/cart"
-              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
+              className="relative flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500"
             >
               <span className="text-lg">🛒</span>
               Cart
@@ -597,16 +593,6 @@ export default function HomePage() {
                 </span>
               )}
             </Link>
-
-            {!isLoggedIn && (
-              <Link
-                href="/login"
-                className="flex min-w-fit flex-col items-center gap-1 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-blue-600"
-              >
-                <span className="text-lg">🔐</span>
-                Login
-              </Link>
-            )}
           </div>
         </div>
       </header>
@@ -661,7 +647,7 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* QUICK INFO */}
+            {/* STATS */}
 
             <div className="mt-8 flex flex-wrap gap-8">
               <div>
@@ -765,16 +751,14 @@ export default function HomePage() {
               href="/categories"
               className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
             >
-              <span className="text-lg">🗂️</span>
-              Categories
+              🗂️ Categories
             </Link>
 
             <Link
               href="/wishlist"
               className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-red-200 hover:text-red-500"
             >
-              <span className="text-lg">♥</span>
-              Wishlist
+              ♥ Wishlist
               {wishlist.length > 0 && (
                 <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-black text-white">
                   {wishlist.length}
@@ -786,8 +770,7 @@ export default function HomePage() {
               href="/cart"
               className="relative flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-blue-600"
             >
-              <span className="text-lg">🛒</span>
-              Cart
+              🛒 Cart
               {cartCount > 0 && (
                 <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-black">
                   {cartCount}
@@ -951,8 +934,6 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {/* ERROR */}
-
         {error && (
           <div className="mb-8 rounded-2xl border border-red-200 bg-red-50 p-5">
             <p className="font-bold text-red-700">{error}</p>
@@ -966,8 +947,6 @@ export default function HomePage() {
             </button>
           </div>
         )}
-
-        {/* LOADING */}
 
         {loading ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1021,8 +1000,6 @@ export default function HomePage() {
                   key={product.id}
                   className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/70"
                 >
-                  {/* IMAGE */}
-
                   <div className="relative h-72 overflow-hidden bg-slate-100">
                     <img
                       src={
@@ -1038,8 +1015,6 @@ export default function HomePage() {
                       }}
                     />
 
-                    {/* STOCK */}
-
                     <div className="absolute left-4 top-4">
                       {product.stock > 0 ? (
                         <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-black text-emerald-600 shadow-md">
@@ -1051,8 +1026,6 @@ export default function HomePage() {
                         </span>
                       )}
                     </div>
-
-                    {/* WISHLIST */}
 
                     <button
                       type="button"
@@ -1072,8 +1045,6 @@ export default function HomePage() {
                       {isWishlisted ? "♥" : "♡"}
                     </button>
 
-                    {/* VIEW PRODUCT */}
-
                     <Link
                       href={`/products/${product.id}`}
                       className="absolute bottom-4 right-4 flex h-11 w-11 translate-y-4 items-center justify-center rounded-full bg-white text-lg text-slate-900 opacity-0 shadow-lg transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 hover:bg-blue-600 hover:text-white"
@@ -1082,10 +1053,7 @@ export default function HomePage() {
                     </Link>
                   </div>
 
-                  {/* CONTENT */}
-
                   <div className="p-5">
-                    {/* CURRENTLY STATIC RATING */}
                     <div className="flex items-center gap-2">
                       <span className="text-sm tracking-wide text-amber-400">
                         ★★★★★
@@ -1158,8 +1126,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* VIEW ALL */}
-
         {!loading && products.length > 8 && (
           <div className="mt-10 flex justify-center">
             <Link
@@ -1173,80 +1139,676 @@ export default function HomePage() {
       </main>
 
       {/* =====================================================
-          FEATURES
+          WHY CHOOSE US
       ===================================================== */}
 
       <section className="border-t border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-12 md:grid-cols-3 md:px-8">
-          <div className="rounded-3xl bg-blue-50 p-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-xl text-white">
-              🚚
-            </div>
+        <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
+              Why E-Shop
+            </p>
 
-            <h3 className="mt-5 font-black text-slate-950">Fast Delivery</h3>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+              Shopping made simple
+            </h2>
 
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Get your favorite products delivered safely and quickly.
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              We focus on making every part of your shopping experience
+              convenient, secure and reliable.
             </p>
           </div>
 
-          <div className="rounded-3xl bg-emerald-50 p-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 text-xl text-white">
-              ✓
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7 transition hover:-translate-y-1 hover:shadow-xl">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl text-white shadow-lg shadow-blue-200">
+                🚚
+              </div>
+
+              <h3 className="mt-5 text-lg font-black text-slate-950">
+                Fast & Reliable Delivery
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                We work to get your orders delivered safely and conveniently.
+              </p>
             </div>
 
-            <h3 className="mt-5 font-black text-slate-950">Quality Products</h3>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7 transition hover:-translate-y-1 hover:shadow-xl">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-lg shadow-emerald-100">
+                🔒
+              </div>
 
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Carefully selected products with quality and value in mind.
-            </p>
-          </div>
+              <h3 className="mt-5 text-lg font-black text-slate-950">
+                Secure Shopping
+              </h3>
 
-          <div className="rounded-3xl bg-violet-50 p-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-600 text-xl text-white">
-              🔒
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Your account and shopping experience are protected with secure
+                authentication and payment processing.
+              </p>
             </div>
 
-            <h3 className="mt-5 font-black text-slate-950">Secure Shopping</h3>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7 transition hover:-translate-y-1 hover:shadow-xl">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600 text-2xl text-white shadow-lg shadow-violet-100">
+                💬
+              </div>
 
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Your account, wishlist and shopping experience are protected.
-            </p>
+              <h3 className="mt-5 text-lg font-black text-slate-950">
+                Customer Support
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Need help? Our support team is here to help you with your
+                shopping experience.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
       {/* =====================================================
-          FOOTER CTA
+          ABOUT US
+      ===================================================== */}
+
+      <section
+        id="about"
+        className="scroll-mt-24 border-t border-slate-200 bg-slate-50"
+      >
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-16 md:px-8 lg:grid-cols-2">
+          <div className="overflow-hidden rounded-4xl bg-white p-3 shadow-xl">
+            <div className="relative h-80 overflow-hidden rounded-3xl">
+              <img
+                src="https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1200&q=85"
+                alt="E-Shop shopping experience"
+                className="h-full w-full object-cover"
+              />
+
+              <div className="absolute inset-0 bg-linear-to-t from-slate-950/70 via-transparent to-transparent" />
+
+              <div className="absolute bottom-6 left-6">
+                <p className="text-sm font-bold text-white">E-Shop</p>
+
+                <p className="mt-1 text-xs text-white/70">
+                  Making online shopping easier
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
+              About Us
+            </p>
+
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
+              More than a store.
+              <span className="block text-blue-600">A better way to shop.</span>
+            </h2>
+
+            <p className="mt-5 text-sm leading-7 text-slate-500">
+              E-Shop is designed to make online shopping simple, convenient and
+              enjoyable. Browse products, explore categories, save your favorite
+              items and manage your orders from one place.
+            </p>
+
+            <p className="mt-4 text-sm leading-7 text-slate-500">
+              Whether you are looking for electronics, fashion, gaming products,
+              accessories or everyday essentials, our goal is to give you a
+              smooth shopping experience from discovery to delivery.
+            </p>
+
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link
+                href="/products"
+                className="rounded-2xl bg-blue-600 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+              >
+                Start Shopping
+              </Link>
+
+              <Link
+                href="/categories"
+                className="rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-black text-slate-700 transition hover:border-blue-200 hover:text-blue-600"
+              >
+                Explore Categories
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          LOCATION + CONTACT
+      ===================================================== */}
+
+      <section
+        id="contact"
+        className="scroll-mt-24 border-t border-slate-200 bg-white"
+      >
+        <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* LOCATION */}
+
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl text-white">
+                📍
+              </div>
+
+              <p className="mt-5 text-xs font-black uppercase tracking-widest text-blue-600">
+                Our Location
+              </p>
+
+              <h3 className="mt-2 text-xl font-black text-slate-950">
+                Main Store
+              </h3>
+
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                Visit our store or shop online from anywhere. Our online store
+                is available whenever you need it.
+              </p>
+
+              <div className="mt-5 rounded-2xl bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Store Hours
+                </p>
+
+                <p className="mt-2 text-sm font-bold text-slate-800">
+                  Monday – Saturday
+                </p>
+
+                <p className="mt-1 text-sm text-slate-500">8:00 AM – 8:00 PM</p>
+              </div>
+            </div>
+
+            {/* CONTACT */}
+
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white">
+                📞
+              </div>
+
+              <p className="mt-5 text-xs font-black uppercase tracking-widest text-emerald-600">
+                Contact Us
+              </p>
+
+              <h3 className="mt-2 text-xl font-black text-slate-950">
+                We are here to help
+              </h3>
+
+              <div className="mt-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white">
+                    📧
+                  </span>
+
+                  <div>
+                    <p className="text-xs font-bold text-slate-400">Email</p>
+
+                    <a
+                      href="mailto:support@eshop.com"
+                      className="text-sm font-bold text-slate-800 hover:text-blue-600"
+                    >
+                      support@eshop.com
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white">
+                    ☎️
+                  </span>
+
+                  <div>
+                    <p className="text-xs font-bold text-slate-400">Phone</p>
+
+                    <a
+                      href="tel:+251900000000"
+                      className="text-sm font-bold text-slate-800 hover:text-blue-600"
+                    >
+                      +251 900 000 000
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <Link
+                href="/profile"
+                className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-600"
+              >
+                Contact Support →
+              </Link>
+            </div>
+
+            {/* DELIVERY */}
+
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-7">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600 text-2xl text-white">
+                🚚
+              </div>
+
+              <p className="mt-5 text-xs font-black uppercase tracking-widest text-violet-600">
+                Delivery
+              </p>
+
+              <h3 className="mt-2 text-xl font-black text-slate-950">
+                Delivered to your door
+              </h3>
+
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                Place your order online and we will prepare it for delivery.
+                Track your orders from your account.
+              </p>
+
+              <Link
+                href="/orders"
+                className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:border-violet-200 hover:text-violet-600"
+              >
+                Track My Orders →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          FAQ
+      ===================================================== */}
+
+      <section
+        id="faq"
+        className="scroll-mt-24 border-t border-slate-200 bg-slate-50"
+      >
+        <div className="mx-auto max-w-4xl px-5 py-16 md:px-8">
+          <div className="text-center">
+            <p className="text-xs font-black uppercase tracking-widest text-blue-600">
+              Help Center
+            </p>
+
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+              Frequently Asked Questions
+            </h2>
+
+            <p className="mt-3 text-sm text-slate-500">
+              Quick answers to common questions about shopping with E-Shop.
+            </p>
+          </div>
+
+          <div className="mt-10 space-y-4">
+            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <summary className="cursor-pointer list-none font-black text-slate-950">
+                How do I place an order?
+              </summary>
+
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                Browse our products, add the items you want to your cart, review
+                your order and complete the checkout process.
+              </p>
+            </details>
+
+            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <summary className="cursor-pointer list-none font-black text-slate-950">
+                Can I save products for later?
+              </summary>
+
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                Yes. Log in to your account and use the wishlist button to save
+                products you are interested in.
+              </p>
+            </details>
+
+            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <summary className="cursor-pointer list-none font-black text-slate-950">
+                How can I check my order?
+              </summary>
+
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                Open the Orders section from your account to view your order
+                history and order status.
+              </p>
+            </details>
+
+            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <summary className="cursor-pointer list-none font-black text-slate-950">
+                How can I contact customer support?
+              </summary>
+
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                You can contact our support team using the contact information
+                provided in the Contact Us section.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          NEWSLETTER
+      ===================================================== */}
+
+      <section className="bg-blue-600">
+        <div className="mx-auto max-w-7xl px-5 py-14 md:px-8">
+          <div className="grid items-center gap-8 lg:grid-cols-2">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-blue-200">
+                Stay Updated
+              </p>
+
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-white">
+                Get the latest from E-Shop
+              </h2>
+
+              <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100">
+                Subscribe to receive new product announcements, shopping tips
+                and special updates.
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleNewsletterSubmit}
+              className="rounded-3xl bg-white/10 p-3 backdrop-blur"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="email"
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
+                  placeholder="Enter your email address"
+                  className="h-14 flex-1 rounded-2xl border border-white/20 bg-white px-5 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:ring-4 focus:ring-white/20"
+                />
+
+                <button
+                  type="submit"
+                  className="h-14 rounded-2xl bg-slate-950 px-7 text-sm font-black text-white transition hover:bg-slate-800"
+                >
+                  Subscribe
+                </button>
+              </div>
+
+              {newsletterMessage && (
+                <p className="px-3 pt-3 text-xs font-bold text-white">
+                  {newsletterMessage}
+                </p>
+              )}
+            </form>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          FINAL CTA
       ===================================================== */}
 
       <section className="bg-slate-950">
-        <div className="mx-auto max-w-7xl px-5 py-14 text-center md:px-8">
-          <h2 className="text-3xl font-black text-white md:text-4xl">
+        <div className="mx-auto max-w-7xl px-5 py-16 text-center md:px-8">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-3xl shadow-xl shadow-blue-950">
+            🛍️
+          </div>
+
+          <h2 className="mt-6 text-3xl font-black text-white md:text-4xl">
             Ready to start shopping?
           </h2>
 
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400">
-            Explore our complete collection and find something perfect for you.
+            Explore our collection, discover your favorites and enjoy a simple
+            online shopping experience.
           </p>
 
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link
-              href="/categories"
-              className="rounded-2xl border border-slate-700 bg-slate-900 px-7 py-3.5 text-sm font-black text-white transition hover:bg-slate-800"
-            >
-              Browse Categories
-            </Link>
-
             <Link
               href="/products"
               className="rounded-2xl bg-blue-600 px-7 py-3.5 text-sm font-black text-white transition hover:bg-blue-500"
             >
               Explore Products
             </Link>
+
+            <Link
+              href="/categories"
+              className="rounded-2xl border border-slate-700 bg-slate-900 px-7 py-3.5 text-sm font-black text-white transition hover:bg-slate-800"
+            >
+              Browse Categories
+            </Link>
           </div>
         </div>
       </section>
+
+      {/* =====================================================
+          PROFESSIONAL FOOTER
+      ===================================================== */}
+
+      <footer className="border-t border-slate-800 bg-slate-950 text-white">
+        <div className="mx-auto max-w-7xl px-5 py-14 md:px-8">
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+            {/* BRAND */}
+
+            <div>
+              <Link href="/" className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl">
+                  🛍️
+                </div>
+
+                <div>
+                  <p className="text-lg font-black">E-Shop</p>
+
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Shop smarter
+                  </p>
+                </div>
+              </Link>
+
+              <p className="mt-5 max-w-xs text-sm leading-6 text-slate-400">
+                Your modern online shopping destination for quality products,
+                great value and a better shopping experience.
+              </p>
+
+              <div className="mt-5 flex gap-2">
+                <a
+                  href="#"
+                  aria-label="Facebook"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-black text-slate-300 transition hover:bg-blue-600 hover:text-white"
+                >
+                  f
+                </a>
+
+                <a
+                  href="#"
+                  aria-label="Instagram"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-black text-slate-300 transition hover:bg-pink-600 hover:text-white"
+                >
+                  ◎
+                </a>
+
+                <a
+                  href="#"
+                  aria-label="Twitter"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-black text-slate-300 transition hover:bg-sky-500 hover:text-white"
+                >
+                  𝕏
+                </a>
+              </div>
+            </div>
+
+            {/* SHOP */}
+
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-white">
+                Shop
+              </h3>
+
+              <div className="mt-5 space-y-3">
+                <Link
+                  href="/products"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  All Products
+                </Link>
+
+                <Link
+                  href="/categories"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  Categories
+                </Link>
+
+                <Link
+                  href="/wishlist"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  Wishlist
+                </Link>
+
+                <Link
+                  href="/cart"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  Shopping Cart
+                </Link>
+
+                <Link
+                  href="/orders"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  My Orders
+                </Link>
+              </div>
+            </div>
+
+            {/* COMPANY */}
+
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-white">
+                Company
+              </h3>
+
+              <div className="mt-5 space-y-3">
+                <a
+                  href="#about"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  About Us
+                </a>
+
+                <a
+                  href="#contact"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  Contact Us
+                </a>
+
+                <a
+                  href="#faq"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  FAQ
+                </a>
+
+                <a
+                  href="#"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  Privacy Policy
+                </a>
+
+                <a
+                  href="#"
+                  className="block text-sm text-slate-400 transition hover:text-white"
+                >
+                  Terms & Conditions
+                </a>
+              </div>
+            </div>
+
+            {/* CONTACT */}
+
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-white">
+                Get In Touch
+              </h3>
+
+              <div className="mt-5 space-y-4">
+                <div className="flex gap-3">
+                  <span className="text-lg">📍</span>
+
+                  <div>
+                    <p className="text-xs font-bold text-slate-500">Location</p>
+
+                    <p className="mt-1 text-sm text-slate-400">Main Store</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-lg">📧</span>
+
+                  <div>
+                    <p className="text-xs font-bold text-slate-500">Email</p>
+
+                    <a
+                      href="mailto:support@eshop.com"
+                      className="mt-1 block text-sm text-slate-400 hover:text-white"
+                    >
+                      support@eshop.com
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-lg">📞</span>
+
+                  <div>
+                    <p className="text-xs font-bold text-slate-500">Phone</p>
+
+                    <a
+                      href="tel:+251900000000"
+                      className="mt-1 block text-sm text-slate-400 hover:text-white"
+                    >
+                      +251 900 000 000
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* FOOTER BOTTOM */}
+
+          <div className="mt-12 border-t border-slate-800 pt-7">
+            <div className="flex flex-col gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+              <p className="text-xs text-slate-500">
+                © 2026 E-Shop. All rights reserved.
+              </p>
+
+              <div className="flex flex-wrap justify-center gap-5 sm:justify-end">
+                <a
+                  href="#"
+                  className="text-xs text-slate-500 transition hover:text-white"
+                >
+                  Privacy
+                </a>
+
+                <a
+                  href="#"
+                  className="text-xs text-slate-500 transition hover:text-white"
+                >
+                  Terms
+                </a>
+
+                <a
+                  href="#contact"
+                  className="text-xs text-slate-500 transition hover:text-white"
+                >
+                  Contact
+                </a>
+
+                <a
+                  href="#about"
+                  className="text-xs text-slate-500 transition hover:text-white"
+                >
+                  About
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

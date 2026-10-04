@@ -7,13 +7,32 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? 3001);
 
   const frontendOrigins = [
-    'http://localhost:3000',
-    'http://localhost:3002',
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[];
 
   app.enableCors({
-    origin: frontendOrigins,
+    origin: (origin, callback) => {
+      if (!origin || frontendOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      let hostname: string;
+      try {
+        hostname = new URL(origin).hostname;
+      } catch {
+        callback(null, false);
+        return;
+      }
+
+      callback(
+        null,
+        hostname === 'localhost' ||
+          hostname === '127.0.0.1' ||
+          hostname === '[::1]' ||
+          hostname === '::1',
+      );
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
