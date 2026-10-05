@@ -203,7 +203,6 @@ export default function HomePage() {
       setWishlist(ids);
     } catch (err) {
       console.error("Wishlist error:", err);
-
       setWishlist([]);
     }
   };
@@ -346,51 +345,22 @@ export default function HomePage() {
     }
 
     setNewsletterMessage("Thanks! You're now subscribed to E-Shop.");
-
     setNewsletterEmail("");
-  };
-
-  /*
-   * Opens the real floating chatbot.
-   *
-   * Chatbot.tsx must have data-chatbot-trigger
-   * on its floating open button.
-   */
-  const openAIChatbot = () => {
-    const chatbotButton = document.querySelector(
-      "[data-chatbot-trigger]",
-    ) as HTMLButtonElement | null;
-
-    if (chatbotButton) {
-      chatbotButton.click();
-      return;
-    }
-
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: "smooth",
-    });
   };
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
-      {/* ====================================================== */}
       {/* TOP ANNOUNCEMENT */}
-      {/* ====================================================== */}
 
       <div className="bg-slate-950 px-4 py-2.5 text-center text-xs font-bold text-white">
         <span className="text-blue-400">●</span> Free delivery on qualifying
-        orders · Secure checkout · AI shopping assistant
+        orders · Secure checkout
       </div>
 
-      {/* ====================================================== */}
       {/* HEADER */}
-      {/* ====================================================== */}
 
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-18 max-w-7xl items-center gap-5 px-5 md:px-8">
-          {/* LOGO */}
-
           <Link href="/" className="flex shrink-0 items-center gap-2.5">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-lg shadow-lg">
               🛍️
@@ -404,8 +374,6 @@ export default function HomePage() {
               </p>
             </div>
           </Link>
-
-          {/* DESKTOP NAV */}
 
           <nav className="hidden items-center gap-1 lg:flex">
             <Link
@@ -437,8 +405,6 @@ export default function HomePage() {
             </Link>
           </nav>
 
-          {/* SEARCH */}
-
           <div className="ml-auto hidden max-w-sm flex-1 xl:block">
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -454,8 +420,6 @@ export default function HomePage() {
               />
             </div>
           </div>
-
-          {/* ACTIONS */}
 
           <div className="flex items-center gap-2">
             <Link
@@ -512,8 +476,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* MOBILE NAV */}
-
         <div className="border-t border-slate-100 lg:hidden">
           <div className="flex gap-2 overflow-x-auto px-4 py-2.5">
             <Link
@@ -554,9 +516,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* ====================================================== */}
       {/* MOBILE SEARCH */}
-      {/* ====================================================== */}
 
       <div className="border-b border-slate-100 bg-white px-5 py-3 xl:hidden">
         <div className="relative mx-auto max-w-7xl">
@@ -574,9 +534,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ====================================================== */}
       {/* HERO */}
-      {/* ====================================================== */}
 
       <section className="overflow-hidden bg-slate-50">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-12 md:px-8 md:py-16 lg:grid-cols-[0.95fr_1.05fr] lg:py-20">
@@ -618,7 +576,6 @@ export default function HomePage() {
             <div className="mt-10 flex flex-wrap gap-7 border-t border-slate-200 pt-7">
               <div>
                 <p className="text-2xl font-black">{products.length}+</p>
-
                 <p className="mt-1 text-xs font-bold text-slate-400">
                   Products
                 </p>
@@ -628,7 +585,6 @@ export default function HomePage() {
 
               <div>
                 <p className="text-2xl font-black">{categories.length}+</p>
-
                 <p className="mt-1 text-xs font-bold text-slate-400">
                   Categories
                 </p>
@@ -638,13 +594,10 @@ export default function HomePage() {
 
               <div>
                 <p className="text-2xl font-black">100%</p>
-
                 <p className="mt-1 text-xs font-bold text-slate-400">Secure</p>
               </div>
             </div>
           </div>
-
-          {/* HERO IMAGE */}
 
           <div className="relative">
             <div className="relative overflow-hidden rounded-4xl bg-slate-900 shadow-2xl">
@@ -698,9 +651,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ====================================================== */}
-      {/* CATEGORY SECTION */}
-      {/* ====================================================== */}
+      {/* CATEGORIES */}
 
       <section className="bg-white py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-5 md:px-8">
@@ -794,9 +745,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ====================================================== */}
       {/* PRODUCTS */}
-      {/* ====================================================== */}
 
       <section className="bg-slate-50 py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-5 md:px-8">
@@ -1011,321 +960,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ====================================================== */}
-      {/* AI SHOPPING ASSISTANT */}
-      {/* ====================================================== */}
-
-      <section className="bg-white px-5 py-16 md:px-8 md:py-20">
-        <div className="mx-auto max-w-7xl">
-          <div className="relative overflow-hidden rounded-4xl bg-slate-950 px-6 py-8 shadow-2xl sm:px-8 md:px-12 md:py-12 lg:px-16 lg:py-16">
-            {/* Background decoration */}
-
-            <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
-
-            <div className="pointer-events-none absolute -bottom-40 left-1/3 h-96 w-96 rounded-full bg-violet-600/15 blur-3xl" />
-
-            <div className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/5 blur-3xl" />
-
-            <div className="relative grid items-center gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-16">
-              {/* LEFT */}
-
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.15em] text-blue-300">
-                  <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/20">
-                    <span className="absolute h-7 w-7 animate-ping rounded-full bg-blue-400/20" />
-
-                    <span className="relative text-sm">🤖</span>
-                  </span>
-                  AI Shopping Assistant
-                </div>
-
-                <h2 className="mt-6 max-w-2xl text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl md:text-5xl">
-                  Your personal
-                  <span className="block bg-linear-to-r from-blue-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">
-                    AI shopping expert.
-                  </span>
-                </h2>
-
-                <p className="mt-5 max-w-xl text-sm leading-7 text-slate-400 md:text-base">
-                  Not sure what to buy? Just ask. Our AI assistant can search
-                  products, recommend the best options, compare products and
-                  help you find something within your budget.
-                </p>
-
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={openAIChatbot}
-                    className="group inline-flex h-13 items-center justify-center rounded-xl bg-blue-600 px-7 text-sm font-black text-white shadow-xl shadow-blue-600/20 transition duration-300 hover:-translate-y-1 hover:bg-blue-500 hover:shadow-2xl hover:shadow-blue-600/30"
-                  >
-                    <span className="mr-2 text-lg">🤖</span>
-                    Start Chatting
-                    <span className="ml-3 transition-transform duration-300 group-hover:translate-x-1">
-                      →
-                    </span>
-                  </button>
-
-                  <Link
-                    href="/products"
-                    className="inline-flex h-13 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-7 text-sm font-black text-white backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/10"
-                  >
-                    Browse Products
-                  </Link>
-                </div>
-
-                <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
-                      🔎
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-black text-white">
-                        Smart Search
-                      </p>
-
-                      <p className="mt-0.5 text-[10px] text-slate-500">
-                        Find products fast
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-lg">
-                      ✨
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-black text-white">
-                        Recommendations
-                      </p>
-
-                      <p className="mt-0.5 text-[10px] text-slate-500">
-                        Personalized help
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-lg">
-                      ⚡
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-black text-white">
-                        Instant Answers
-                      </p>
-
-                      <p className="mt-0.5 text-[10px] text-slate-500">
-                        Available anytime
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT CHAT PREVIEW */}
-
-              <div className="relative">
-                <div className="absolute -inset-1 rounded-4xl bg-linear-to-r from-blue-600/30 via-violet-600/20 to-cyan-500/20 blur-xl" />
-
-                <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-2xl backdrop-blur-xl">
-                  {/* HEADER */}
-
-                  <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-violet-600 text-xl shadow-lg shadow-blue-500/20">
-                        🤖
-                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-slate-900 bg-emerald-400">
-                          <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                        </span>
-                      </div>
-
-                      <div>
-                        <p className="text-sm font-black text-white">
-                          E-Shop AI
-                        </p>
-
-                        <div className="mt-1 flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-
-                          <span className="text-[11px] font-medium text-emerald-400">
-                            Online
-                          </span>
-
-                          <span className="text-[11px] text-slate-600">•</span>
-
-                          <span className="text-[11px] text-slate-500">
-                            Ready to help
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 sm:block">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
-                        AI Online
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* CONVERSATION */}
-
-                  <div className="space-y-4 p-5 md:p-6">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-sm">
-                        🤖
-                      </div>
-
-                      <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-white/10 px-4 py-3">
-                        <p className="text-sm leading-6 text-slate-200">
-                          👋 Hi! I'm your E-Shop AI assistant. What are you
-                          looking for today?
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <div className="max-w-[80%] rounded-2xl rounded-br-md bg-blue-600 px-4 py-3 shadow-lg shadow-blue-600/10">
-                        <p className="text-sm leading-6 text-white">
-                          I need a good phone under $500.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-sm">
-                        🤖
-                      </div>
-
-                      <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-white/10 px-4 py-3">
-                        <p className="text-sm leading-6 text-slate-300">
-                          Great choice! I can find phones within your budget and
-                          help you compare them.
-                        </p>
-
-                        <button
-                          type="button"
-                          onClick={openAIChatbot}
-                          className="mt-3 text-xs font-black text-blue-400 transition hover:text-blue-300"
-                        >
-                          View recommendations →
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* QUICK QUESTIONS */}
-
-                    <div className="pt-2">
-                      <p className="mb-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
-                        Quick questions
-                      </p>
-
-                      <div className="grid grid-cols-1 gap-2">
-                        <button
-                          type="button"
-                          onClick={openAIChatbot}
-                          className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-3 text-left transition duration-200 hover:border-blue-500/20 hover:bg-blue-500/10"
-                        >
-                          <span className="text-xs font-medium text-slate-300">
-                            📱 Show me phones under $500
-                          </span>
-
-                          <span className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-400">
-                            →
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={openAIChatbot}
-                          className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-3 text-left transition duration-200 hover:border-blue-500/20 hover:bg-blue-500/10"
-                        >
-                          <span className="text-xs font-medium text-slate-300">
-                            🎮 What gaming product do you recommend?
-                          </span>
-
-                          <span className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-400">
-                            →
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={openAIChatbot}
-                          className="group flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-4 py-3 text-left transition duration-200 hover:border-blue-500/20 hover:bg-blue-500/10"
-                        >
-                          <span className="text-xs font-medium text-slate-300">
-                            💻 Compare laptops for me
-                          </span>
-
-                          <span className="text-slate-600 transition group-hover:translate-x-1 group-hover:text-blue-400">
-                            →
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* INPUT PREVIEW */}
-
-                  <div className="border-t border-white/10 bg-slate-950/50 p-4">
-                    <button
-                      type="button"
-                      onClick={openAIChatbot}
-                      className="group flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-blue-500/30 hover:bg-white/10"
-                    >
-                      <span className="text-xs text-slate-500">
-                        Ask your AI assistant anything...
-                      </span>
-
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm text-white transition group-hover:bg-blue-500">
-                        ↑
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* BOTTOM TRUST ROW */}
-
-            <div className="relative mt-10 flex flex-col gap-4 border-t border-white/10 pt-7 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex -space-x-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-blue-500 text-xs">
-                    👤
-                  </div>
-
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-violet-500 text-xs">
-                    👩
-                  </div>
-
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-slate-950 bg-emerald-500 text-xs">
-                    🧑
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-500">
-                  Your smart shopping companion is ready.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={openAIChatbot}
-                className="text-left text-xs font-black text-blue-400 transition hover:text-blue-300 sm:text-right"
-              >
-                Open AI Assistant →
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ====================================================== */}
       {/* PROMOTIONAL BANNER */}
-      {/* ====================================================== */}
 
       <section className="px-5 py-16 md:px-8 md:py-20">
         <div className="mx-auto max-w-7xl overflow-hidden rounded-4xl bg-slate-950">
@@ -1390,29 +1025,26 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={openAIChatbot}
-                className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left backdrop-blur transition hover:border-blue-500/30 hover:bg-blue-500/10"
+              <Link
+                href="/products"
+                className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:border-blue-500/30 hover:bg-blue-500/10"
               >
-                <p className="text-2xl">🤖</p>
+                <p className="text-2xl">🛍️</p>
 
                 <p className="mt-4 text-sm font-black text-white">
-                  AI Assistant
+                  Explore Products
                 </p>
 
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Get shopping recommendations.
+                  Discover our collection.
                 </p>
-              </button>
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ====================================================== */}
       {/* TRUST FEATURES */}
-      {/* ====================================================== */}
 
       <section className="border-y border-slate-200 bg-white">
         <div className="mx-auto grid max-w-7xl divide-y divide-slate-200 px-5 md:grid-cols-3 md:divide-x md:divide-y-0 md:px-8">
@@ -1444,29 +1076,23 @@ export default function HomePage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={openAIChatbot}
-            className="flex items-center gap-4 py-7 text-left md:px-8 md:last:pr-0"
-          >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-xl transition group-hover:scale-105">
-              🤖
+          <div className="flex items-center gap-4 py-7 text-left md:px-8 md:last:pr-0">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-xl">
+              ⭐
             </div>
 
             <div>
-              <p className="text-sm font-black">AI shopping help</p>
+              <p className="text-sm font-black">Quality products</p>
 
               <p className="mt-1 text-xs text-slate-500">
-                Smart recommendations anytime
+                Products you can trust
               </p>
             </div>
-          </button>
+          </div>
         </div>
       </section>
 
-      {/* ====================================================== */}
       {/* NEWSLETTER */}
-      {/* ====================================================== */}
 
       <section className="bg-slate-50 px-5 py-16 md:px-8 md:py-20">
         <div className="mx-auto max-w-5xl rounded-4xl bg-blue-600 px-7 py-10 md:px-12 md:py-14">
@@ -1517,15 +1143,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ====================================================== */}
       {/* FOOTER */}
-      {/* ====================================================== */}
 
       <footer className="bg-slate-950 text-white">
         <div className="mx-auto max-w-7xl px-5 py-14 md:px-8">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-            {/* BRAND */}
-
             <div>
               <Link href="/" className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
@@ -1546,8 +1168,6 @@ export default function HomePage() {
                 buying products simple.
               </p>
             </div>
-
-            {/* SHOP */}
 
             <div>
               <h3 className="text-xs font-black uppercase tracking-[0.2em]">
@@ -1585,8 +1205,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* ACCOUNT */}
-
             <div>
               <h3 className="text-xs font-black uppercase tracking-[0.2em]">
                 Account
@@ -1615,8 +1233,6 @@ export default function HomePage() {
                 </Link>
               </div>
             </div>
-
-            {/* CONTACT */}
 
             <div>
               <h3 className="text-xs font-black uppercase tracking-[0.2em]">
@@ -1663,9 +1279,7 @@ export default function HomePage() {
         </div>
       </footer>
 
-      {/* ====================================================== */}
-      {/* FLOATING AI CHATBOT */}
-      {/* ====================================================== */}
+      {/* FLOATING CHATBOT - KEPT */}
 
       <Chatbot />
     </div>

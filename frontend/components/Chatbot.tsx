@@ -3,14 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useCart } from "../app/Context/CartContext";
-import { getApiUrl, getServiceUrl } from "../lib/api";
 
-const BACKEND_URL = getApiUrl();
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3001";
 
-const AI_API_URL = getServiceUrl(
-  process.env.NEXT_PUBLIC_AI_API_URL,
-  "http://127.0.0.1:8000",
-);
+const AI_API_URL =
+  process.env.NEXT_PUBLIC_AI_API_URL?.trim() || "http://127.0.0.1:8000";
 
 type ProductCategory = {
   id?: number;
@@ -163,8 +161,12 @@ function extractProducts(data: unknown): Product[] {
 function isComparisonMessage(message: string): boolean {
   const text = normalizeText(message);
 
-  return ["compare", "comparison", "difference", "versus", " vs "].some(
-    (word) => text.includes(word),
+  return (
+    text.includes("compare") ||
+    text.includes("comparison") ||
+    text.includes("difference") ||
+    text.includes("versus") ||
+    text.includes(" vs ")
   );
 }
 
@@ -188,11 +190,10 @@ export default function Chatbot() {
   const [addedProducts, setAddedProducts] = useState<number[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   /*
-   * OPEN CHATBOT FROM HOMEPAGE
+   * OPEN CHATBOT FROM OTHER COMPONENTS
    */
   useEffect(() => {
     const handleOpenChatbot = (event: Event) => {
@@ -218,7 +219,7 @@ export default function Chatbot() {
           ) as HTMLFormElement | null;
 
           form?.requestSubmit();
-        }, 150);
+        }, 200);
       }
     };
 
@@ -252,7 +253,7 @@ export default function Chatbot() {
   }, []);
 
   /*
-   * ADD TO CART
+   * ADD PRODUCT TO CART
    */
   function handleAddToCart(product: Product) {
     if (product.stock <= 0) {
@@ -378,9 +379,19 @@ export default function Chatbot() {
    * FETCH PRODUCTS
    */
   async function fetchProducts(): Promise<Product[]> {
+    const controller = new AbortController();
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 10000);
+
     try {
+      console.log("Fetching products from:", `${BACKEND_URL}/products`);
+
       const response = await fetch(`${BACKEND_URL}/products`, {
+        method: "GET",
         cache: "no-store",
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -389,20 +400,16 @@ export default function Chatbot() {
 
       const data = await response.json();
 
-      return extractProducts(data);
-    } catch (error) {
-      console.error("Product fetch error:", error);
+      console.log("Products response:", data);
 
-      return [];
+      return extractProducts(data);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
   /*
    * FIND PRODUCTS
-   *
-   * This is the important part.
-   * Product questions are answered directly
-   * from your NestJS backend.
    */
   async function findProducts(query: string): Promise<Product[]> {
     const products = await fetchProducts();
@@ -491,13 +498,17 @@ export default function Chatbot() {
     const keywords = [
       "phone",
       "iphone",
+      "samsung",
       "mobile",
       "laptop",
       "computer",
       "tablet",
       "headphone",
+      "headphones",
       "earbuds",
+      "earbud",
       "earphone",
+      "earphones",
       "watch",
       "smartwatch",
       "camera",
@@ -510,6 +521,8 @@ export default function Chatbot() {
       "shoes",
       "beauty",
       "sports",
+      "speaker",
+      "audio",
     ];
 
     const keyword = keywords.find((word) => text.includes(word));
@@ -527,19 +540,24 @@ export default function Chatbot() {
         if (
           keyword === "phone" ||
           keyword === "iphone" ||
+          keyword === "samsung" ||
           keyword === "mobile"
         ) {
           return (
             productText.includes("phone") ||
             productText.includes("iphone") ||
+            productText.includes("samsung") ||
             productText.includes("mobile")
           );
         }
 
         if (
           keyword === "headphone" ||
+          keyword === "headphones" ||
           keyword === "earbuds" ||
-          keyword === "earphone"
+          keyword === "earbud" ||
+          keyword === "earphone" ||
+          keyword === "earphones"
         ) {
           return (
             productText.includes("headphone") ||
@@ -563,7 +581,6 @@ export default function Chatbot() {
       "show",
       "find",
       "give",
-      "me",
       "some",
       "product",
       "products",
@@ -580,6 +597,13 @@ export default function Chatbot() {
       "good",
       "the",
       "for",
+      "can",
+      "could",
+      "help",
+      "with",
+      "tell",
+      "about",
+      "me",
     ]);
 
     const words = text
@@ -621,55 +645,81 @@ export default function Chatbot() {
   }
 
   /*
-   * AI SERVICE
+   * ASK AI SERVICE
    */
   async function askAI(userMessage: string): Promise<string> {
-    const response = await fetch(`${AI_API_URL}/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: userMessage,
-      }),
-    });
+    const controller = new AbortController();
 
-    if (!response.ok) {
-      throw new Error(`AI service returned ${response.status}`);
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 15000);
+
+    try {
+      const aiUrl = `${AI_API_URL}/chat`;
+
+      console.log("=================================");
+      console.log("SHOP EASE AI REQUEST");
+      console.log("AI URL:", aiUrl);
+      console.log("Message:", userMessage);
+      console.log("=================================");
+
+      const response = await fetch(aiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessage,
+        }),
+        signal: controller.signal,
+      });
+
+      console.log("AI HTTP STATUS:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        console.error("AI ERROR RESPONSE:", errorText);
+
+        throw new Error(`AI service returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      console.log("AI RESPONSE:", data);
+
+      let reply = "";
+
+      if (typeof data.reply === "string" && data.reply.trim()) {
+        reply = data.reply;
+      } else if (typeof data.response === "string" && data.response.trim()) {
+        reply = data.response;
+      } else if (typeof data.message === "string" && data.message.trim()) {
+        reply = data.message;
+      }
+
+      if (!reply.trim()) {
+        throw new Error("AI returned an empty response");
+      }
+
+      return cleanMarkdown(reply);
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const data = await response.json();
-
-    if (typeof data.reply === "string" && data.reply.trim()) {
-      return cleanMarkdown(data.reply);
-    }
-
-    /*
-     * Some FastAPI responses may use "response"
-     * instead of "reply".
-     */
-    if (typeof data.response === "string" && data.response.trim()) {
-      return cleanMarkdown(data.response);
-    }
-
-    if (typeof data.message === "string" && data.message.trim()) {
-      return cleanMarkdown(data.message);
-    }
-
-    return "";
   }
 
   /*
-   * LOCAL ANSWERS
+   * LOCAL RESPONSES
    */
   function getLocalResponse(input: string): string | null {
     const text = normalizeText(input);
 
-    if (/^(hi|hello|hey)$/.test(text)) {
+    if (/^(hi|hello|hey|hi there|hello there)$/.test(text)) {
       return "Hello! 👋 Welcome to ShopEase. What are you looking for today?";
     }
 
-    if (text.includes("thank")) {
+    if (text.includes("thank") || text.includes("thanks")) {
       return "You're very welcome! 😊 I'm happy to help.";
     }
 
@@ -696,6 +746,8 @@ export default function Chatbot() {
       return;
     }
 
+    console.log("CHATBOT USER MESSAGE:", userMessage);
+
     setMessages((current) => [
       ...current,
       {
@@ -709,7 +761,7 @@ export default function Chatbot() {
 
     try {
       /*
-       * 1. SIMPLE LOCAL ANSWER
+       * 1. LOCAL RESPONSE
        */
       const localResponse = getLocalResponse(userMessage);
 
@@ -726,12 +778,17 @@ export default function Chatbot() {
       }
 
       /*
-       * 2. ALWAYS CHECK BACKEND PRODUCTS
-       *
-       * This makes product questions work even
-       * if the AI service is unavailable.
+       * 2. PRODUCT SEARCH
        */
-      const products = await findProducts(userMessage);
+      let products: Product[] = [];
+
+      try {
+        products = await findProducts(userMessage);
+      } catch (error) {
+        console.error("Product search failed:", error);
+
+        products = [];
+      }
 
       const text = normalizeText(userMessage);
 
@@ -757,11 +814,19 @@ export default function Chatbot() {
           reply = "Great! Here are products within your budget:";
         }
 
-        if (text.includes("cheapest") || text.includes("lowest price")) {
+        if (
+          text.includes("cheapest") ||
+          text.includes("lowest price") ||
+          text.includes("most affordable")
+        ) {
           reply = "Here are the most affordable products:";
         }
 
-        if (text.includes("out of stock") || text.includes("sold out")) {
+        if (
+          text.includes("out of stock") ||
+          text.includes("sold out") ||
+          text.includes("unavailable")
+        ) {
           reply = "Here are the products that are currently unavailable:";
         }
 
@@ -786,7 +851,7 @@ export default function Chatbot() {
       }
 
       /*
-       * 4. NO PRODUCT FOUND → ASK AI
+       * 4. ASK AI
        */
       try {
         const aiReply = await askAI(userMessage);
@@ -814,18 +879,18 @@ export default function Chatbot() {
         {
           role: "assistant",
           content:
-            "I'm ready to help! 😊 Try asking something like:\n\n• Show me phones\n• Show products under $100\n• What do you recommend?\n• What is the cheapest product?\n• Show available products",
+            "I'm sorry 😔 I couldn't connect to the ShopEase AI service right now.\n\nPlease make sure the AI service is running on port 8000.",
         },
       ]);
     } catch (error) {
-      console.error("Chatbot error:", error);
+      console.error("CHATBOT ERROR:", error);
 
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
           content:
-            "Sorry 😔 I couldn't process that request. Please make sure your backend is running on port 3001.",
+            "Sorry 😔 Something went wrong while processing your message. Please try again.",
         },
       ]);
     } finally {
@@ -960,7 +1025,7 @@ export default function Chatbot() {
 
     return (
       <div className="mt-3 overflow-hidden rounded-2xl border border-blue-100 bg-white">
-        <div className="bg-linear-to-r from-blue-50 to-indigo-50 p-4">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4">
           <h3 className="text-sm font-extrabold text-gray-900">
             ⚖️ Product Comparison
           </h3>
@@ -978,6 +1043,9 @@ export default function Chatbot() {
                   src={getProductImage(product)}
                   alt={product.name}
                   className="h-14 w-14 rounded-xl object-cover"
+                  onError={(event) => {
+                    event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
+                  }}
                 />
 
                 <div className="min-w-0 flex-1">
@@ -1033,7 +1101,7 @@ export default function Chatbot() {
           data-chatbot-trigger
           onClick={() => setIsOpen(true)}
           aria-label="Open ShopEase assistant"
-          className="fixed bottom-5 right-5 z-100 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-indigo-600 text-3xl text-white shadow-2xl transition hover:scale-105 sm:bottom-6 sm:right-6"
+          className="fixed bottom-5 right-5 z-[100] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-3xl text-white shadow-2xl transition hover:scale-105 sm:bottom-6 sm:right-6"
         >
           <span className="absolute inset-0 animate-ping rounded-full bg-blue-500 opacity-20" />
           <span className="relative">🛍️</span>
@@ -1041,9 +1109,8 @@ export default function Chatbot() {
       )}
 
       {isOpen && (
-        <div className="fixed bottom-4 right-4 z-100 flex h-[min(720px,calc(100dvh-32px))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-[26px] border border-gray-200 bg-white shadow-[0_25px_80px_rgba(15,23,42,0.25)] sm:bottom-6 sm:right-6">
-          {/* HEADER */}
-          <div className="bg-linear-to-r from-blue-600 to-indigo-600 px-5 py-5 text-white">
+        <div className="fixed bottom-4 right-4 z-[100] flex h-[min(720px,calc(100dvh-32px))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-[26px] border border-gray-200 bg-white shadow-[0_25px_80px_rgba(15,23,42,0.25)] sm:bottom-6 sm:right-6">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-5 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-2xl">
@@ -1068,6 +1135,7 @@ export default function Chatbot() {
                   type="button"
                   onClick={clearChat}
                   disabled={loading}
+                  aria-label="Clear chat"
                   className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-white/10 disabled:opacity-40"
                 >
                   🗑️
@@ -1078,8 +1146,15 @@ export default function Chatbot() {
                   onClick={() => {
                     setIsOpen(false);
                     recognitionRef.current?.stop();
-                    window.speechSynthesis?.cancel();
+
+                    if (
+                      typeof window !== "undefined" &&
+                      "speechSynthesis" in window
+                    ) {
+                      window.speechSynthesis.cancel();
+                    }
                   }}
+                  aria-label="Close chatbot"
                   className="flex h-9 w-9 items-center justify-center rounded-xl text-xl hover:bg-white/10"
                 >
                   ×
@@ -1088,19 +1163,21 @@ export default function Chatbot() {
             </div>
           </div>
 
-          {/* QUICK QUESTIONS */}
           <div className="border-b bg-white px-4 py-3">
             <div className="flex gap-2 overflow-x-auto">
               {QUICK_QUESTIONS.map((question) => (
                 <button
                   key={question}
                   type="button"
+                  disabled={loading}
                   onClick={() => {
-                    if (loading) return;
+                    if (loading) {
+                      return;
+                    }
 
                     setMessage(question);
                   }}
-                  className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-700"
+                  className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-700 disabled:opacity-50"
                 >
                   {question}
                 </button>
@@ -1108,7 +1185,6 @@ export default function Chatbot() {
             </div>
           </div>
 
-          {/* MESSAGES */}
           <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-4 py-5">
             {messages.map((item, index) => {
               const previous = index > 0 ? messages[index - 1] : null;
@@ -1140,7 +1216,7 @@ export default function Chatbot() {
                     <div
                       className={`whitespace-pre-line rounded-2xl px-4 py-3 text-[13px] leading-6 ${
                         item.role === "user"
-                          ? "rounded-br-md bg-linear-to-br from-blue-600 to-indigo-600 text-white"
+                          ? "rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white"
                           : "rounded-bl-md border bg-white text-gray-800 shadow-sm"
                       }`}
                     >
@@ -1184,8 +1260,11 @@ export default function Chatbot() {
                 <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-1">
                     <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500" />
+
                     <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:150ms]" />
+
                     <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]" />
+
                     <span className="ml-2 text-xs text-gray-500">
                       Thinking...
                     </span>
@@ -1197,7 +1276,6 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* INPUT */}
           <div className="border-t bg-white p-4">
             <form
               data-chatbot-form
@@ -1218,6 +1296,9 @@ export default function Chatbot() {
                 type="button"
                 onClick={startVoiceInput}
                 disabled={loading}
+                aria-label={
+                  isListening ? "Stop voice input" : "Start voice input"
+                }
                 className={`flex h-10 w-10 items-center justify-center rounded-xl ${
                   isListening
                     ? "bg-red-500 text-white"
@@ -1249,7 +1330,8 @@ export default function Chatbot() {
               <button
                 type="submit"
                 disabled={loading || !message.trim()}
-                className="flex h-10 w-11 items-center justify-center rounded-xl bg-blue-600 text-white disabled:opacity-40"
+                aria-label="Send message"
+                className="flex h-10 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {loading ? (
                   <svg
