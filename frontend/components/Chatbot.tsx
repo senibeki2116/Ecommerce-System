@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useCart } from "../app/Context/CartContext";
 
 const BACKEND_URL =
@@ -31,6 +31,7 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   products?: Product[];
+  comparison?: boolean;
 };
 
 type SpeechRecognitionEvent = Event & {
@@ -65,9 +66,10 @@ declare global {
 
 const QUICK_QUESTIONS = [
   "Show me phones",
-  "What do you recommend?",
-  "Show products under $100",
+  "Show laptops",
+  "Products under $100",
   "What is the cheapest product?",
+  "What do you recommend?",
 ];
 
 const DEFAULT_PRODUCT_IMAGE =
@@ -97,12 +99,10 @@ function getProductImage(product: Product): string {
     return product.image;
   }
 
-  if (
-    Array.isArray(product.images) &&
-    product.images.length > 0 &&
-    product.images[0]
-  ) {
-    return product.images[0];
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    if (product.images[0]?.trim()) {
+      return product.images[0];
+    }
   }
 
   if (product.imageUrl?.trim()) {
@@ -170,6 +170,61 @@ function isComparisonMessage(message: string): boolean {
   );
 }
 
+function isRecommendationMessage(message: string): boolean {
+  const text = normalizeText(message);
+
+  return (
+    text.includes("recommend") ||
+    text.includes("suggest") ||
+    text.includes("best") ||
+    text.includes("what should i buy") ||
+    text.includes("which one should")
+  );
+}
+
+function isProductQuestion(message: string): boolean {
+  const text = normalizeText(message);
+
+  const words = [
+    "product",
+    "products",
+    "phone",
+    "phones",
+    "iphone",
+    "samsung",
+    "mobile",
+    "smartphone",
+    "laptop",
+    "laptops",
+    "computer",
+    "tablet",
+    "headphone",
+    "headphones",
+    "earbuds",
+    "watch",
+    "smartwatch",
+    "camera",
+    "keyboard",
+    "mouse",
+    "gaming",
+    "speaker",
+    "audio",
+    "electronics",
+    "accessories",
+    "price",
+    "cost",
+    "cheap",
+    "cheapest",
+    "expensive",
+    "stock",
+    "available",
+    "buy",
+    "purchase",
+  ];
+
+  return words.some((word) => text.includes(word));
+}
+
 export default function Chatbot() {
   const { addToCart } = useCart();
 
@@ -183,7 +238,7 @@ export default function Chatbot() {
     {
       role: "assistant",
       content:
-        "Hi! 👋 I'm your ShopEase shopping assistant. Ask me about products, prices, categories, stock, recommendations, or comparisons.",
+        "Hi! 👋 I'm your ShopEase assistant. I can help you find products, compare prices, check stock, and choose the right product for you.",
     },
   ]);
 
@@ -219,7 +274,7 @@ export default function Chatbot() {
           ) as HTMLFormElement | null;
 
           form?.requestSubmit();
-        }, 200);
+        }, 250);
       }
     };
 
@@ -253,7 +308,7 @@ export default function Chatbot() {
   }, []);
 
   /*
-   * ADD PRODUCT TO CART
+   * ADD TO CART
    */
   function handleAddToCart(product: Product) {
     if (product.stock <= 0) {
@@ -269,13 +324,9 @@ export default function Chatbot() {
       image: getProductImage(product),
     });
 
-    setAddedProducts((current) => {
-      if (current.includes(product.id)) {
-        return current;
-      }
-
-      return [...current, product.id];
-    });
+    setAddedProducts((current) =>
+      current.includes(product.id) ? current : [...current, product.id],
+    );
 
     setTimeout(() => {
       setAddedProducts((current) => current.filter((id) => id !== product.id));
@@ -295,7 +346,7 @@ export default function Chatbot() {
 
     if (!SpeechRecognition) {
       alert(
-        "Voice input is not supported. Please use Google Chrome or Microsoft Edge.",
+        "Voice input is not supported in this browser. Please use Chrome or Edge.",
       );
       return;
     }
@@ -315,8 +366,8 @@ export default function Chatbot() {
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = event.results[0]?.[0]?.transcript || "";
 
-      if (transcript) {
-        setMessage(transcript);
+      if (transcript.trim()) {
+        setMessage(transcript.trim());
       }
     };
 
@@ -383,11 +434,9 @@ export default function Chatbot() {
 
     const timeout = setTimeout(() => {
       controller.abort();
-    }, 10000);
+    }, 8000);
 
     try {
-      console.log("Fetching products from:", `${BACKEND_URL}/products`);
-
       const response = await fetch(`${BACKEND_URL}/products`, {
         method: "GET",
         cache: "no-store",
@@ -399,8 +448,6 @@ export default function Chatbot() {
       }
 
       const data = await response.json();
-
-      console.log("Products response:", data);
 
       return extractProducts(data);
     } finally {
@@ -421,7 +468,7 @@ export default function Chatbot() {
     const text = normalizeText(query);
 
     /*
-     * UNDER PRICE
+     * PRICE UNDER
      */
     const underMatch = text.match(
       /(?:under|below|less than|cheaper than)\s*\$?\s*(\d+(?:\.\d+)?)/,
@@ -437,7 +484,7 @@ export default function Chatbot() {
     }
 
     /*
-     * ABOVE PRICE
+     * PRICE ABOVE
      */
     const aboveMatch = text.match(
       /(?:above|over|more than|greater than)\s*\$?\s*(\d+(?:\.\d+)?)/,
@@ -460,7 +507,8 @@ export default function Chatbot() {
       text.includes("lowest price") ||
       text.includes("most affordable")
     ) {
-      return [...products]
+      return products
+        .filter((product) => product.stock > 0)
         .sort((a, b) => Number(a.price) - Number(b.price))
         .slice(0, 6);
     }
@@ -468,7 +516,11 @@ export default function Chatbot() {
     /*
      * MOST EXPENSIVE
      */
-    if (text.includes("most expensive") || text.includes("highest price")) {
+    if (
+      text.includes("most expensive") ||
+      text.includes("highest price") ||
+      text.includes("most costly")
+    ) {
       return [...products]
         .sort((a, b) => Number(b.price) - Number(a.price))
         .slice(0, 6);
@@ -488,46 +540,73 @@ export default function Chatbot() {
     /*
      * AVAILABLE
      */
-    if (text.includes("available") || text.includes("in stock")) {
+    if (
+      text.includes("in stock") ||
+      text.includes("available") ||
+      text.includes("what can i buy")
+    ) {
       return products.filter((product) => product.stock > 0).slice(0, 6);
     }
 
     /*
      * CATEGORY KEYWORDS
      */
-    const keywords = [
-      "phone",
-      "iphone",
-      "samsung",
-      "mobile",
-      "laptop",
-      "computer",
-      "tablet",
-      "headphone",
-      "headphones",
-      "earbuds",
-      "earbud",
-      "earphone",
-      "earphones",
-      "watch",
-      "smartwatch",
-      "camera",
-      "keyboard",
-      "mouse",
-      "gaming",
-      "electronics",
-      "accessories",
-      "fashion",
-      "shoes",
-      "beauty",
-      "sports",
-      "speaker",
-      "audio",
+    const categoryGroups = [
+      {
+        words: ["phone", "phones", "iphone", "samsung", "mobile", "smartphone"],
+        matches: ["phone", "iphone", "samsung", "mobile", "smartphone"],
+      },
+      {
+        words: ["laptop", "laptops", "computer", "computers", "notebook"],
+        matches: ["laptop", "computer", "notebook"],
+      },
+      {
+        words: ["headphone", "headphones", "earbuds", "earphone", "earphones"],
+        matches: ["headphone", "earbud", "earphone"],
+      },
+      {
+        words: ["watch", "watches", "smartwatch"],
+        matches: ["watch", "smartwatch"],
+      },
+      {
+        words: ["tablet", "tablets", "ipad"],
+        matches: ["tablet", "ipad"],
+      },
+      {
+        words: ["camera", "cameras"],
+        matches: ["camera"],
+      },
+      {
+        words: ["keyboard", "keyboards"],
+        matches: ["keyboard"],
+      },
+      {
+        words: ["mouse", "mice"],
+        matches: ["mouse"],
+      },
+      {
+        words: ["speaker", "speakers", "audio"],
+        matches: ["speaker", "audio"],
+      },
+      {
+        words: ["gaming", "gamer"],
+        matches: ["gaming"],
+      },
+      {
+        words: ["electronics", "electronic"],
+        matches: ["electronic"],
+      },
+      {
+        words: ["accessory", "accessories"],
+        matches: ["accessory", "accessories"],
+      },
     ];
 
-    const keyword = keywords.find((word) => text.includes(word));
+    for (const group of categoryGroups) {
+      if (!group.words.some((word) => text.includes(word))) {
+        continue;
+      }
 
-    if (keyword) {
       const matches = products.filter((product) => {
         const productText = normalizeText(
           [
@@ -537,36 +616,7 @@ export default function Chatbot() {
           ].join(" "),
         );
 
-        if (
-          keyword === "phone" ||
-          keyword === "iphone" ||
-          keyword === "samsung" ||
-          keyword === "mobile"
-        ) {
-          return (
-            productText.includes("phone") ||
-            productText.includes("iphone") ||
-            productText.includes("samsung") ||
-            productText.includes("mobile")
-          );
-        }
-
-        if (
-          keyword === "headphone" ||
-          keyword === "headphones" ||
-          keyword === "earbuds" ||
-          keyword === "earbud" ||
-          keyword === "earphone" ||
-          keyword === "earphones"
-        ) {
-          return (
-            productText.includes("headphone") ||
-            productText.includes("earbud") ||
-            productText.includes("earphone")
-          );
-        }
-
-        return productText.includes(keyword);
+        return group.matches.some((keyword) => productText.includes(keyword));
       });
 
       if (matches.length) {
@@ -588,13 +638,13 @@ export default function Chatbot() {
       "want",
       "recommend",
       "recommendation",
-      "recommendations",
       "what",
       "would",
       "you",
       "suggest",
       "best",
       "good",
+      "great",
       "the",
       "for",
       "can",
@@ -604,37 +654,50 @@ export default function Chatbot() {
       "tell",
       "about",
       "me",
+      "have",
+      "do",
+      "does",
+      "there",
+      "is",
+      "are",
+      "any",
+      "price",
+      "cost",
+      "much",
+      "i",
+      "need",
+      "looking",
+      "look",
+      "buy",
+      "purchase",
     ]);
 
     const words = text
       .split(" ")
       .filter((word) => word.length >= 3 && !ignoredWords.has(word));
 
-    const matches = products.filter((product) => {
-      const productText = normalizeText(
-        [
-          product.name,
-          product.description ?? "",
-          getCategoryName(product),
-        ].join(" "),
-      );
+    if (words.length) {
+      const matches = products.filter((product) => {
+        const productText = normalizeText(
+          [
+            product.name,
+            product.description ?? "",
+            getCategoryName(product),
+          ].join(" "),
+        );
 
-      return words.some((word) => productText.includes(word));
-    });
+        return words.some((word) => productText.includes(word));
+      });
 
-    if (matches.length) {
-      return matches.slice(0, 6);
+      if (matches.length) {
+        return matches.slice(0, 6);
+      }
     }
 
     /*
      * RECOMMENDATIONS
      */
-    if (
-      text.includes("recommend") ||
-      text.includes("suggest") ||
-      text.includes("best") ||
-      text.includes("what should i buy")
-    ) {
+    if (isRecommendationMessage(query)) {
       return products
         .filter((product) => product.stock > 0)
         .sort((a, b) => Number(b.stock) - Number(a.stock))
@@ -645,25 +708,114 @@ export default function Chatbot() {
   }
 
   /*
-   * ASK AI SERVICE
+   * LOCAL RESPONSES
    */
-  async function askAI(userMessage: string): Promise<string> {
+  function getLocalResponse(input: string): string | null {
+    const text = normalizeText(input);
+
+    if (/^(hi|hello|hey|hi there|hello there|hey there)$/.test(text)) {
+      return "Hello! 👋 Welcome to ShopEase! What are you shopping for today?";
+    }
+
+    if (text.includes("thank") || text.includes("thanks")) {
+      return "You're very welcome! 😊 I'm happy to help.";
+    }
+
+    if (text === "bye" || text.includes("goodbye")) {
+      return "Goodbye! 👋 Thanks for shopping with ShopEase.";
+    }
+
+    if (text === "ok" || text === "okay" || text === "great") {
+      return "Great! 😊 What would you like to find next?";
+    }
+
+    return null;
+  }
+
+  /*
+   * CREATE PRODUCT RESPONSE
+   */
+  function createProductResponse(
+    userMessage: string,
+    products: Product[],
+  ): string {
+    const text = normalizeText(userMessage);
+
+    if (isComparisonMessage(userMessage)) {
+      if (products.length >= 2) {
+        return `I found ${products.length} products for comparison. 👇`;
+      }
+
+      return "I found one matching product. Try saying something like “compare iPhone 17 and Samsung Galaxy S25”.";
+    }
+
+    if (isRecommendationMessage(userMessage)) {
+      return "Here are my recommendations based on the products currently available. 👇";
+    }
+
+    if (
+      text.includes("under") ||
+      text.includes("below") ||
+      text.includes("less than") ||
+      text.includes("cheaper than")
+    ) {
+      return "Absolutely! 🎯 Here are products that fit your budget:";
+    }
+
+    if (
+      text.includes("cheapest") ||
+      text.includes("lowest price") ||
+      text.includes("most affordable")
+    ) {
+      return "Here are the most affordable products currently in stock:";
+    }
+
+    if (text.includes("most expensive") || text.includes("highest price")) {
+      return "Here are the highest-priced products in our store:";
+    }
+
+    if (
+      text.includes("out of stock") ||
+      text.includes("sold out") ||
+      text.includes("unavailable")
+    ) {
+      return "Here are the products that are currently unavailable:";
+    }
+
+    if (text.includes("available") || text.includes("in stock")) {
+      return "Here are the products currently in stock:";
+    }
+
+    return `I found ${products.length} product${
+      products.length === 1 ? "" : "s"
+    } that match your request:`;
+  }
+
+  /*
+   * ASK AI
+   */
+  async function askAI(
+    userMessage: string,
+    products: Product[],
+  ): Promise<string> {
     const controller = new AbortController();
 
     const timeout = setTimeout(() => {
       controller.abort();
-    }, 15000);
+    }, 12000);
 
     try {
-      const aiUrl = `${AI_API_URL}/chat`;
+      const productContext = products
+        .slice(0, 8)
+        .map(
+          (product) =>
+            `${product.name} | $${Number(product.price).toFixed(2)} | ${
+              product.stock > 0 ? `${product.stock} in stock` : "out of stock"
+            } | Category: ${getCategoryName(product)}`,
+        )
+        .join("\n");
 
-      console.log("=================================");
-      console.log("SHOP EASE AI REQUEST");
-      console.log("AI URL:", aiUrl);
-      console.log("Message:", userMessage);
-      console.log("=================================");
-
-      const response = await fetch(aiUrl, {
+      const response = await fetch(`${AI_API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -671,33 +823,29 @@ export default function Chatbot() {
         },
         body: JSON.stringify({
           message: userMessage,
+          products: productContext,
         }),
         signal: controller.signal,
       });
 
-      console.log("AI HTTP STATUS:", response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
 
-        console.error("AI ERROR RESPONSE:", errorText);
+        console.error("AI service error:", response.status, errorText);
 
         throw new Error(`AI service returned ${response.status}`);
       }
 
       const data = await response.json();
 
-      console.log("AI RESPONSE:", data);
-
-      let reply = "";
-
-      if (typeof data.reply === "string" && data.reply.trim()) {
-        reply = data.reply;
-      } else if (typeof data.response === "string" && data.response.trim()) {
-        reply = data.response;
-      } else if (typeof data.message === "string" && data.message.trim()) {
-        reply = data.message;
-      }
+      const reply =
+        typeof data.reply === "string"
+          ? data.reply
+          : typeof data.response === "string"
+            ? data.response
+            : typeof data.message === "string"
+              ? data.message
+              : "";
 
       if (!reply.trim()) {
         throw new Error("AI returned an empty response");
@@ -707,31 +855,6 @@ export default function Chatbot() {
     } finally {
       clearTimeout(timeout);
     }
-  }
-
-  /*
-   * LOCAL RESPONSES
-   */
-  function getLocalResponse(input: string): string | null {
-    const text = normalizeText(input);
-
-    if (/^(hi|hello|hey|hi there|hello there)$/.test(text)) {
-      return "Hello! 👋 Welcome to ShopEase. What are you looking for today?";
-    }
-
-    if (text.includes("thank") || text.includes("thanks")) {
-      return "You're very welcome! 😊 I'm happy to help.";
-    }
-
-    if (text === "bye" || text.includes("goodbye")) {
-      return "Goodbye! 👋 Come back anytime.";
-    }
-
-    if (text === "ok" || text === "okay" || text === "great") {
-      return "Great! 😊 What would you like to find next?";
-    }
-
-    return null;
   }
 
   /*
@@ -745,8 +868,6 @@ export default function Chatbot() {
     if (!userMessage || loading) {
       return;
     }
-
-    console.log("CHATBOT USER MESSAGE:", userMessage);
 
     setMessages((current) => [
       ...current,
@@ -786,64 +907,19 @@ export default function Chatbot() {
         products = await findProducts(userMessage);
       } catch (error) {
         console.error("Product search failed:", error);
-
-        products = [];
       }
-
-      const text = normalizeText(userMessage);
 
       /*
        * 3. PRODUCT RESPONSE
        */
       if (products.length > 0) {
-        let reply = "I found these products for you:";
-
-        if (
-          text.includes("recommend") ||
-          text.includes("suggest") ||
-          text.includes("best")
-        ) {
-          reply = "Here are some products I'd recommend for you:";
-        }
-
-        if (
-          text.includes("under") ||
-          text.includes("below") ||
-          text.includes("less than")
-        ) {
-          reply = "Great! Here are products within your budget:";
-        }
-
-        if (
-          text.includes("cheapest") ||
-          text.includes("lowest price") ||
-          text.includes("most affordable")
-        ) {
-          reply = "Here are the most affordable products:";
-        }
-
-        if (
-          text.includes("out of stock") ||
-          text.includes("sold out") ||
-          text.includes("unavailable")
-        ) {
-          reply = "Here are the products that are currently unavailable:";
-        }
-
-        if (text.includes("available") || text.includes("in stock")) {
-          reply = "Here are the products currently in stock:";
-        }
-
-        if (isComparisonMessage(userMessage)) {
-          reply = "Here are the products I found for comparison:";
-        }
-
         setMessages((current) => [
           ...current,
           {
             role: "assistant",
-            content: reply,
+            content: createProductResponse(userMessage, products),
             products,
+            comparison: isComparisonMessage(userMessage),
           },
         ]);
 
@@ -851,10 +927,10 @@ export default function Chatbot() {
       }
 
       /*
-       * 4. ASK AI
+       * 4. AI RESPONSE
        */
       try {
-        const aiReply = await askAI(userMessage);
+        const aiReply = await askAI(userMessage, products);
 
         if (aiReply) {
           setMessages((current) => [
@@ -868,18 +944,34 @@ export default function Chatbot() {
           return;
         }
       } catch (error) {
-        console.error("AI service failed:", error);
+        console.error("AI request failed:", error);
       }
 
       /*
-       * 5. FINAL FALLBACK
+       * 5. PRODUCT FALLBACK
+       */
+      if (isProductQuestion(userMessage)) {
+        setMessages((current) => [
+          ...current,
+          {
+            role: "assistant",
+            content:
+              "I couldn't find a matching product right now. 😔\n\nTry:\n• Show me phones\n• Show laptops\n• Products under $100\n• What is the cheapest product?\n• Compare iPhone 17 and Samsung Galaxy S25",
+          },
+        ]);
+
+        return;
+      }
+
+      /*
+       * 6. FINAL FALLBACK
        */
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
           content:
-            "I'm sorry 😔 I couldn't connect to the ShopEase AI service right now.\n\nPlease make sure the AI service is running on port 8000.",
+            "I'm having trouble connecting to my AI assistant right now. 😔 Please try again in a moment.",
         },
       ]);
     } catch (error) {
@@ -889,8 +981,7 @@ export default function Chatbot() {
         ...current,
         {
           role: "assistant",
-          content:
-            "Sorry 😔 Something went wrong while processing your message. Please try again.",
+          content: "Sorry 😔 Something went wrong. Please try again.",
         },
       ]);
     } finally {
@@ -931,9 +1022,9 @@ export default function Chatbot() {
     return (
       <div
         key={product.id}
-        className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       >
-        <div className="relative h-36 bg-gray-100">
+        <div className="relative h-32 bg-slate-100">
           <img
             src={getProductImage(product)}
             alt={product.name}
@@ -943,38 +1034,38 @@ export default function Chatbot() {
             }}
           />
 
-          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2 py-1 text-[10px] font-bold text-blue-600">
+          <div className="absolute left-2.5 top-2.5 rounded-full bg-white/95 px-2.5 py-1 text-[9px] font-bold text-slate-700 shadow-sm">
             {getCategoryName(product)}
-          </span>
+          </div>
 
-          <span
-            className={`absolute right-3 top-3 rounded-full px-2 py-1 text-[10px] font-bold ${
+          <div
+            className={`absolute right-2.5 top-2.5 rounded-full px-2.5 py-1 text-[9px] font-bold shadow-sm ${
               product.stock > 0
-                ? "bg-green-100 text-green-700"
-                : "bg-red-100 text-red-600"
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-red-50 text-red-600"
             }`}
           >
-            {product.stock > 0 ? `${product.stock} in stock` : "Sold out"}
-          </span>
+            {product.stock > 0 ? `${product.stock} left` : "Sold out"}
+          </div>
         </div>
 
         <div className="p-3.5">
-          <h3 className="line-clamp-1 text-sm font-bold text-gray-900">
+          <h3 className="line-clamp-1 text-sm font-extrabold text-slate-900">
             {product.name}
           </h3>
 
-          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-gray-500">
+          <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500">
             {product.description || "No description available."}
           </p>
 
           <div className="mt-3 flex items-center justify-between">
-            <span className="text-lg font-extrabold text-blue-600">
+            <span className="text-base font-black text-blue-600">
               ${Number(product.price).toFixed(2)}
             </span>
 
             <span
-              className={`text-[10px] font-bold ${
-                product.stock > 0 ? "text-green-600" : "text-red-500"
+              className={`text-[9px] font-bold ${
+                product.stock > 0 ? "text-emerald-600" : "text-red-500"
               }`}
             >
               {product.stock > 0 ? "Available" : "Unavailable"}
@@ -984,20 +1075,20 @@ export default function Chatbot() {
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Link
               href={`/products/${product.id}`}
-              className="flex h-9 items-center justify-center rounded-xl border border-gray-200 text-[11px] font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+              className="flex h-9 items-center justify-center rounded-xl border border-slate-200 text-[10px] font-bold text-slate-700 transition hover:bg-slate-50"
             >
-              View Product
+              View
             </Link>
 
             <button
               type="button"
               onClick={() => handleAddToCart(product)}
               disabled={product.stock <= 0 || added}
-              className={`h-9 rounded-xl text-[11px] font-semibold text-white ${
+              className={`h-9 rounded-xl text-[10px] font-bold text-white transition ${
                 product.stock <= 0
-                  ? "bg-gray-300"
+                  ? "bg-slate-300"
                   : added
-                    ? "bg-green-500"
+                    ? "bg-emerald-500"
                     : "bg-blue-600 hover:bg-blue-700"
               }`}
             >
@@ -1024,20 +1115,28 @@ export default function Chatbot() {
     }
 
     return (
-      <div className="mt-3 overflow-hidden rounded-2xl border border-blue-100 bg-white">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4">
-          <h3 className="text-sm font-extrabold text-gray-900">
-            ⚖️ Product Comparison
-          </h3>
+      <div className="mt-3 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm">
+              ⚖️
+            </div>
 
-          <p className="mt-1 text-[10px] text-gray-500">
-            Compare price and availability
-          </p>
+            <div>
+              <h3 className="text-sm font-black text-slate-900">
+                Product comparison
+              </h3>
+
+              <p className="text-[10px] text-slate-500">
+                Price and availability
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="divide-y">
+        <div className="divide-y divide-slate-100">
           {items.map((product) => (
-            <div key={product.id} className="p-3">
+            <div key={product.id} className="p-3.5">
               <div className="flex gap-3">
                 <img
                   src={getProductImage(product)}
@@ -1049,17 +1148,17 @@ export default function Chatbot() {
                 />
 
                 <div className="min-w-0 flex-1">
-                  <h4 className="truncate text-sm font-bold text-gray-900">
+                  <h4 className="truncate text-sm font-bold text-slate-900">
                     {product.name}
                   </h4>
 
-                  <p className="mt-1 text-base font-extrabold text-blue-600">
+                  <p className="mt-1 text-base font-black text-blue-600">
                     ${Number(product.price).toFixed(2)}
                   </p>
 
                   <p
-                    className={`text-[10px] font-bold ${
-                      product.stock > 0 ? "text-green-600" : "text-red-500"
+                    className={`text-[9px] font-bold ${
+                      product.stock > 0 ? "text-emerald-600" : "text-red-500"
                     }`}
                   >
                     {product.stock > 0
@@ -1072,7 +1171,7 @@ export default function Chatbot() {
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Link
                   href={`/products/${product.id}`}
-                  className="flex h-8 items-center justify-center rounded-lg border border-gray-200 text-[10px] font-bold"
+                  className="flex h-8 items-center justify-center rounded-lg border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-slate-50"
                 >
                   View
                 </Link>
@@ -1081,7 +1180,7 @@ export default function Chatbot() {
                   type="button"
                   onClick={() => handleAddToCart(product)}
                   disabled={product.stock <= 0}
-                  className="rounded-lg bg-blue-600 text-[10px] font-bold text-white disabled:bg-gray-300"
+                  className="rounded-lg bg-blue-600 text-[10px] font-bold text-white hover:bg-blue-700 disabled:bg-slate-300"
                 >
                   Add to Cart
                 </button>
@@ -1095,38 +1194,54 @@ export default function Chatbot() {
 
   return (
     <>
+      {/* FLOATING BUTTON */}
       {!isOpen && (
         <button
           type="button"
           data-chatbot-trigger
           onClick={() => setIsOpen(true)}
           aria-label="Open ShopEase assistant"
-          className="fixed bottom-5 right-5 z-[100] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-3xl text-white shadow-2xl transition hover:scale-105 sm:bottom-6 sm:right-6"
+          className="fixed bottom-5 right-5 z-[100] group"
         >
-          <span className="absolute inset-0 animate-ping rounded-full bg-blue-500 opacity-20" />
-          <span className="relative">🛍️</span>
+          <span className="absolute -inset-1 rounded-full bg-blue-500/20 blur-md transition group-hover:bg-blue-500/40" />
+
+          <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-2xl text-white shadow-[0_12px_35px_rgba(37,99,235,0.4)] transition duration-300 group-hover:scale-110">
+            <span>🤖</span>
+          </span>
+
+          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[9px] text-white">
+            ✓
+          </span>
         </button>
       )}
 
+      {/* CHAT WINDOW */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 z-[100] flex h-[min(720px,calc(100dvh-32px))] w-[min(440px,calc(100vw-32px))] flex-col overflow-hidden rounded-[26px] border border-gray-200 bg-white shadow-[0_25px_80px_rgba(15,23,42,0.25)] sm:bottom-6 sm:right-6">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-5 text-white">
-            <div className="flex items-center justify-between">
+        <div className="fixed bottom-3 right-3 z-[100] flex h-[min(760px,calc(100dvh-24px))] w-[min(460px,calc(100vw-24px))] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.28)] sm:bottom-6 sm:right-6">
+          {/* HEADER */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 px-5 py-5 text-white">
+            <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-blue-500/20 blur-2xl" />
+            <div className="absolute -bottom-20 left-20 h-40 w-40 rounded-full bg-purple-500/20 blur-2xl" />
+
+            <div className="relative flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-2xl">
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-2xl shadow-inner ring-1 ring-white/10">
                   🤖
+                  <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-emerald-400" />
                 </div>
 
                 <div>
-                  <h2 className="font-bold">ShopEase AI</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-black">ShopEase Assistant</h2>
 
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-green-300" />
-
-                    <span className="text-xs text-blue-100">
-                      Online · Ready to help
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-blue-100">
+                      AI
                     </span>
                   </div>
+
+                  <p className="mt-1 text-[10px] text-blue-100">
+                    Find products • Compare • Shop smarter
+                  </p>
                 </div>
               </div>
 
@@ -1136,9 +1251,9 @@ export default function Chatbot() {
                   onClick={clearChat}
                   disabled={loading}
                   aria-label="Clear chat"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-white/10 disabled:opacity-40"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-sm transition hover:bg-white/10 disabled:opacity-40"
                 >
-                  🗑️
+                  ↻
                 </button>
 
                 <button
@@ -1155,29 +1270,35 @@ export default function Chatbot() {
                     }
                   }}
                   aria-label="Close chatbot"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-xl hover:bg-white/10"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-xl transition hover:bg-white/10"
                 >
                   ×
                 </button>
               </div>
             </div>
+
+            <div className="relative mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <span className="text-xs">✨</span>
+              <span className="text-[10px] font-medium text-blue-100">
+                Ask me about products, prices, stock or recommendations.
+              </span>
+            </div>
           </div>
 
-          <div className="border-b bg-white px-4 py-3">
-            <div className="flex gap-2 overflow-x-auto">
+          {/* QUICK QUESTIONS */}
+          <div className="border-b border-slate-100 bg-white px-4 py-3">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
               {QUICK_QUESTIONS.map((question) => (
                 <button
                   key={question}
                   type="button"
                   disabled={loading}
                   onClick={() => {
-                    if (loading) {
-                      return;
+                    if (!loading) {
+                      setMessage(question);
                     }
-
-                    setMessage(question);
                   }}
-                  className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-700 disabled:opacity-50"
+                  className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[9px] font-bold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40"
                 >
                   {question}
                 </button>
@@ -1185,25 +1306,18 @@ export default function Chatbot() {
             </div>
           </div>
 
-          <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-4 py-5">
+          {/* MESSAGES */}
+          <div className="flex-1 space-y-5 overflow-y-auto bg-gradient-to-b from-slate-50 to-white px-4 py-5">
             {messages.map((item, index) => {
-              const previous = index > 0 ? messages[index - 1] : null;
-
-              const comparison =
-                item.role === "assistant" &&
-                previous?.role === "user" &&
-                isComparisonMessage(previous.content) &&
-                Boolean(item.products && item.products.length >= 2);
-
               return (
                 <div
                   key={`${item.role}-${index}`}
-                  className={`flex gap-2 ${
+                  className={`flex gap-2.5 ${
                     item.role === "user" ? "justify-end" : "justify-start"
                   }`}
                 >
                   {item.role === "assistant" && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-sm text-white shadow-sm">
                       🤖
                     </div>
                   )}
@@ -1214,10 +1328,10 @@ export default function Chatbot() {
                     }`}
                   >
                     <div
-                      className={`whitespace-pre-line rounded-2xl px-4 py-3 text-[13px] leading-6 ${
+                      className={`whitespace-pre-line rounded-2xl px-4 py-3 text-[12px] leading-5 shadow-sm ${
                         item.role === "user"
                           ? "rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white"
-                          : "rounded-bl-md border bg-white text-gray-800 shadow-sm"
+                          : "rounded-bl-md border border-slate-200 bg-white text-slate-700"
                       }`}
                     >
                       {item.content}
@@ -1227,45 +1341,43 @@ export default function Chatbot() {
                       <button
                         type="button"
                         onClick={() => speakMessage(item.content, index)}
-                        className="mt-1 px-2 text-[10px] text-gray-400 hover:text-blue-600"
+                        className="mt-1.5 px-2 text-[9px] font-semibold text-slate-400 transition hover:text-blue-600"
                       >
                         {speakingIndex === index ? "🔇 Stop" : "🔊 Listen"}
                       </button>
                     )}
 
-                    {comparison &&
-                      item.products &&
-                      renderComparison(item.products)}
-
-                    {!comparison &&
-                      item.products &&
-                      item.products.length > 0 && (
-                        <div className="mt-3 w-full space-y-3">
-                          {item.products.map((product) =>
-                            renderProductCard(product),
-                          )}
-                        </div>
-                      )}
+                    {item.products && item.products.length > 0 && (
+                      <div className="mt-3 w-full">
+                        {item.comparison ? (
+                          renderComparison(item.products)
+                        ) : (
+                          <div className="space-y-3">
+                            {item.products.map((product) =>
+                              renderProductCard(product),
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })}
 
+            {/* TYPING */}
             {loading && (
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100">
+              <div className="flex items-start gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-sm text-white">
                   🤖
                 </div>
 
-                <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                  <div className="flex items-center gap-1">
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500" />
-
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:150ms]" />
-
-                    <span className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]" />
-
-                    <span className="ml-2 text-xs text-gray-500">
+                <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:150ms]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]" />
+                    <span className="ml-2 text-[9px] font-medium text-slate-400">
                       Thinking...
                     </span>
                   </div>
@@ -1276,107 +1388,114 @@ export default function Chatbot() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t bg-white p-4">
+          {/* INPUT */}
+          <div className="border-t border-slate-100 bg-white p-4">
             <form
               data-chatbot-form
               onSubmit={sendMessage}
-              className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-1.5 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50"
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-1.5 shadow-sm transition focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10"
             >
-              <input
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                disabled={loading}
-                placeholder={
-                  isListening ? "Listening..." : "Ask me anything..."
-                }
-                className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none"
-              />
+              <div className="flex items-center gap-1.5">
+                <input
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  disabled={loading}
+                  placeholder={
+                    isListening ? "Listening..." : "Ask me anything..."
+                  }
+                  className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-xs font-medium text-slate-800 outline-none placeholder:text-slate-400"
+                />
 
-              <button
-                type="button"
-                onClick={startVoiceInput}
-                disabled={loading}
-                aria-label={
-                  isListening ? "Stop voice input" : "Start voice input"
-                }
-                className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                  isListening
-                    ? "bg-red-500 text-white"
-                    : "bg-blue-50 text-blue-600"
-                }`}
-              >
-                {isListening ? (
-                  "■"
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="19"
-                    height="19"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" x2="12" y1="19" y2="22" />
-                    <line x1="8" x2="16" y1="22" y2="22" />
-                  </svg>
-                )}
-              </button>
-
-              <button
-                type="submit"
-                disabled={loading || !message.trim()}
-                aria-label="Send message"
-                className="flex h-10 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {loading ? (
-                  <svg
-                    className="h-5 w-5 animate-spin"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="9"
+                {/* VOICE */}
+                <button
+                  type="button"
+                  onClick={startVoiceInput}
+                  disabled={loading}
+                  aria-label={
+                    isListening ? "Stop voice input" : "Start voice input"
+                  }
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
+                    isListening
+                      ? "bg-red-500 text-white shadow-md shadow-red-500/20"
+                      : "bg-white text-slate-600 shadow-sm hover:bg-blue-50 hover:text-blue-600"
+                  }`}
+                >
+                  {isListening ? (
+                    "■"
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
                       stroke="currentColor"
-                      strokeWidth="3"
-                      className="opacity-30"
-                    />
-
-                    <path
-                      d="M21 12a9 9 0 0 0-9-9"
-                      stroke="currentColor"
-                      strokeWidth="3"
+                      strokeWidth="2"
                       strokeLinecap="round"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="19"
-                    height="19"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m22 2-7 20-4-9-9-4Z" />
-                    <path d="M22 2 11 13" />
-                  </svg>
-                )}
-              </button>
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" x2="12" y1="19" y2="22" />
+                      <line x1="8" x2="16" y1="22" y2="22" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* SEND */}
+                <button
+                  type="submit"
+                  disabled={loading || !message.trim()}
+                  aria-label="Send message"
+                  className="flex h-10 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20 transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {loading ? (
+                    <svg
+                      className="h-4 w-4 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        className="opacity-30"
+                      />
+                      <path
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m22 2-7 20-4-9-9-4Z" />
+                      <path d="M22 2 11 13" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </form>
 
-            <p className="mt-2 text-center text-[9px] text-gray-400">
-              ShopEase AI · Products · Prices · Recommendations
-            </p>
+            <div className="mt-2 flex items-center justify-center gap-1 text-[8px] font-medium text-slate-400">
+              <span>✨</span>
+              <span>ShopEase Assistant</span>
+              <span>•</span>
+              <span>Smart shopping help</span>
+            </div>
           </div>
         </div>
       )}
