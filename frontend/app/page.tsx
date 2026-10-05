@@ -86,14 +86,38 @@ export default function HomePage() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
 
+  // Hamburger menu
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // E-Shop mega menu
+  const [shopMenuOpen, setShopMenuOpen] = useState(false);
+
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     setIsLoggedIn(Boolean(token));
   }, []);
 
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setShopMenuOpen(false);
+      }
+    };
+
+    if (menuOpen) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
   const getToken = () => {
     if (typeof window === "undefined") return null;
-
     return localStorage.getItem("accessToken");
   };
 
@@ -219,6 +243,8 @@ export default function HomePage() {
 
     setIsLoggedIn(false);
     setWishlist([]);
+    setMenuOpen(false);
+    setShopMenuOpen(false);
 
     window.location.href = "/";
   };
@@ -345,67 +371,111 @@ export default function HomePage() {
     }
 
     setNewsletterMessage("Thanks! You're now subscribed to E-Shop.");
+
     setNewsletterEmail("");
   };
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
-      {/* TOP ANNOUNCEMENT */}
-
+      {/* =========================================================
+          TOP ANNOUNCEMENT
+      ========================================================= */}
       <div className="bg-slate-950 px-4 py-2.5 text-center text-xs font-bold text-white">
         <span className="text-blue-400">●</span> Free delivery on qualifying
         orders · Secure checkout
       </div>
 
-      {/* HEADER */}
+      {/* =========================================================
+          HEADER
+      ========================================================= */}
+      <header
+        className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-all duration-200 ${
+          shopMenuOpen
+            ? "border-blue-200 bg-white shadow-lg"
+            : "border-slate-200/80 bg-white/95"
+        }`}
+      >
+        <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-5 md:px-8">
+          {/* HAMBURGER */}
+          <button
+            type="button"
+            onClick={() => {
+              setShopMenuOpen(false);
+              setMenuOpen(true);
+            }}
+            className="group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 transition-all duration-200 hover:bg-slate-950"
+            aria-label="Open navigation menu"
+          >
+            <span className="pointer-events-none absolute left-1/2 top-full z-[100] mt-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-[11px] font-bold text-white opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+              Menu
+            </span>
 
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-18 max-w-7xl items-center gap-5 px-5 md:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-lg shadow-lg">
-              🛍️
-            </div>
+            <span className="flex w-5 flex-col gap-1.5">
+              <span className="block h-0.5 w-5 rounded-full bg-slate-900 transition-colors duration-200 group-hover:bg-white" />
+              <span className="block h-0.5 w-5 rounded-full bg-slate-900 transition-colors duration-200 group-hover:bg-white" />
+              <span className="block h-0.5 w-5 rounded-full bg-slate-900 transition-colors duration-200 group-hover:bg-white" />
+            </span>
+          </button>
 
-            <div>
-              <p className="text-lg font-black tracking-tight">E-Shop</p>
-
-              <p className="hidden text-[8px] font-bold uppercase tracking-[0.25em] text-slate-400 sm:block">
-                Shop smarter
-              </p>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-1 lg:flex">
+          {/* =====================================================
+              E-SHOP MEGA MENU TRIGGER
+          ===================================================== */}
+          <div
+            className="relative shrink-0"
+            onMouseEnter={() => setShopMenuOpen(true)}
+            onMouseLeave={() => setShopMenuOpen(false)}
+          >
             <Link
               href="/"
-              className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-950"
+              aria-expanded={shopMenuOpen}
+              className={`flex items-center gap-2.5 rounded-2xl px-2 py-1.5 transition-all duration-200 ${
+                shopMenuOpen ? "bg-blue-50" : "hover:bg-slate-50"
+              }`}
             >
-              Home
-            </Link>
+              <div
+                className={`flex h-9 w-9 items-center justify-center rounded-xl text-base shadow-md transition-all duration-200 ${
+                  shopMenuOpen
+                    ? "scale-105 bg-blue-600 shadow-lg"
+                    : "bg-slate-950"
+                }`}
+              >
+                🛍️
+              </div>
 
-            <Link
-              href="/products"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
-            >
-              Shop
-            </Link>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <p
+                    className={`text-lg font-black tracking-tight transition-colors duration-200 ${
+                      shopMenuOpen ? "text-blue-600" : "text-slate-950"
+                    }`}
+                  >
+                    E-Shop
+                  </p>
 
-            <Link
-              href="/categories"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
-            >
-              Categories
-            </Link>
+                  <span
+                    className={`text-xs font-black transition-transform duration-200 ${
+                      shopMenuOpen
+                        ? "rotate-180 text-blue-600"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    ⌄
+                  </span>
+                </div>
 
-            <Link
-              href="/orders"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
-            >
-              Orders
+                <p
+                  className={`hidden text-[8px] font-bold uppercase tracking-[0.25em] transition-colors duration-200 sm:block ${
+                    shopMenuOpen ? "text-blue-500" : "text-slate-400"
+                  }`}
+                >
+                  Shop smarter
+                </p>
+              </div>
             </Link>
-          </nav>
+          </div>
 
-          <div className="ml-auto hidden max-w-sm flex-1 xl:block">
+          {/* DESKTOP SEARCH */}
+          <div className="ml-auto hidden max-w-md flex-1 lg:block">
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                 ⌕
@@ -416,15 +486,16 @@ export default function HomePage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search products..."
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-slate-400 focus:bg-white"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-slate-400 focus:bg-white"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* RIGHT ACTIONS */}
+          <div className="ml-auto flex items-center gap-1.5 lg:ml-4">
             <Link
               href="/wishlist"
-              className="relative hidden h-10 w-10 items-center justify-center rounded-xl text-xl text-slate-600 transition hover:bg-slate-100 hover:text-red-500 sm:flex"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-xl text-slate-600 transition hover:bg-slate-100 hover:text-red-500"
               aria-label="Wishlist"
             >
               ♡
@@ -449,26 +520,16 @@ export default function HomePage() {
             </Link>
 
             {isLoggedIn ? (
-              <>
-                <Link
-                  href="/profile"
-                  className="hidden rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold transition hover:border-slate-950 sm:block"
-                >
-                  Account
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="hidden rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-600 sm:block"
-                >
-                  Logout
-                </button>
-              </>
+              <Link
+                href="/profile"
+                className="hidden rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-600 sm:block"
+              >
+                Account
+              </Link>
             ) : (
               <Link
                 href="/login"
-                className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-600 sm:px-5"
+                className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-black text-white transition hover:bg-blue-600 sm:px-5"
               >
                 Login
               </Link>
@@ -476,172 +537,614 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="border-t border-slate-100 lg:hidden">
-          <div className="flex gap-2 overflow-x-auto px-4 py-2.5">
+        {/* MOBILE SEARCH */}
+        <div className="border-t border-slate-100 px-4 py-3 lg:hidden">
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+              ⌕
+            </span>
+
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search products..."
+              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-slate-400 focus:bg-white"
+            />
+          </div>
+        </div>
+
+        {/* =====================================================
+            MEGA MENU
+        ===================================================== */}
+        <div
+          onMouseEnter={() => setShopMenuOpen(true)}
+          onMouseLeave={() => setShopMenuOpen(false)}
+          className={`absolute left-0 right-0 top-full border-b border-slate-200 bg-white shadow-2xl transition-all duration-200 ${
+            shopMenuOpen
+              ? "visible translate-y-0 opacity-100"
+              : "invisible pointer-events-none -translate-y-2 opacity-0"
+          }`}
+        >
+          <div className="mx-auto max-w-7xl px-5 py-8 md:px-8">
+            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              {/* SHOP */}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                  Shop
+                </p>
+
+                <h3 className="mt-2 text-lg font-black text-slate-950">
+                  Discover our store
+                </h3>
+
+                <div className="mt-5 space-y-1">
+                  <Link
+                    href="/"
+                    className="group flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg transition group-hover:bg-blue-600 group-hover:text-white">
+                      🏠
+                    </span>
+
+                    <span>
+                      <span className="block text-sm font-black text-slate-800 group-hover:text-blue-600">
+                        Home
+                      </span>
+
+                      <span className="block text-xs text-slate-400">
+                        Back to homepage
+                      </span>
+                    </span>
+                  </Link>
+
+                  <Link
+                    href="/products"
+                    className="group flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg transition group-hover:bg-blue-600 group-hover:text-white">
+                      🛍️
+                    </span>
+
+                    <span>
+                      <span className="block text-sm font-black text-slate-800 group-hover:text-blue-600">
+                        All Products
+                      </span>
+
+                      <span className="block text-xs text-slate-400">
+                        Browse the full collection
+                      </span>
+                    </span>
+                  </Link>
+
+                  <Link
+                    href="/categories"
+                    className="group flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg transition group-hover:bg-blue-600 group-hover:text-white">
+                      📂
+                    </span>
+
+                    <span>
+                      <span className="block text-sm font-black text-slate-800 group-hover:text-blue-600">
+                        Categories
+                      </span>
+
+                      <span className="block text-xs text-slate-400">
+                        Explore products by category
+                      </span>
+                    </span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* CUSTOMER */}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                  Customer
+                </p>
+
+                <h3 className="mt-2 text-lg font-black text-slate-950">
+                  Your shopping
+                </h3>
+
+                <div className="mt-5 space-y-1">
+                  <Link
+                    href="/orders"
+                    className="group flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg transition group-hover:bg-blue-600 group-hover:text-white">
+                      📦
+                    </span>
+
+                    <span>
+                      <span className="block text-sm font-black text-slate-800 group-hover:text-blue-600">
+                        My Orders
+                      </span>
+
+                      <span className="block text-xs text-slate-400">
+                        Track your purchases
+                      </span>
+                    </span>
+                  </Link>
+
+                  <Link
+                    href="/wishlist"
+                    className="group flex items-center justify-between rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg transition group-hover:bg-red-500 group-hover:text-white">
+                        ♡
+                      </span>
+
+                      <span>
+                        <span className="block text-sm font-black text-slate-800 group-hover:text-red-500">
+                          Wishlist
+                        </span>
+
+                        <span className="block text-xs text-slate-400">
+                          Save your favorite products
+                        </span>
+                      </span>
+                    </span>
+
+                    {wishlist.length > 0 && (
+                      <span className="rounded-full bg-red-500 px-2.5 py-1 text-[9px] font-black text-white">
+                        {wishlist.length}
+                      </span>
+                    )}
+                  </Link>
+
+                  <Link
+                    href="/cart"
+                    className="group flex items-center justify-between rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg transition group-hover:bg-blue-600 group-hover:text-white">
+                        🛒
+                      </span>
+
+                      <span>
+                        <span className="block text-sm font-black text-slate-800 group-hover:text-blue-600">
+                          Shopping Cart
+                        </span>
+
+                        <span className="block text-xs text-slate-400">
+                          Review items and checkout
+                        </span>
+                      </span>
+                    </span>
+
+                    {cartCount > 0 && (
+                      <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[9px] font-black text-white">
+                        {cartCount}
+                      </span>
+                    )}
+                  </Link>
+                </div>
+              </div>
+
+              {/* ACCOUNT */}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                  Account
+                </p>
+
+                <h3 className="mt-2 text-lg font-black text-slate-950">
+                  Manage your account
+                </h3>
+
+                <div className="mt-5 space-y-1">
+                  {isLoggedIn ? (
+                    <>
+                      <Link
+                        href="/profile"
+                        className="group flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                      >
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg transition group-hover:bg-blue-600 group-hover:text-white">
+                          👤
+                        </span>
+
+                        <span>
+                          <span className="block text-sm font-black text-slate-800 group-hover:text-blue-600">
+                            My Profile
+                          </span>
+
+                          <span className="block text-xs text-slate-400">
+                            View your account
+                          </span>
+                        </span>
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-red-50"
+                      >
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-lg transition group-hover:bg-red-500 group-hover:text-white">
+                          🚪
+                        </span>
+
+                        <span>
+                          <span className="block text-sm font-black text-slate-800 group-hover:text-red-600">
+                            Logout
+                          </span>
+
+                          <span className="block text-xs text-slate-400">
+                            Sign out of your account
+                          </span>
+                        </span>
+                      </button>
+                    </>
+                  ) : (
+                    <Link
+                      href="/login"
+                      className="group flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg transition group-hover:bg-blue-600 group-hover:text-white">
+                        🔐
+                      </span>
+
+                      <span>
+                        <span className="block text-sm font-black text-slate-800 group-hover:text-blue-600">
+                          Login
+                        </span>
+
+                        <span className="block text-xs text-slate-400">
+                          Sign in to your E-Shop account
+                        </span>
+                      </span>
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {/* PROMO CARD */}
+              <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-6 text-white">
+                <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-blue-600/30 blur-2xl" />
+                <div className="absolute -bottom-10 -left-8 h-32 w-32 rounded-full bg-violet-500/20 blur-2xl" />
+
+                <div className="relative">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-lg">
+                    🛍️
+                  </span>
+
+                  <p className="mt-5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">
+                    E-Shop
+                  </p>
+
+                  <h3 className="mt-2 text-2xl font-black leading-tight">
+                    Shop smarter.
+                  </h3>
+
+                  <p className="mt-3 text-xs leading-5 text-slate-400">
+                    Discover quality products, save favorites and enjoy a simple
+                    shopping experience.
+                  </p>
+
+                  <Link
+                    href="/products"
+                    className="mt-5 inline-flex items-center rounded-xl bg-white px-4 py-2.5 text-xs font-black text-slate-950 transition hover:bg-blue-500 hover:text-white"
+                  >
+                    Explore Products →
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-5">
+              <p className="text-xs font-medium text-slate-400">
+                <span className="font-black text-slate-700">
+                  {products.length}+
+                </span>{" "}
+                products ·{" "}
+                <span className="font-black text-slate-700">
+                  {categories.length}+
+                </span>{" "}
+                categories · Secure shopping
+              </p>
+
+              <Link
+                href="/products"
+                className="text-xs font-black text-blue-600 transition hover:text-blue-700"
+              >
+                View complete store →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* =========================================================
+          DARK MENU OVERLAY
+      ========================================================= */}
+      {menuOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={() => setMenuOpen(false)}
+          className="fixed inset-0 z-[60] bg-slate-950/50 backdrop-blur-[2px]"
+        />
+      )}
+
+      {/* =========================================================
+          SIDE MENU
+      ========================================================= */}
+      <aside
+        className={`fixed left-0 top-0 z-[70] flex h-full w-[300px] max-w-[85vw] flex-col bg-white shadow-2xl transition-transform duration-300 ${
+          menuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex h-20 items-center justify-between border-b border-slate-200 px-5">
+          <Link
+            href="/"
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center gap-3"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-lg">
+              🛍️
+            </div>
+
+            <div>
+              <p className="text-lg font-black tracking-tight">E-Shop</p>
+
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-slate-400">
+                Shop smarter
+              </p>
+            </div>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen(false)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-2xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+            aria-label="Close navigation menu"
+          >
+            ×
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-4 py-5">
+          <p className="px-3 pb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+            Navigation
+          </p>
+
+          <div className="space-y-1">
             <Link
               href="/"
-              className="shrink-0 rounded-lg bg-slate-950 px-4 py-2 text-xs font-bold text-white"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-4 rounded-xl bg-slate-100 px-4 py-3.5 text-sm font-black text-slate-950"
             >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white">
+                🏠
+              </span>
               Home
             </Link>
 
             <Link
               href="/products"
-              className="shrink-0 rounded-lg bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
             >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                🛍️
+              </span>
               Shop
             </Link>
 
             <Link
               href="/categories"
-              className="shrink-0 rounded-lg bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
             >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                📂
+              </span>
               Categories
             </Link>
 
             <Link
-              href="/wishlist"
-              className="shrink-0 rounded-lg bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600"
+              href="/orders"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
             >
-              Wishlist
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                📦
+              </span>
+              Orders
             </Link>
 
             <Link
-              href="/orders"
-              className="shrink-0 rounded-lg bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600"
+              href="/wishlist"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center justify-between rounded-xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
             >
-              Orders
+              <span className="flex items-center gap-4">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                  ♡
+                </span>
+                Wishlist
+              </span>
+
+              {wishlist.length > 0 && (
+                <span className="rounded-full bg-red-500 px-2 py-1 text-[10px] font-black text-white">
+                  {wishlist.length}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              href="/cart"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center justify-between rounded-xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+            >
+              <span className="flex items-center gap-4">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                  🛒
+                </span>
+                Shopping Cart
+              </span>
+
+              {cartCount > 0 && (
+                <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-black text-white">
+                  {cartCount}
+                </span>
+              )}
             </Link>
           </div>
+
+          <div className="mt-8 border-t border-slate-200 pt-6">
+            <p className="px-3 pb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+              Account
+            </p>
+
+            <div className="space-y-1">
+              {isLoggedIn ? (
+                <>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                      👤
+                    </span>
+                    My Profile
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-4 rounded-xl px-4 py-3.5 text-left text-sm font-bold text-red-500 transition hover:bg-red-50"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
+                      🚪
+                    </span>
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                    🔐
+                  </span>
+                  Login
+                </Link>
+              )}
+            </div>
+          </div>
+        </nav>
+
+        <div className="border-t border-slate-200 bg-slate-50 p-5">
+          <div className="rounded-xl bg-slate-950 p-4 text-white">
+            <p className="text-xs font-black">E-Shop</p>
+
+            <p className="mt-1 text-[11px] leading-5 text-slate-400">
+              Shop smarter. Discover more.
+            </p>
+          </div>
         </div>
-      </header>
+      </aside>
 
-      {/* MOBILE SEARCH */}
-
-      <div className="border-b border-slate-100 bg-white px-5 py-3 xl:hidden">
-        <div className="relative mx-auto max-w-7xl">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-            ⌕
-          </span>
-
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search products..."
-            className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium outline-none focus:border-slate-400 focus:bg-white"
-          />
-        </div>
-      </div>
-
-      {/* HERO */}
-
-      <section className="overflow-hidden bg-slate-50">
-        <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-12 md:px-8 md:py-16 lg:grid-cols-[0.95fr_1.05fr] lg:py-20">
+      {/* =========================================================
+          COMPACT HERO
+      ========================================================= */}
+      <section className="bg-slate-50">
+        <div className="mx-auto grid max-w-7xl items-center gap-8 px-5 py-8 md:px-8 md:py-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:py-12">
+          {/* LEFT */}
           <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-blue-600" />
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
               New shopping experience
             </div>
 
-            <h1 className="max-w-2xl text-5xl font-black leading-[0.98] tracking-tighter sm:text-6xl lg:text-7xl">
+            <h1 className="max-w-xl text-4xl font-black leading-[1.02] tracking-tight sm:text-5xl lg:text-6xl">
               Everything you need.
-              <span className="mt-2 block text-blue-600">
-                All in one place.
-              </span>
+              <span className="block text-blue-600">All in one place.</span>
             </h1>
 
-            <p className="mt-7 max-w-xl text-base leading-7 text-slate-500 md:text-lg">
+            <p className="mt-4 max-w-lg text-sm leading-6 text-slate-500 md:text-base">
               Discover quality products, explore new categories, save your
               favorites and shop with confidence.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            {/* BUTTONS */}
+            <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 href="/products"
-                className="inline-flex h-13 items-center justify-center rounded-xl bg-slate-950 px-7 text-sm font-black text-white shadow-xl transition hover:-translate-y-0.5 hover:bg-blue-600"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-xs font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-600"
               >
                 Explore Products
-                <span className="ml-3">→</span>
+                <span className="ml-2">→</span>
               </Link>
 
               <Link
                 href="/categories"
-                className="inline-flex h-13 items-center justify-center rounded-xl border border-slate-200 bg-white px-7 text-sm font-black text-slate-700 transition hover:border-slate-400"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-xs font-black text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
               >
                 Browse Categories
               </Link>
             </div>
 
-            <div className="mt-10 flex flex-wrap gap-7 border-t border-slate-200 pt-7">
+            {/* STATS */}
+            <div className="mt-7 flex flex-wrap items-center gap-5 border-t border-slate-200 pt-5">
               <div>
-                <p className="text-2xl font-black">{products.length}+</p>
-                <p className="mt-1 text-xs font-bold text-slate-400">
+                <p className="text-xl font-black">{products.length}+</p>
+
+                <p className="mt-0.5 text-[10px] font-bold text-slate-400">
                   Products
                 </p>
               </div>
 
-              <div className="h-10 w-px bg-slate-200" />
+              <div className="h-8 w-px bg-slate-200" />
 
               <div>
-                <p className="text-2xl font-black">{categories.length}+</p>
-                <p className="mt-1 text-xs font-bold text-slate-400">
+                <p className="text-xl font-black">{categories.length}+</p>
+
+                <p className="mt-0.5 text-[10px] font-bold text-slate-400">
                   Categories
                 </p>
               </div>
 
-              <div className="h-10 w-px bg-slate-200" />
+              <div className="h-8 w-px bg-slate-200" />
 
               <div>
-                <p className="text-2xl font-black">100%</p>
-                <p className="mt-1 text-xs font-bold text-slate-400">Secure</p>
+                <p className="text-xl font-black">100%</p>
+
+                <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+                  Secure
+                </p>
               </div>
             </div>
           </div>
 
+          {/* RIGHT IMAGE */}
           <div className="relative">
-            <div className="relative overflow-hidden rounded-4xl bg-slate-900 shadow-2xl">
+            <div className="relative overflow-hidden rounded-3xl bg-slate-900 shadow-xl">
               <img
                 src={heroImage}
                 alt="E-Shop shopping experience"
-                className="h-105 w-full object-cover transition duration-700 hover:scale-105 sm:h-125"
+                className="h-64 w-full object-cover transition duration-700 hover:scale-105 sm:h-72 lg:h-80"
               />
 
-              <div className="absolute inset-0 bg-linear-to-t from-slate-950/70 via-transparent to-slate-950/10" />
-
-              <div className="absolute bottom-6 left-6 right-6">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/60">
-                      E-Shop Collection
-                    </p>
-
-                    <p className="mt-2 text-2xl font-black text-white sm:text-3xl">
-                      Shop smarter.
-                    </p>
-                  </div>
-
-                  <div className="hidden rounded-2xl bg-white/95 px-4 py-3 shadow-xl sm:block">
-                    <p className="text-xs font-bold text-slate-400">Shopping</p>
-
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      Made simple
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <div className="absolute inset-0 bg-linear-to-t from-slate-950/50 via-transparent to-transparent" />
             </div>
 
-            <div className="absolute -bottom-5 -left-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-xl sm:-left-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-lg text-emerald-600">
+            {/* SMALL FLOATING CARD */}
+            <div className="absolute -bottom-4 left-4 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-lg sm:left-6">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-sm text-emerald-600">
                   ✓
                 </div>
 
                 <div>
-                  <p className="text-sm font-black">Secure shopping</p>
+                  <p className="text-xs font-black">Secure shopping</p>
 
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="text-[10px] text-slate-400">
                     Shop with confidence
                   </p>
                 </div>
@@ -651,8 +1154,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CATEGORIES */}
-
+      {/* =========================================================
+          CATEGORIES
+      ========================================================= */}
       <section className="bg-white py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-5 md:px-8">
           <div className="flex items-end justify-between gap-5">
@@ -745,8 +1249,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* PRODUCTS */}
-
+      {/* =========================================================
+          PRODUCTS
+      ========================================================= */}
       <section className="bg-slate-50 py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-5 md:px-8">
           <div className="flex items-end justify-between gap-5">
@@ -797,9 +1302,7 @@ export default function HomePage() {
 
                   <div className="space-y-3 p-5">
                     <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
-
                     <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
-
                     <div className="h-11 animate-pulse rounded-xl bg-slate-200" />
                   </div>
                 </div>
@@ -960,8 +1463,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* PROMOTIONAL BANNER */}
-
+      {/* =========================================================
+          PROMOTIONAL BANNER
+      ========================================================= */}
       <section className="px-5 py-16 md:px-8 md:py-20">
         <div className="mx-auto max-w-7xl overflow-hidden rounded-4xl bg-slate-950">
           <div className="relative grid items-center gap-10 px-7 py-12 md:px-12 lg:grid-cols-[1fr_.8fr] lg:py-16">
@@ -1044,8 +1548,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* TRUST FEATURES */}
-
+      {/* =========================================================
+          TRUST FEATURES
+      ========================================================= */}
       <section className="border-y border-slate-200 bg-white">
         <div className="mx-auto grid max-w-7xl divide-y divide-slate-200 px-5 md:grid-cols-3 md:divide-x md:divide-y-0 md:px-8">
           <div className="flex items-center gap-4 py-7 md:px-8 md:first:pl-0">
@@ -1092,8 +1597,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* NEWSLETTER */}
-
+      {/* =========================================================
+          NEWSLETTER
+      ========================================================= */}
       <section className="bg-slate-50 px-5 py-16 md:px-8 md:py-20">
         <div className="mx-auto max-w-5xl rounded-4xl bg-blue-600 px-7 py-10 md:px-12 md:py-14">
           <div className="grid items-center gap-8 lg:grid-cols-[1fr_.9fr]">
@@ -1143,11 +1649,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FOOTER */}
-
+      {/* =========================================================
+          FOOTER
+      ========================================================= */}
       <footer className="bg-slate-950 text-white">
         <div className="mx-auto max-w-7xl px-5 py-14 md:px-8">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+            {/* BRAND */}
             <div>
               <Link href="/" className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
@@ -1169,6 +1677,7 @@ export default function HomePage() {
               </p>
             </div>
 
+            {/* SHOP */}
             <div>
               <h3 className="text-xs font-black uppercase tracking-[0.2em]">
                 Shop
@@ -1205,6 +1714,7 @@ export default function HomePage() {
               </div>
             </div>
 
+            {/* ACCOUNT */}
             <div>
               <h3 className="text-xs font-black uppercase tracking-[0.2em]">
                 Account
@@ -1234,6 +1744,7 @@ export default function HomePage() {
               </div>
             </div>
 
+            {/* CONTACT */}
             <div>
               <h3 className="text-xs font-black uppercase tracking-[0.2em]">
                 Contact
@@ -1279,8 +1790,9 @@ export default function HomePage() {
         </div>
       </footer>
 
-      {/* FLOATING CHATBOT - KEPT */}
-
+      {/* =========================================================
+          FLOATING CHATBOT
+      ========================================================= */}
       <Chatbot />
     </div>
   );

@@ -14,12 +14,14 @@ import { ReviewModule } from './review/review.module';
 import { CategoryModule } from './category/category.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
+import { NewsletterModule } from './newsletter/newsletter.module';
 @Module({
   imports: [
     PrismaModule,
     UsersModule,
     AuthModule,
     ProductsModule,
+    NewsletterModule,
     CartModule,
     OrdersModule,
     WishlistModule,

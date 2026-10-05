@@ -77,3 +77,8 @@ export type Review = Prisma.ReviewModel
  * 
  */
 export type Notification = Prisma.NotificationModel
+/**
+ * Model NewsletterSubscriber
+ * 
+ */
+export type NewsletterSubscriber = Prisma.NewsletterSubscriberModel
