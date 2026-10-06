@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useCart } from "./Context/CartContext";
-import Chatbot from "../components/Chatbot";
+import { useCart } from "../app/Context/CartContext";
+import Chatbot from "./Chatbot";
 import { getApiUrl } from "../lib/api";
 
 type Product = {
@@ -82,8 +82,7 @@ function getInitials(value: string) {
     .join("");
 }
 
-export default function HomePage() {
-  const { addToCart, cartCount } = useCart();
+export default function HomePage() {  const { addToCart, cartCount } = useCart();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -360,7 +359,7 @@ export default function HomePage() {
           HEADER
       ======================================================== */}
       <header
-        className={`sticky top-0 z-100 border-b border-blue-200 bg-linear-to-r from-blue-100 via-indigo-100 to-purple-100/90 backdrop-blur transition-all duration-300 ${
+        className={`sticky top-0 z-100 border-b border-blue-200 bg-gradient-to-r from-blue-100 via-indigo-100 to-purple-100/90 backdrop-blur transition-all duration-300 ${
           shopMenuOpen ? "shadow-xl" : ""
         }`}
       >
@@ -381,7 +380,7 @@ export default function HomePage() {
             className="group flex min-w-fit items-center gap-2.5"
             onMouseEnter={() => setShopMenuOpen(false)}
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-r from-blue-600 to-purple-600 text-sm font-black text-white shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:from-blue-700 group-hover:to-purple-700 group-hover:shadow-lg group-hover:shadow-purple-600/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-sm font-black text-white shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:from-blue-700 group-hover:to-purple-700 group-hover:shadow-lg group-hover:shadow-purple-600/20">
               ES
             </div>
 
@@ -434,7 +433,7 @@ export default function HomePage() {
 
             {/* FULL WIDTH MENU */}
             <div
-              className={`fixed left-0 right-0 top-18 z-90 overflow-hidden border-t border-sky-100 bg-linear-to-br from-sky-50 via-white to-cyan-50 shadow-[0_20px_60px_rgba(15,23,42,0.12)] transition-all duration-500 ease-out ${
+              className={`fixed left-0 right-0 top-[72px] z-[90] overflow-hidden border-t border-sky-100 bg-gradient-to-br from-sky-50 via-white to-cyan-50 shadow-[0_20px_60px_rgba(15,23,42,0.12)] transition-all duration-500 ease-out ${
                 shopMenuOpen
                   ? "visible max-h-[calc(100vh-104px)] translate-y-0 opacity-100"
                   : "invisible max-h-0 -translate-y-4 opacity-0"
@@ -476,7 +475,7 @@ export default function HomePage() {
                           <span>Home</span>
 
                           <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                            →
+                            
                           </span>
                         </Link>
 
@@ -488,7 +487,7 @@ export default function HomePage() {
                           <span>All Products</span>
 
                           <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                            →
+                            
                           </span>
                         </Link>
 
@@ -500,7 +499,7 @@ export default function HomePage() {
                           <span>Categories</span>
 
                           <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                            →
+                            
                           </span>
                         </Link>
 
@@ -509,10 +508,10 @@ export default function HomePage() {
                           onClick={() => setShopMenuOpen(false)}
                           className="group flex items-center justify-between rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-base font-bold text-amber-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-amber-100 hover:shadow-md"
                         >
-                          <span>🔥 Today&apos;s Deals</span>
+                          <span>Today&apos;s Deals</span>
 
                           <span className="transition group-hover:translate-x-1">
-                            →
+                            
                           </span>
                         </Link>
                       </div>
@@ -520,9 +519,7 @@ export default function HomePage() {
 
                     {/* CATEGORIES */}
                     <div>
-                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-900">
-                        Categories
-                      </h3>
+                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-900">Categories</h3>
 
                       {categories.length > 0 ? (
                         <div className="grid grid-cols-2 gap-x-8">
@@ -562,10 +559,10 @@ export default function HomePage() {
                           onClick={() => setShopMenuOpen(false)}
                           className="group flex items-center justify-between rounded-xl border border-slate-100 bg-white/80 px-4 py-3 text-base font-bold text-slate-950 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md"
                         >
-                          <span>📦 My Orders</span>
+                          <span>¦ My Orders</span>
 
                           <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                            →
+                            
                           </span>
                         </Link>
 
@@ -575,7 +572,7 @@ export default function HomePage() {
                           className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-950 transition hover:pl-2 hover:text-rose-500"
                         >
                           <span>
-                            ♡ Wishlist
+                             Wishlist
                             {wishlist.length > 0 && (
                               <span className="ml-2 rounded-full bg-rose-100 px-2 py-1 text-[10px] text-rose-600">
                                 {wishlist.length}
@@ -584,7 +581,7 @@ export default function HomePage() {
                           </span>
 
                           <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                            →
+                            
                           </span>
                         </Link>
 
@@ -594,7 +591,7 @@ export default function HomePage() {
                           className="group flex items-center justify-between rounded-xl border border-slate-100 bg-white/80 px-4 py-3 text-base font-bold text-slate-950 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md"
                         >
                           <span>
-                            🛒 Shopping Cart
+                            ’ Shopping Cart
                             {cartCount > 0 && (
                               <span className="ml-2 rounded-full bg-sky-100 px-2 py-1 text-[10px] font-bold text-slate-900">
                                 {cartCount}
@@ -603,7 +600,7 @@ export default function HomePage() {
                           </span>
 
                           <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                            →
+                            
                           </span>
                         </Link>
 
@@ -614,12 +611,12 @@ export default function HomePage() {
                         >
                           <span>
                             {isLoggedIn
-                              ? "👤 My Profile"
-                              : "🔐 Login / Register"}
+                              ? "¤ My Profile"
+                              : " Login / Register"}
                           </span>
 
                           <span className="transition group-hover:translate-x-1">
-                            →
+                            
                           </span>
                         </Link>
                       </div>
@@ -643,7 +640,7 @@ export default function HomePage() {
                     </div>
 
                     <div className="flex items-center gap-3 py-3 lg:border-r lg:border-slate-200 lg:px-6">
-                      <span className="text-xl">🔒</span>
+                      <span className="text-xl">’</span>
 
                       <div>
                         <p className="text-xs font-black text-slate-950">
@@ -692,13 +689,13 @@ export default function HomePage() {
           {/* SEARCH */}
           <div className="relative ml-auto hidden max-w-xl flex-1 md:block">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600">
-              🔎
+              Ž
             </span>
 
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search products..."
+              placeholder={`$Search products...`}
               className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
             />
           </div>
@@ -711,7 +708,7 @@ export default function HomePage() {
             aria-label="Wishlist"
           >
             <span className="transition-transform duration-200 group-hover:scale-110">
-              ♡
+              
             </span>
 
             {wishlist.length > 0 && (
@@ -729,7 +726,7 @@ export default function HomePage() {
             aria-label="Cart"
           >
             <span className="transition-transform duration-200 group-hover:scale-110">
-              🛒
+              ’
             </span>
 
             {cartCount > 0 && (
@@ -739,24 +736,19 @@ export default function HomePage() {
             )}
           </Link>
 
-          {/* LOGIN / LOGOUT */}
-          {isLoggedIn ? (
+          {/* LOGIN / LOGOUT */}{isLoggedIn ? (
             <button
               type="button"
               onMouseEnter={() => setShopMenuOpen(false)}
               onClick={handleLogout}
               className="hidden rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-blue-600 hover:shadow-lg hover:shadow-blue-600/20 sm:block"
-            >
-              Logout
-            </button>
+            >Logout</button>
           ) : (
             <Link
               href="/login"
               onMouseEnter={() => setShopMenuOpen(false)}
               className="hidden rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-blue-600 hover:shadow-lg hover:shadow-blue-600/20 sm:block"
-            >
-              Login
-            </Link>
+            >Login</Link>
           )}
         </div>
 
@@ -764,13 +756,13 @@ export default function HomePage() {
         <div className="border-t border-slate-100 px-4 py-3 md:hidden">
           <div className="relative">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600">
-              🔎
+              Ž
             </span>
 
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search products..."
+              placeholder={`$Search products...`}
               className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
             />
           </div>
@@ -821,53 +813,40 @@ export default function HomePage() {
                 href="/"
                 onClick={() => setMenuOpen(false)}
                 className="block rounded-xl px-4 py-3 font-semibold transition hover:bg-blue-50 hover:text-blue-600"
-              >
-                Home
-              </Link>
+              >Home</Link>
 
               <Link
                 href="/products"
                 onClick={() => setMenuOpen(false)}
                 className="block rounded-xl px-4 py-3 font-semibold transition hover:bg-blue-50 hover:text-blue-600"
-              >
-                All Products
-              </Link>
+              >All Products</Link>
 
               <Link
                 href="/categories"
                 onClick={() => setMenuOpen(false)}
                 className="block rounded-xl px-4 py-3 font-semibold transition hover:bg-blue-50 hover:text-blue-600"
-              >
-                Categories
-              </Link>
+              >Categories</Link>
 
               <Link
                 href="/orders"
                 onClick={() => setMenuOpen(false)}
                 className="block rounded-xl px-4 py-3 font-semibold transition hover:bg-blue-50 hover:text-blue-600"
-              >
-                My Orders
-              </Link>
+              >My Orders</Link>
 
               <Link
                 href="/wishlist"
                 onClick={() => setMenuOpen(false)}
                 className="block rounded-xl px-4 py-3 font-semibold transition hover:bg-blue-50 hover:text-blue-600"
-              >
-                Wishlist
-              </Link>
+              >Wishlist</Link>
 
               <Link
                 href="/cart"
                 onClick={() => setMenuOpen(false)}
                 className="block rounded-xl px-4 py-3 font-semibold transition hover:bg-blue-50 hover:text-blue-600"
-              >
-                Shopping Cart
-              </Link>
+              >Shopping Cart</Link>
 
               <div className="my-4 border-t border-slate-200" />
-
-              {isLoggedIn ? (
+          {isLoggedIn ? (
                 <>
                   <Link
                     href="/profile"
@@ -881,18 +860,14 @@ export default function HomePage() {
                     type="button"
                     onClick={handleLogout}
                     className="w-full rounded-xl bg-slate-950 px-4 py-3 text-left font-semibold text-white transition hover:bg-blue-600"
-                  >
-                    Logout
-                  </button>
+                  >Logout</button>
                 </>
               ) : (
                 <Link
                   href="/login"
                   onClick={() => setMenuOpen(false)}
                   className="block rounded-xl bg-slate-950 px-4 py-3 font-semibold text-white transition hover:bg-blue-600"
-                >
-                  Login
-                </Link>
+                >Login</Link>
               )}
             </div>
           </aside>
@@ -907,12 +882,12 @@ export default function HomePage() {
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700">
               <span className="h-2 w-2 rounded-full bg-blue-600" />
-              New shopping experience
+              AI Shopping Assistant
             </div>
 
             <h1 className="max-w-3xl text-4xl font-black leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-              Everything you need.
-              <span className="block text-blue-600">All in one place.</span>
+              Great products. Better shopping.
+              <span className="block text-blue-600"></span>
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
@@ -925,8 +900,8 @@ export default function HomePage() {
                 href="/products"
                 className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:bg-blue-700"
               >
-                Explore Products
-                <span className="ml-2">→</span>
+                Start Shopping
+                <span className="ml-2"></span>
               </Link>
 
               <Link
@@ -1000,7 +975,7 @@ export default function HomePage() {
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="mb-2 flex items-center gap-2">
-                <span className="text-2xl">🔥</span>
+                <span className="text-2xl">CASH</span>
 
                 <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
                   Limited-time offers
@@ -1021,7 +996,7 @@ export default function HomePage() {
               href="/products"
               className="inline-flex items-center text-sm font-bold text-blue-600 transition hover:translate-x-1 hover:text-blue-700"
             >
-              View all products →
+              View all products 
             </Link>
           </div>
 
@@ -1044,7 +1019,7 @@ export default function HomePage() {
             </div>
           ) : dealProducts.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
-              <div className="text-4xl">🛍️</div>
+              <div className="text-4xl">ï¸</div>
 
               <h3 className="mt-3 text-lg font-bold">Deals are coming soon</h3>
 
@@ -1087,7 +1062,7 @@ export default function HomePage() {
                         }`}
                         aria-label="Toggle wishlist"
                       >
-                        {wishlist.includes(product.id) ? "♥" : "♡"}
+                        {wishlist.includes(product.id) ? "♥" : ""}
                       </button>
                     </div>
 
@@ -1169,7 +1144,7 @@ export default function HomePage() {
               href="/categories"
               className="text-sm font-bold text-blue-600 transition hover:translate-x-1 hover:text-blue-700"
             >
-              View all categories →
+              View all categories 
             </Link>
           </div>
 
@@ -1222,7 +1197,7 @@ export default function HomePage() {
                     </h3>
 
                     <p className="mt-1 text-xs text-white/70">
-                      Explore products →
+                      Start Shopping 
                     </p>
                   </div>
                 </Link>
@@ -1256,7 +1231,7 @@ export default function HomePage() {
               href="/products"
               className="text-sm font-bold text-blue-600 transition hover:translate-x-1 hover:text-blue-700"
             >
-              Explore all products →
+              Explore all products 
             </Link>
           </div>
 
@@ -1291,7 +1266,7 @@ export default function HomePage() {
             </div>
           ) : featuredProducts.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
-              <div className="text-5xl">🔎</div>
+              <div className="text-5xl">Ž</div>
 
               <h3 className="mt-4 text-xl font-black">No products found</h3>
 
@@ -1345,13 +1320,13 @@ export default function HomePage() {
                         }`}
                         aria-label="Toggle wishlist"
                       >
-                        {isWishlisted ? "♥" : "♡"}
+                        {isWishlisted ? "♥" : ""}
                       </button>
                     </div>
 
                     <div className="p-5">
                       <div className="mb-3 flex items-center gap-1 text-xs">
-                        <span className="text-amber-400">★★★★★</span>
+                        <span className="text-amber-400">*****</span>
 
                         <span className="text-slate-400">Popular</span>
                       </div>
@@ -1418,7 +1393,7 @@ export default function HomePage() {
           PROMO
       ======================================================== */}
       <section className="px-5 pb-16 sm:px-6 md:pb-20 lg:px-8">
-        <div className="mx-auto max-w-7xl overflow-hidden rounded-4xl bg-linear-to-r from-blue-600 via-blue-500 to-purple-600 shadow-2xl shadow-blue-500/20">
+        <div className="mx-auto max-w-7xl overflow-hidden rounded-4xl bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 shadow-2xl shadow-blue-500/20">
           <div className="grid items-center gap-10 px-7 py-12 md:px-12 md:py-16 lg:grid-cols-[1fr_0.8fr]">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-blue-300">
@@ -1440,7 +1415,7 @@ export default function HomePage() {
                 className="mt-7 inline-flex items-center rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-slate-950 transition hover:-translate-y-0.5 hover:bg-blue-50"
               >
                 Start Shopping
-                <span className="ml-2">→</span>
+                <span className="ml-2"></span>
               </Link>
             </div>
 
@@ -1456,7 +1431,7 @@ export default function HomePage() {
               </div>
 
               <div className="rounded-3xl bg-white/10 p-5 transition hover:bg-white/15">
-                <div className="text-2xl">🔒</div>
+                <div className="text-2xl">’</div>
 
                 <h3 className="mt-4 font-bold text-white">Secure Checkout</h3>
 
@@ -1466,7 +1441,7 @@ export default function HomePage() {
               </div>
 
               <div className="rounded-3xl bg-white/10 p-5 transition hover:bg-white/15">
-                <div className="text-2xl">♡</div>
+                <div className="text-2xl"></div>
 
                 <h3 className="mt-4 font-bold text-white">Save Favorites</h3>
 
@@ -1497,7 +1472,7 @@ export default function HomePage() {
           <div className="grid gap-5 md:grid-cols-3">
             <div className="rounded-3xl border border-slate-200 bg-white p-7 transition duration-300 hover:-translate-y-1 hover:shadow-lg">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-2xl">
-                ⚡
+                [FAST]
               </div>
 
               <h3 className="mt-5 text-lg font-black">Fast & reliable</h3>
@@ -1510,7 +1485,7 @@ export default function HomePage() {
 
             <div className="rounded-3xl border border-slate-200 bg-white p-7 transition duration-300 hover:-translate-y-1 hover:shadow-lg">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
-                🔒
+                ’
               </div>
 
               <h3 className="mt-5 text-lg font-black">Secure shopping</h3>
@@ -1542,7 +1517,7 @@ export default function HomePage() {
       ======================================================== */}
       <section className="px-5 py-16 sm:px-6 md:py-20 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <div className="relative overflow-hidden rounded-4xl bg-linear-to-r from-blue-600 via-blue-500 to-purple-600 px-7 py-12 md:px-12 md:py-14">
+          <div className="relative overflow-hidden rounded-4xl bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 px-7 py-12 md:px-12 md:py-14">
             <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-white/10" />
 
             <div className="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full bg-white/5" />
@@ -1564,15 +1539,15 @@ export default function HomePage() {
 
                 <div className="mt-6 flex flex-wrap gap-2">
                   <span className="rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white">
-                    🔎 Product search
+                    Ž Product search
                   </span>
 
                   <span className="rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white">
-                    ⚖️ Compare products
+                    [COMPARE] Compare products
                   </span>
 
                   <span className="rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white">
-                    🛒 Cart assistance
+                    ’ Cart assistance
                   </span>
                 </div>
               </div>
@@ -1588,7 +1563,7 @@ export default function HomePage() {
       {/* ========================================================
     MODERN FOOTER
 ======================================================== */}
-      <footer className="relative overflow-hidden bg-linear-to-br from-blue-50 via-sky-50 to-purple-50 text-slate-950">
+      <footer className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-sky-50 to-purple-50 text-slate-950">
         {/* Decorative background */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-blue-200/60 blur-3xl" />
@@ -1611,7 +1586,7 @@ export default function HomePage() {
                   </span>
 
                   <span className="rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-xs font-bold text-slate-700">
-                    🔒 Secure Shopping
+                    ’ Secure Shopping
                   </span>
                 </div>
 
@@ -1629,11 +1604,11 @@ export default function HomePage() {
               <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
                 <Link
                   href="/products"
-                  className="group inline-flex items-center justify-center rounded-2xl bg-linear-to-r from-blue-600 to-purple-600 px-7 py-4 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition duration-300 hover:-translate-y-1 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl hover:shadow-sky-500/30"
+                  className="group inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 px-7 py-4 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition duration-300 hover:-translate-y-1 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl hover:shadow-sky-500/30"
                 >
                   Start Shopping
                   <span className="ml-2 text-lg transition-transform duration-300 group-hover:translate-x-1">
-                    →
+                    
                   </span>
                 </Link>
 
@@ -1652,8 +1627,8 @@ export default function HomePage() {
             {/* BRAND */}
             <div className="sm:col-span-2 lg:col-span-4">
               <Link href="/" className="group inline-flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-sky-500 to-cyan-600 text-2xl shadow-xl shadow-sky-500/20 transition duration-300 group-hover:-translate-y-1 group-hover:scale-105">
-                  🛍️
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-600 text-2xl shadow-xl shadow-sky-500/20 transition duration-300 group-hover:-translate-y-1 group-hover:scale-105">
+                  ï¸
                 </div>
 
                 <div>
@@ -1695,7 +1670,7 @@ export default function HomePage() {
                     aria-label="Instagram"
                     className="group flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-white/75 text-sm font-black text-slate-700 transition duration-300 hover:-translate-y-1 hover:border-pink-300 hover:bg-pink-500 hover:text-white hover:shadow-lg hover:shadow-pink-500/15"
                   >
-                    <span className="transition group-hover:scale-110">◎</span>
+                    <span className="transition group-hover:scale-110">O</span>
                   </a>
 
                   {/* X */}
@@ -1704,7 +1679,7 @@ export default function HomePage() {
                     aria-label="X"
                     className="group flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-white/75 text-sm font-black text-slate-700 transition duration-300 hover:-translate-y-1 hover:bg-slate-700 hover:text-white"
                   >
-                    <span className="transition group-hover:scale-110">𝕏</span>
+                    <span className="transition group-hover:scale-110">X</span>
                   </a>
 
                   {/* YouTube */}
@@ -1713,7 +1688,7 @@ export default function HomePage() {
                     aria-label="YouTube"
                     className="group flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-white/75 text-sm font-black text-slate-700 transition duration-300 hover:-translate-y-1 hover:border-red-300 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-500/15"
                   >
-                    <span className="transition group-hover:scale-110">▶</span>
+                    <span className="transition group-hover:scale-110">X</span>
                   </a>
                 </div>
               </div>
@@ -1747,7 +1722,7 @@ export default function HomePage() {
                     <span>{label}</span>
 
                     <span className="ml-1 opacity-0 transition group-hover:opacity-100">
-                      →
+                      
                     </span>
                   </Link>
                 ))}
@@ -1776,7 +1751,7 @@ export default function HomePage() {
                     <span>{label}</span>
 
                     <span className="ml-1 opacity-0 transition group-hover:opacity-100">
-                      →
+                      
                     </span>
                   </Link>
                 ))}
@@ -1832,7 +1807,7 @@ export default function HomePage() {
                 <div className="group rounded-2xl border border-sky-200 bg-white/75 p-4 transition duration-300 hover:-translate-y-1 hover:border-cyan-300 hover:bg-cyan-50">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-lg">
-                      🔒
+                      ’
                     </div>
 
                     <div>
@@ -1932,11 +1907,11 @@ export default function HomePage() {
 
               <div className="flex flex-wrap gap-2">
                 <div className="flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white/75 px-4 text-[10px] font-black text-slate-700 transition hover:bg-sky-50">
-                  💳 CARD
+                  ³ CARD
                 </div>
 
                 <div className="flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white/75 px-4 text-[10px] font-black text-slate-700 transition hover:bg-sky-50">
-                  💵 CASH
+                  µ CASH
                 </div>
 
                 <div className="flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white/75 px-4 text-[10px] font-black text-slate-700 transition hover:bg-sky-50">
@@ -1947,7 +1922,7 @@ export default function HomePage() {
 
             {/* SECURITY */}
             <div className="flex items-center gap-2 rounded-xl border border-sky-200 bg-white/75 px-4 py-3 backdrop-blur">
-              <span className="text-lg">🛡️</span>
+              <span className="text-lg">🛡️</span>
 
               <div>
                 <p className="text-xs font-bold text-slate-950">
@@ -2010,3 +1985,21 @@ export default function HomePage() {
     </main>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
