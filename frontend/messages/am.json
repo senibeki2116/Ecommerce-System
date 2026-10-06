@@ -1,0 +1,36 @@
+{
+  "common": {
+    "home": "መነሻ",
+    "products": "ምርቶች",
+    "categories": "ምድቦች",
+    "wishlist": "የምኞት ዝርዝር",
+    "cart": "የግዢ ጋሪ",
+    "orders": "የእኔ ትዕዛዞች",
+    "profile": "መገለጫ",
+    "login": "ግባ",
+    "logout": "ውጣ",
+    "register": "ይመዝገቡ",
+    "search": "ምርቶችን ይፈልጉ",
+    "startShopping": "ግዢ ይጀምሩ",
+    "exploreCategories": "ምድቦችን ይመልከቱ",
+    "addToCart": "ወደ ግዢ ጋሪ ጨምር",
+    "addedToCart": "ወደ ግዢ ጋሪ ተጨምሯል",
+    "todayDeal": "የዛሬ ቅናሽ",
+    "save": "ይቆጥቡ",
+    "language": "ቋንቋ"
+  },
+  "home": {
+    "title": "ምርጥ ምርቶች። የተሻለ ግዢ።",
+    "description": "ጥራት ያላቸውን ምርቶች በጥሩ ዋጋ ያግኙ።",
+    "shopNow": "ግዢ ይጀምሩ",
+    "explore": "ምድቦችን ይመልከቱ",
+    "assistant": "የAI የግዢ ረዳት"
+  },
+  "footer": {
+    "startShopping": "ግዢ ይጀምሩ",
+    "exploreCategories": "ምድቦችን ይመልከቱ",
+    "privacy": "የግላዊነት መመሪያ",
+    "terms": "ውሎች እና ሁኔታዎች",
+    "help": "የእገዛ ማዕከል"
+  }
+}

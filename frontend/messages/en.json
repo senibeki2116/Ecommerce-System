@@ -1,0 +1,36 @@
+{
+  "common": {
+    "home": "Home",
+    "products": "Products",
+    "categories": "Categories",
+    "wishlist": "Wishlist",
+    "cart": "Shopping Cart",
+    "orders": "My Orders",
+    "profile": "Profile",
+    "login": "Login",
+    "logout": "Logout",
+    "register": "Register",
+    "search": "Search products",
+    "startShopping": "Start Shopping",
+    "exploreCategories": "Explore Categories",
+    "addToCart": "Add to Cart",
+    "addedToCart": "Added to Cart",
+    "todayDeal": "Today's Deal",
+    "save": "Save",
+    "language": "Language"
+  },
+  "home": {
+    "title": "Great products. Better shopping.",
+    "description": "Discover quality products at great prices.",
+    "shopNow": "Start Shopping",
+    "explore": "Explore Categories",
+    "assistant": "AI Shopping Assistant"
+  },
+  "footer": {
+    "startShopping": "Start Shopping",
+    "exploreCategories": "Explore Categories",
+    "privacy": "Privacy Policy",
+    "terms": "Terms & Conditions",
+    "help": "Help Center"
+  }
+}

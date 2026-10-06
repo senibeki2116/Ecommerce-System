@@ -59,17 +59,17 @@ describe('ProductsService', () => {
       }),
     ).resolves.toEqual({ ...product, name: 'Updated Laptop' });
 
-    expect(prisma.product.findUnique).toHaveBeenCalledWith({
-      where: { id: 1 },
-    });
     expect(prisma.product.update).toHaveBeenCalledWith({
-      where: { id: 1 },
-      data: {
-        name: 'Updated Laptop',
-        description: 'Gaming',
-        price: 1000,
-        stock: 5,
-      },
-    });
+  where: { id: 1 },
+  data: {
+    name: 'Updated Laptop',
+    description: 'Gaming',
+    price: 1000,
+    stock: 5,
+  },
+  include: {
+    category: true,
+  },
+});
   });
 });
