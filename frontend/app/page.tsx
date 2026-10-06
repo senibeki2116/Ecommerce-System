@@ -344,7 +344,7 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen bg-white text-slate-900">
+    <main className="min-h-screen bg-sky-50 text-slate-900">
       {/* ========================================================
           TOP ANNOUNCEMENT
       ======================================================== */}
@@ -360,7 +360,7 @@ export default function HomePage() {
           HEADER
       ======================================================== */}
       <header
-        className={`sticky top-0 z-100 border-b border-slate-200 bg-white/95 backdrop-blur transition-all duration-300 ${
+        className={`sticky top-0 z-100 border-b border-sky-200 bg-sky-100/95 backdrop-blur transition-all duration-300 ${
           shopMenuOpen ? "shadow-xl" : ""
         }`}
       >
@@ -369,7 +369,7 @@ export default function HomePage() {
           <button
             type="button"
             onClick={() => setMenuOpen((value) => !value)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition duration-200 hover:bg-slate-100 hover:text-blue-600 lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-sky-600 transition duration-200 hover:bg-slate-100 hover:text-sky-600 lg:hidden"
             aria-label="Open menu"
           >
             {menuOpen ? "×" : "☰"}
@@ -386,11 +386,11 @@ export default function HomePage() {
             </div>
 
             <div className="hidden text-left sm:block">
-              <p className="text-lg font-black tracking-tight text-slate-950 transition group-hover:text-blue-600">
+              <p className="text-lg font-black tracking-tight text-sky-700 transition group-hover:text-sky-600">
                 E-Shop
               </p>
 
-              <p className="text-[10px] font-medium uppercase tracking-widest text-slate-400">
+              <p className="text-[10px] font-medium uppercase tracking-widest text-sky-500">
                 Smart shopping
               </p>
             </div>
@@ -407,8 +407,8 @@ export default function HomePage() {
               aria-label="Open navigation menu"
               className={`flex h-12 w-12 items-center justify-center transition ${
                 shopMenuOpen
-                  ? "text-blue-600"
-                  : "text-slate-700 hover:text-blue-600"
+                  ? "text-sky-600"
+                  : "text-sky-600 hover:text-sky-600"
               }`}
             >
               <span className="flex w-7 flex-col gap-1.5">
@@ -434,7 +434,7 @@ export default function HomePage() {
 
             {/* FULL WIDTH MENU */}
             <div
-              className={`fixed left-0 right-0 top-[72px] z-[90] overflow-hidden border-t border-slate-200 bg-white shadow-2xl transition-all duration-500 ease-out ${
+              className={`fixed left-0 right-0 top-[72px] z-[90] overflow-hidden border-t border-sky-100 bg-gradient-to-br from-sky-50 via-white to-cyan-50 shadow-[0_20px_60px_rgba(15,23,42,0.12)] transition-all duration-500 ease-out ${
                 shopMenuOpen
                   ? "visible max-h-[calc(100vh-104px)] translate-y-0 opacity-100"
                   : "invisible max-h-0 -translate-y-4 opacity-0"
@@ -445,16 +445,16 @@ export default function HomePage() {
               <div className="max-h-[calc(100vh-104px)] overflow-y-auto">
                 <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
                   {/* MENU HEADER */}
-                  <div className="mb-8 border-b border-slate-200 pb-7">
-                    <p className="text-xs font-black uppercase tracking-[0.25em] text-blue-600">
+                  <div className="mb-7 border-b border-sky-100 pb-6">
+                    <p className="text-xs font-black uppercase tracking-[0.25em] text-sky-600">
                       E-SHOP
                     </p>
 
-                    <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+                    <h2 className="mt-2 text-3xl font-black tracking-tight text-sky-700">
                       What are you looking for?
                     </h2>
 
-                    <p className="mt-2 text-sm text-slate-500">
+                    <p className="mt-2 text-sm text-sky-500">
                       Explore products, categories and everything you need.
                     </p>
                   </div>
@@ -463,7 +463,7 @@ export default function HomePage() {
                   <div className="grid gap-10 md:grid-cols-3">
                     {/* SHOP */}
                     <div>
-                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-400">
+                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-sky-600">
                         Shop
                       </h3>
 
@@ -471,7 +471,7 @@ export default function HomePage() {
                         <Link
                           href="/"
                           onClick={() => setShopMenuOpen(false)}
-                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                          className="group flex items-center justify-between rounded-xl border border-slate-100 bg-white/80 px-4 py-3 text-base font-bold text-sky-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md"
                         >
                           <span>Home</span>
 
@@ -483,7 +483,7 @@ export default function HomePage() {
                         <Link
                           href="/products"
                           onClick={() => setShopMenuOpen(false)}
-                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                          className="group flex items-center justify-between rounded-xl border border-slate-100 bg-white/80 px-4 py-3 text-base font-bold text-sky-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md"
                         >
                           <span>All Products</span>
 
@@ -495,7 +495,7 @@ export default function HomePage() {
                         <Link
                           href="/categories"
                           onClick={() => setShopMenuOpen(false)}
-                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                          className="group flex items-center justify-between rounded-xl border border-slate-100 bg-white/80 px-4 py-3 text-base font-bold text-sky-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md"
                         >
                           <span>Categories</span>
 
@@ -507,7 +507,7 @@ export default function HomePage() {
                         <Link
                           href="/products"
                           onClick={() => setShopMenuOpen(false)}
-                          className="group flex items-center justify-between py-4 text-base font-bold text-blue-600 transition hover:pl-2 hover:text-blue-700"
+                          className="group flex items-center justify-between rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-base font-bold text-amber-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-amber-100 hover:shadow-md"
                         >
                           <span>🔥 Today&apos;s Deals</span>
 
@@ -520,7 +520,7 @@ export default function HomePage() {
 
                     {/* CATEGORIES */}
                     <div>
-                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-400">
+                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-sky-600">
                         Categories
                       </h3>
 
@@ -533,9 +533,9 @@ export default function HomePage() {
                                 category.name,
                               )}`}
                               onClick={() => setShopMenuOpen(false)}
-                              className="group border-b border-slate-100 py-4 text-sm font-bold text-slate-700 transition hover:pl-2 hover:text-blue-600"
+                              className="group rounded-xl border border-slate-100 bg-white/80 px-3 py-3 text-sm font-bold text-sky-600 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md"
                             >
-                              <span className="mr-2 text-xs text-slate-400">
+                              <span className="mr-2 inline-flex min-w-7 items-center justify-center rounded-full bg-sky-100 px-2 py-1 text-[10px] font-black text-sky-600">
                                 {getInitials(category.name)}
                               </span>
 
@@ -544,7 +544,7 @@ export default function HomePage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="py-4 text-sm text-slate-400">
+                        <p className="py-4 text-sm text-sky-500">
                           Categories are loading...
                         </p>
                       )}
@@ -552,7 +552,7 @@ export default function HomePage() {
 
                     {/* CUSTOMER */}
                     <div>
-                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-400">
+                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-sky-600">
                         Customer
                       </h3>
 
@@ -560,7 +560,7 @@ export default function HomePage() {
                         <Link
                           href="/orders"
                           onClick={() => setShopMenuOpen(false)}
-                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                          className="group flex items-center justify-between rounded-xl border border-slate-100 bg-white/80 px-4 py-3 text-base font-bold text-sky-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md"
                         >
                           <span>📦 My Orders</span>
 
@@ -572,7 +572,7 @@ export default function HomePage() {
                         <Link
                           href="/wishlist"
                           onClick={() => setShopMenuOpen(false)}
-                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-rose-500"
+                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-sky-700 transition hover:pl-2 hover:text-rose-500"
                         >
                           <span>
                             ♡ Wishlist
@@ -591,12 +591,12 @@ export default function HomePage() {
                         <Link
                           href="/cart"
                           onClick={() => setShopMenuOpen(false)}
-                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                          className="group flex items-center justify-between rounded-xl border border-slate-100 bg-white/80 px-4 py-3 text-base font-bold text-sky-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md"
                         >
                           <span>
                             🛒 Shopping Cart
                             {cartCount > 0 && (
-                              <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-[10px] text-blue-600">
+                              <span className="ml-2 rounded-full bg-sky-100 px-2 py-1 text-[10px] font-bold text-sky-600">
                                 {cartCount}
                               </span>
                             )}
@@ -610,7 +610,7 @@ export default function HomePage() {
                         <Link
                           href={isLoggedIn ? "/profile" : "/login"}
                           onClick={() => setShopMenuOpen(false)}
-                          className="group flex items-center justify-between py-4 text-base font-bold text-slate-900 transition hover:pl-2 hover:text-blue-600"
+                          className="group flex items-center justify-between py-4 text-base font-bold text-sky-700 transition hover:pl-2 hover:text-sky-600"
                         >
                           <span>
                             {isLoggedIn
@@ -632,11 +632,11 @@ export default function HomePage() {
                       <span className="text-xl">🚚</span>
 
                       <div>
-                        <p className="text-xs font-black text-slate-900">
+                        <p className="text-xs font-black text-sky-700">
                           Reliable Delivery
                         </p>
 
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[10px] text-sky-500">
                           Convenient shopping
                         </p>
                       </div>
@@ -646,11 +646,11 @@ export default function HomePage() {
                       <span className="text-xl">🔒</span>
 
                       <div>
-                        <p className="text-xs font-black text-slate-900">
+                        <p className="text-xs font-black text-sky-700">
                           Secure Checkout
                         </p>
 
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[10px] text-sky-500">
                           Shop with confidence
                         </p>
                       </div>
@@ -660,11 +660,11 @@ export default function HomePage() {
                       <span className="text-xl">🤖</span>
 
                       <div>
-                        <p className="text-xs font-black text-slate-900">
+                        <p className="text-xs font-black text-sky-700">
                           AI Assistant
                         </p>
 
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[10px] text-sky-500">
                           Smart product help
                         </p>
                       </div>
@@ -674,11 +674,11 @@ export default function HomePage() {
                       <span className="text-xl">✨</span>
 
                       <div>
-                        <p className="text-xs font-black text-slate-900">
+                        <p className="text-xs font-black text-sky-700">
                           Easy Shopping
                         </p>
 
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[10px] text-sky-500">
                           Simple experience
                         </p>
                       </div>
@@ -691,7 +691,7 @@ export default function HomePage() {
 
           {/* SEARCH */}
           <div className="relative ml-auto hidden max-w-xl flex-1 md:block">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sky-500">
               🔎
             </span>
 
@@ -725,7 +725,7 @@ export default function HomePage() {
           <Link
             href="/cart"
             onMouseEnter={() => setShopMenuOpen(false)}
-            className="group relative flex h-10 w-10 items-center justify-center rounded-xl text-xl transition duration-200 hover:-translate-y-0.5 hover:bg-blue-50 hover:text-blue-600"
+            className="group relative flex h-10 w-10 items-center justify-center rounded-xl text-xl transition duration-200 hover:-translate-y-0.5 hover:bg-blue-50 hover:text-sky-600"
             aria-label="Cart"
           >
             <span className="transition-transform duration-200 group-hover:scale-110">
@@ -763,7 +763,7 @@ export default function HomePage() {
         {/* MOBILE SEARCH */}
         <div className="border-t border-slate-100 px-4 py-3 md:hidden">
           <div className="relative">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sky-500">
               🔎
             </span>
 
@@ -789,7 +789,7 @@ export default function HomePage() {
             className="absolute inset-0 bg-slate-950/40"
           />
 
-          <aside className="absolute left-0 top-0 h-full w-[85%] max-w-sm overflow-y-auto bg-white p-6 shadow-2xl">
+          <aside className="absolute left-0 top-0 h-full w-[85%] max-w-sm overflow-y-auto bg-sky-50 p-6 shadow-2xl">
             <div className="flex items-center justify-between">
               <Link
                 href="/"
@@ -1586,77 +1586,63 @@ export default function HomePage() {
       </section>
 
       {/* ========================================================
-          PREMIUM FOOTER
-      ======================================================== */}
-      <footer className="relative overflow-hidden bg-slate-950 text-white">
-        {/* Decorative background glow */}
-        <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-blue-600/15 blur-3xl" />
+    MODERN FOOTER
+======================================================== */}
+      <footer className="relative overflow-hidden bg-gradient-to-br from-sky-100 via-sky-50 to-cyan-100 text-sky-700">
+        {/* Decorative background */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-sky-200/70 blur-3xl" />
+          <div className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-cyan-300/20 blur-3xl" />
+          <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-400/10 blur-3xl" />
+        </div>
 
-        <div className="pointer-events-none absolute -right-40 top-1/3 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
-
-        <div className="pointer-events-none absolute -bottom-40 left-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
-
-        <div className="relative mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* ================= FOOTER CTA ================= */}
-          <div className="border-b border-white/10 py-12 sm:py-16">
-            <div className="relative overflow-hidden rounded-4xl border border-blue-400/20 bg-linear-to-br from-blue-600 via-blue-700 to-indigo-800 p-7 shadow-2xl shadow-blue-950/30 sm:p-10 lg:p-12">
-              <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10" />
+          <div className="border-b border-sky-200 py-12">
+            <div className="flex flex-col gap-8 rounded-3xl border border-sky-200 bg-white/75 p-6 shadow-2xl backdrop-blur-xl sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-xs font-bold text-sky-600">
+                    ✨ Exclusive Deals
+                  </span>
 
-              <div className="pointer-events-none absolute -bottom-32 right-1/4 h-80 w-80 rounded-full bg-white/5" />
+                  <span className="rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-xs font-bold text-sky-600">
+                    🤖 AI Assistance
+                  </span>
 
-              <div className="relative grid items-center gap-8 lg:grid-cols-[1fr_auto]">
-                <div className="max-w-2xl">
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-bold text-blue-100 backdrop-blur">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />
-                    SHOP SMARTER WITH E-SHOP
-                  </div>
-
-                  <h2 className="text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
-                    Great products.
-                    <span className="block text-blue-200">
-                      Better shopping.
-                    </span>
-                  </h2>
-
-                  <p className="mt-4 max-w-xl text-sm leading-7 text-blue-100 sm:text-base">
-                    Discover new products, exclusive deals, smart
-                    recommendations, and everything you need for a better online
-                    shopping experience.
-                  </p>
-
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur">
-                      ✨ Exclusive Deals
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur">
-                      🤖 AI Assistance
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur">
-                      🔒 Secure Shopping
-                    </span>
-                  </div>
+                  <span className="rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-xs font-bold text-sky-600">
+                    🔒 Secure Shopping
+                  </span>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-                  <Link
-                    href="/products"
-                    className="group inline-flex items-center justify-center rounded-2xl bg-white px-7 py-4 text-sm font-black text-slate-950 shadow-xl transition duration-300 hover:-translate-y-1 hover:bg-blue-50 hover:shadow-2xl"
-                  >
-                    Start Shopping
-                    <span className="ml-2 text-lg transition-transform duration-300 group-hover:translate-x-1">
-                      →
-                    </span>
-                  </Link>
+                <h2 className="text-2xl font-black tracking-tight text-sky-700 sm:text-3xl">
+                  Shop smarter. Shop better.
+                </h2>
 
-                  <Link
-                    href="/categories"
-                    className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-7 py-4 text-sm font-bold text-white backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/20"
-                  >
-                    Explore Categories
-                  </Link>
-                </div>
+                <p className="mt-3 max-w-xl text-sm leading-7 text-sky-600">
+                  Discover quality products, exclusive deals, smart
+                  recommendations, and a simple shopping experience designed
+                  around you.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                <Link
+                  href="/products"
+                  className="group inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-600 px-7 py-4 text-sm font-black text-white shadow-lg shadow-sky-500/20 transition duration-300 hover:-translate-y-1 hover:from-sky-600 hover:to-cyan-700 hover:shadow-xl hover:shadow-sky-500/30"
+                >
+                  Start Shopping
+                  <span className="ml-2 text-lg transition-transform duration-300 group-hover:translate-x-1">
+                    →
+                  </span>
+                </Link>
+
+                <Link
+                  href="/categories"
+                  className="inline-flex items-center justify-center rounded-2xl border border-sky-300 bg-white px-7 py-4 text-sm font-bold text-sky-700 backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-sky-50"
+                >
+                  Explore Categories
+                </Link>
               </div>
             </div>
           </div>
@@ -1666,22 +1652,22 @@ export default function HomePage() {
             {/* BRAND */}
             <div className="sm:col-span-2 lg:col-span-4">
               <Link href="/" className="group inline-flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-indigo-600 text-2xl shadow-xl shadow-blue-600/20 transition duration-300 group-hover:-translate-y-1 group-hover:scale-105">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-600 text-2xl shadow-xl shadow-sky-500/20 transition duration-300 group-hover:-translate-y-1 group-hover:scale-105">
                   🛍️
                 </div>
 
                 <div>
-                  <div className="text-2xl font-black tracking-tight text-white">
+                  <div className="text-2xl font-black tracking-tight text-sky-700">
                     E-Shop
                   </div>
 
-                  <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-sky-600">
                     Shop smarter
                   </div>
                 </div>
               </Link>
 
-              <p className="mt-6 max-w-sm text-sm leading-7 text-slate-400">
+              <p className="mt-6 max-w-sm text-sm leading-7 text-sky-600">
                 Your modern online shopping destination for quality products,
                 exclusive deals, smart recommendations, and a simple shopping
                 experience designed around you.
@@ -1689,39 +1675,43 @@ export default function HomePage() {
 
               {/* SOCIAL */}
               <div className="mt-7">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-sky-500">
                   Follow E-Shop
                 </p>
 
                 <div className="flex gap-2.5">
+                  {/* Facebook */}
                   <a
                     href="#"
                     aria-label="Facebook"
-                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-blue-500 hover:bg-blue-600 hover:text-white hover:shadow-lg hover:shadow-blue-600/20"
+                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-white/75 text-sm font-black text-sky-600 transition duration-300 hover:-translate-y-1 hover:border-sky-300 hover:bg-sky-600 hover:text-white hover:shadow-lg hover:shadow-sky-600/15"
                   >
                     <span className="transition group-hover:scale-110">f</span>
                   </a>
 
+                  {/* Instagram */}
                   <a
                     href="#"
                     aria-label="Instagram"
-                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-pink-500 hover:bg-pink-500 hover:text-white hover:shadow-lg hover:shadow-pink-500/20"
+                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-white/75 text-sm font-black text-sky-600 transition duration-300 hover:-translate-y-1 hover:border-pink-300 hover:bg-pink-500 hover:text-white hover:shadow-lg hover:shadow-pink-500/15"
                   >
                     <span className="transition group-hover:scale-110">◎</span>
                   </a>
 
+                  {/* X */}
                   <a
                     href="#"
                     aria-label="X"
-                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:bg-slate-700 hover:text-white"
+                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-white/75 text-sm font-black text-sky-600 transition duration-300 hover:-translate-y-1 hover:bg-slate-700 hover:text-white"
                   >
                     <span className="transition group-hover:scale-110">𝕏</span>
                   </a>
 
+                  {/* YouTube */}
                   <a
                     href="#"
                     aria-label="YouTube"
-                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-red-500 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-500/20"
+                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-white/75 text-sm font-black text-sky-600 transition duration-300 hover:-translate-y-1 hover:border-red-300 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-500/15"
                   >
                     <span className="transition group-hover:scale-110">▶</span>
                   </a>
@@ -1729,15 +1719,15 @@ export default function HomePage() {
               </div>
 
               {/* ONLINE STATUS */}
-              <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs font-semibold text-emerald-400">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+              <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-sky-300 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-600">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-sky-500" />
                 E-Shop is online
               </div>
             </div>
 
             {/* SHOP */}
             <div className="lg:col-span-2">
-              <h3 className="text-sm font-black uppercase tracking-wider text-white">
+              <h3 className="text-sm font-black uppercase tracking-wider text-sky-700">
                 Shop
               </h3>
 
@@ -1752,7 +1742,7 @@ export default function HomePage() {
                   <Link
                     key={label}
                     href={href}
-                    className="group flex items-center text-sm text-slate-400 transition duration-200 hover:translate-x-1 hover:text-blue-400"
+                    className="group flex items-center text-sm text-sky-600 transition duration-200 hover:translate-x-1 hover:text-sky-600"
                   >
                     <span>{label}</span>
 
@@ -1766,7 +1756,7 @@ export default function HomePage() {
 
             {/* ACCOUNT */}
             <div className="lg:col-span-2">
-              <h3 className="text-sm font-black uppercase tracking-wider text-white">
+              <h3 className="text-sm font-black uppercase tracking-wider text-sky-700">
                 My Account
               </h3>
 
@@ -1781,7 +1771,7 @@ export default function HomePage() {
                   <Link
                     key={label}
                     href={href}
-                    className="group flex items-center text-sm text-slate-400 transition duration-200 hover:translate-x-1 hover:text-blue-400"
+                    className="group flex items-center text-sm text-sky-600 transition duration-200 hover:translate-x-1 hover:text-sky-600"
                   >
                     <span>{label}</span>
 
@@ -1795,59 +1785,62 @@ export default function HomePage() {
 
             {/* SUPPORT */}
             <div className="sm:col-span-2 lg:col-span-4">
-              <h3 className="text-sm font-black uppercase tracking-wider text-white">
+              <h3 className="text-sm font-black uppercase tracking-wider text-sky-700">
                 Why Shop With Us?
               </h3>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-blue-500/30 hover:bg-blue-500/10">
+                {/* AI */}
+                <div className="group rounded-2xl border border-sky-200 bg-white/75 p-4 transition duration-300 hover:-translate-y-1 hover:border-sky-300/30 hover:bg-sky-50">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-lg">
                       🤖
                     </div>
 
                     <div>
-                      <p className="text-sm font-bold text-white">
+                      <p className="text-sm font-bold text-sky-700">
                         AI Shopping Assistant
                       </p>
 
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-sky-500">
                         Smart product recommendations
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-emerald-500/30 hover:bg-emerald-500/10">
+                {/* DELIVERY */}
+                <div className="group rounded-2xl border border-sky-200 bg-white/75 p-4 transition duration-300 hover:-translate-y-1 hover:border-sky-300 hover:bg-sky-50">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-lg">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-lg">
                       🚚
                     </div>
 
                     <div>
-                      <p className="text-sm font-bold text-white">
+                      <p className="text-sm font-bold text-sky-700">
                         Reliable Delivery
                       </p>
 
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-sky-500">
                         Convenient order delivery
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-violet-500/30 hover:bg-violet-500/10">
+                {/* SECURITY */}
+                <div className="group rounded-2xl border border-sky-200 bg-white/75 p-4 transition duration-300 hover:-translate-y-1 hover:border-cyan-300 hover:bg-cyan-50">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-lg">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-lg">
                       🔒
                     </div>
 
                     <div>
-                      <p className="text-sm font-bold text-white">
+                      <p className="text-sm font-bold text-sky-700">
                         Secure Checkout
                       </p>
 
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-sky-500">
                         Protected payment experience
                       </p>
                     </div>
@@ -1858,65 +1851,71 @@ export default function HomePage() {
           </div>
 
           {/* ================= TRUST BAR ================= */}
-          <div className="border-y border-white/10 py-7">
+          <div className="border-y border-sky-200 py-7">
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-lg">
+              {/* SECURE */}
+              <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-white/75 p-4 transition hover:bg-sky-50">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-lg text-sky-600">
                   ✓
                 </div>
 
                 <div>
-                  <p className="text-xs font-black text-white">
+                  <p className="text-xs font-black text-sky-700">
                     Secure Checkout
                   </p>
 
-                  <p className="mt-1 text-[10px] text-slate-500">
+                  <p className="mt-1 text-[10px] text-sky-500">
                     Protected payments
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
+              {/* DELIVERY */}
+              <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-white/75 p-4 transition hover:bg-sky-50">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-lg">
                   🚚
                 </div>
 
                 <div>
-                  <p className="text-xs font-black text-white">
+                  <p className="text-xs font-black text-sky-700">
                     Reliable Delivery
                   </p>
 
-                  <p className="mt-1 text-[10px] text-slate-500">
+                  <p className="mt-1 text-[10px] text-sky-500">
                     Convenient shipping
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-lg">
+              {/* AI */}
+              <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-white/75 p-4 transition hover:bg-sky-50">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-lg">
                   🤖
                 </div>
 
                 <div>
-                  <p className="text-xs font-black text-white">AI Assistance</p>
+                  <p className="text-xs font-black text-sky-700">
+                    AI Assistance
+                  </p>
 
-                  <p className="mt-1 text-[10px] text-slate-500">
+                  <p className="mt-1 text-[10px] text-sky-500">
                     Smart shopping help
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-lg">
+              {/* QUALITY */}
+              <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-white/75 p-4 transition hover:bg-sky-50">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-lg">
                   ✨
                 </div>
 
                 <div>
-                  <p className="text-xs font-black text-white">
+                  <p className="text-xs font-black text-sky-700">
                     Quality Products
                   </p>
 
-                  <p className="mt-1 text-[10px] text-slate-500">
+                  <p className="mt-1 text-[10px] text-sky-500">
                     Shop with confidence
                   </p>
                 </div>
@@ -1927,32 +1926,33 @@ export default function HomePage() {
           {/* ================= PAYMENT ================= */}
           <div className="flex flex-col gap-6 py-7 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-sky-500">
                 We accept
               </p>
 
               <div className="flex flex-wrap gap-2">
-                <div className="flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-[10px] font-black text-slate-300 transition hover:bg-white/10">
+                <div className="flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white/75 px-4 text-[10px] font-black text-sky-600 transition hover:bg-sky-50">
                   💳 CARD
                 </div>
 
-                <div className="flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-[10px] font-black text-slate-300 transition hover:bg-white/10">
+                <div className="flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white/75 px-4 text-[10px] font-black text-sky-600 transition hover:bg-sky-50">
                   💵 CASH
                 </div>
 
-                <div className="flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-[10px] font-black text-slate-300 transition hover:bg-white/10">
+                <div className="flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white/75 px-4 text-[10px] font-black text-sky-600 transition hover:bg-sky-50">
                   📱 TELEBIRR
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+            {/* SECURITY */}
+            <div className="flex items-center gap-2 rounded-xl border border-sky-200 bg-white/75 px-4 py-3 backdrop-blur">
               <span className="text-lg">🛡️</span>
 
               <div>
-                <p className="text-xs font-bold text-white">Safe & Secure</p>
+                <p className="text-xs font-bold text-sky-700">Safe & Secure</p>
 
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-sky-500">
                   Your information is protected
                 </p>
               </div>
@@ -1960,16 +1960,16 @@ export default function HomePage() {
           </div>
 
           {/* ================= BOTTOM ================= */}
-          <div className="border-t border-white/10 py-6">
+          <div className="border-t border-sky-200 py-6">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-sky-500">
                   © {new Date().getFullYear()}{" "}
-                  <span className="font-bold text-slate-300">E-Shop</span>. All
+                  <span className="font-bold text-sky-700">E-Shop</span>. All
                   rights reserved.
                 </p>
 
-                <p className="mt-1 text-[10px] text-slate-600">
+                <p className="mt-1 text-[10px] text-sky-500">
                   Built for a smarter and simpler shopping experience.
                 </p>
               </div>
@@ -1977,21 +1977,21 @@ export default function HomePage() {
               <div className="flex flex-wrap gap-5">
                 <Link
                   href="#"
-                  className="text-xs text-slate-500 transition hover:text-blue-400"
+                  className="text-xs text-sky-500 transition hover:text-sky-600"
                 >
                   Privacy Policy
                 </Link>
 
                 <Link
                   href="#"
-                  className="text-xs text-slate-500 transition hover:text-blue-400"
+                  className="text-xs text-sky-500 transition hover:text-sky-600"
                 >
                   Terms & Conditions
                 </Link>
 
                 <Link
                   href="#"
-                  className="text-xs text-slate-500 transition hover:text-blue-400"
+                  className="text-xs text-sky-500 transition hover:text-sky-600"
                 >
                   Help Center
                 </Link>
@@ -2002,8 +2002,8 @@ export default function HomePage() {
       </footer>
 
       {/* ========================================================
-          AI CHATBOT
-      ======================================================== */}
+    AI CHATBOT
+======================================================== */}
       <Chatbot />
     </main>
   );
