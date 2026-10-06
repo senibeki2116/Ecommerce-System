@@ -434,7 +434,7 @@ export default function HomePage() {
 
             {/* FULL WIDTH MENU */}
             <div
-              className={`fixed left-0 right-0 top-72px z-90 overflow-hidden border-t border-slate-200 bg-white shadow-2xl transition-all duration-500 ease-out ${
+              className={`fixed left-0 right-0 top-[72px] z-[90] overflow-hidden border-t border-slate-200 bg-white shadow-2xl transition-all duration-500 ease-out ${
                 shopMenuOpen
                   ? "visible max-h-[calc(100vh-104px)] translate-y-0 opacity-100"
                   : "invisible max-h-0 -translate-y-4 opacity-0"
@@ -1586,63 +1586,77 @@ export default function HomePage() {
       </section>
 
       {/* ========================================================
-    MODERN FOOTER
-======================================================== */}
-      <footer className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white">
-        {/* Decorative background */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
-          <div className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
-          <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/5 blur-3xl" />
-        </div>
+          PREMIUM FOOTER
+      ======================================================== */}
+      <footer className="relative overflow-hidden bg-slate-950 text-white">
+        {/* Decorative background glow */}
+        <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-blue-600/15 blur-3xl" />
 
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="pointer-events-none absolute -right-40 top-1/3 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
+
+        <div className="pointer-events-none absolute -bottom-40 left-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
+
+        <div className="relative mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
           {/* ================= FOOTER CTA ================= */}
-          <div className="border-b border-white/10 py-12">
-            <div className="flex flex-col gap-8 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl">
-                <div className="mb-4 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-blue-400/20 bg-blue-400/10 px-4 py-2 text-xs font-bold text-blue-300">
-                    ✨ Exclusive Deals
-                  </span>
+          <div className="border-b border-white/10 py-12 sm:py-16">
+            <div className="relative overflow-hidden rounded-4xl border border-blue-400/20 bg-linear-to-br from-blue-600 via-blue-700 to-indigo-800 p-7 shadow-2xl shadow-blue-950/30 sm:p-10 lg:p-12">
+              <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10" />
 
-                  <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-4 py-2 text-xs font-bold text-violet-300">
-                    🤖 AI Assistance
-                  </span>
+              <div className="pointer-events-none absolute -bottom-32 right-1/4 h-80 w-80 rounded-full bg-white/5" />
 
-                  <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-xs font-bold text-emerald-300">
-                    🔒 Secure Shopping
-                  </span>
+              <div className="relative grid items-center gap-8 lg:grid-cols-[1fr_auto]">
+                <div className="max-w-2xl">
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-bold text-blue-100 backdrop-blur">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />
+                    SHOP SMARTER WITH E-SHOP
+                  </div>
+
+                  <h2 className="text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
+                    Great products.
+                    <span className="block text-blue-200">
+                      Better shopping.
+                    </span>
+                  </h2>
+
+                  <p className="mt-4 max-w-xl text-sm leading-7 text-blue-100 sm:text-base">
+                    Discover new products, exclusive deals, smart
+                    recommendations, and everything you need for a better online
+                    shopping experience.
+                  </p>
+
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur">
+                      ✨ Exclusive Deals
+                    </span>
+
+                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur">
+                      🤖 AI Assistance
+                    </span>
+
+                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur">
+                      🔒 Secure Shopping
+                    </span>
+                  </div>
                 </div>
 
-                <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-                  Shop smarter. Shop better.
-                </h2>
+                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                  <Link
+                    href="/products"
+                    className="group inline-flex items-center justify-center rounded-2xl bg-white px-7 py-4 text-sm font-black text-slate-950 shadow-xl transition duration-300 hover:-translate-y-1 hover:bg-blue-50 hover:shadow-2xl"
+                  >
+                    Start Shopping
+                    <span className="ml-2 text-lg transition-transform duration-300 group-hover:translate-x-1">
+                      →
+                    </span>
+                  </Link>
 
-                <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
-                  Discover quality products, exclusive deals, smart
-                  recommendations, and a simple shopping experience designed
-                  around you.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-                <Link
-                  href="/products"
-                  className="group inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 px-7 py-4 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition duration-300 hover:-translate-y-1 hover:from-blue-400 hover:to-indigo-500 hover:shadow-xl hover:shadow-blue-500/30"
-                >
-                  Start Shopping
-                  <span className="ml-2 text-lg transition-transform duration-300 group-hover:translate-x-1">
-                    →
-                  </span>
-                </Link>
-
-                <Link
-                  href="/categories"
-                  className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-7 py-4 text-sm font-bold text-white backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/10"
-                >
-                  Explore Categories
-                </Link>
+                  <Link
+                    href="/categories"
+                    className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-7 py-4 text-sm font-bold text-white backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/20"
+                  >
+                    Explore Categories
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -1652,7 +1666,7 @@ export default function HomePage() {
             {/* BRAND */}
             <div className="sm:col-span-2 lg:col-span-4">
               <Link href="/" className="group inline-flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl shadow-xl shadow-blue-500/20 transition duration-300 group-hover:-translate-y-1 group-hover:scale-105">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-indigo-600 text-2xl shadow-xl shadow-blue-600/20 transition duration-300 group-hover:-translate-y-1 group-hover:scale-105">
                   🛍️
                 </div>
 
@@ -1661,13 +1675,13 @@ export default function HomePage() {
                     E-Shop
                   </div>
 
-                  <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-300">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400">
                     Shop smarter
                   </div>
                 </div>
               </Link>
 
-              <p className="mt-6 max-w-sm text-sm leading-7 text-slate-300">
+              <p className="mt-6 max-w-sm text-sm leading-7 text-slate-400">
                 Your modern online shopping destination for quality products,
                 exclusive deals, smart recommendations, and a simple shopping
                 experience designed around you.
@@ -1675,30 +1689,27 @@ export default function HomePage() {
 
               {/* SOCIAL */}
               <div className="mt-7">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
                   Follow E-Shop
                 </p>
 
                 <div className="flex gap-2.5">
-                  {/* Facebook */}
                   <a
                     href="#"
                     aria-label="Facebook"
-                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-blue-400 hover:bg-blue-600 hover:text-white hover:shadow-lg hover:shadow-blue-600/20"
+                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-blue-500 hover:bg-blue-600 hover:text-white hover:shadow-lg hover:shadow-blue-600/20"
                   >
                     <span className="transition group-hover:scale-110">f</span>
                   </a>
 
-                  {/* Instagram */}
                   <a
                     href="#"
                     aria-label="Instagram"
-                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-pink-400 hover:bg-pink-500 hover:text-white hover:shadow-lg hover:shadow-pink-500/20"
+                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-pink-500 hover:bg-pink-500 hover:text-white hover:shadow-lg hover:shadow-pink-500/20"
                   >
                     <span className="transition group-hover:scale-110">◎</span>
                   </a>
 
-                  {/* X */}
                   <a
                     href="#"
                     aria-label="X"
@@ -1707,11 +1718,10 @@ export default function HomePage() {
                     <span className="transition group-hover:scale-110">𝕏</span>
                   </a>
 
-                  {/* YouTube */}
                   <a
                     href="#"
                     aria-label="YouTube"
-                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-red-400 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-500/20"
+                    className="group flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-slate-300 transition duration-300 hover:-translate-y-1 hover:border-red-500 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-500/20"
                   >
                     <span className="transition group-hover:scale-110">▶</span>
                   </a>
@@ -1719,7 +1729,7 @@ export default function HomePage() {
               </div>
 
               {/* ONLINE STATUS */}
-              <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+              <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs font-semibold text-emerald-400">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
                 E-Shop is online
               </div>
@@ -1742,7 +1752,7 @@ export default function HomePage() {
                   <Link
                     key={label}
                     href={href}
-                    className="group flex items-center text-sm text-slate-300 transition duration-200 hover:translate-x-1 hover:text-blue-300"
+                    className="group flex items-center text-sm text-slate-400 transition duration-200 hover:translate-x-1 hover:text-blue-400"
                   >
                     <span>{label}</span>
 
@@ -1771,7 +1781,7 @@ export default function HomePage() {
                   <Link
                     key={label}
                     href={href}
-                    className="group flex items-center text-sm text-slate-300 transition duration-200 hover:translate-x-1 hover:text-blue-300"
+                    className="group flex items-center text-sm text-slate-400 transition duration-200 hover:translate-x-1 hover:text-blue-400"
                   >
                     <span>{label}</span>
 
@@ -1790,8 +1800,7 @@ export default function HomePage() {
               </h3>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                {/* AI */}
-                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-blue-400/30 hover:bg-blue-500/10">
+                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-blue-500/30 hover:bg-blue-500/10">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
                       🤖
@@ -1802,15 +1811,14 @@ export default function HomePage() {
                         AI Shopping Assistant
                       </p>
 
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500">
                         Smart product recommendations
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* DELIVERY */}
-                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-emerald-400/30 hover:bg-emerald-500/10">
+                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-emerald-500/30 hover:bg-emerald-500/10">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-lg">
                       🚚
@@ -1821,15 +1829,14 @@ export default function HomePage() {
                         Reliable Delivery
                       </p>
 
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500">
                         Convenient order delivery
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* SECURITY */}
-                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-violet-400/30 hover:bg-violet-500/10">
+                <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition duration-300 hover:-translate-y-1 hover:border-violet-500/30 hover:bg-violet-500/10">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-lg">
                       🔒
@@ -1840,7 +1847,7 @@ export default function HomePage() {
                         Secure Checkout
                       </p>
 
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500">
                         Protected payment experience
                       </p>
                     </div>
@@ -1853,9 +1860,8 @@ export default function HomePage() {
           {/* ================= TRUST BAR ================= */}
           <div className="border-y border-white/10 py-7">
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {/* SECURE */}
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-lg text-emerald-300">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-lg">
                   ✓
                 </div>
 
@@ -1864,14 +1870,13 @@ export default function HomePage() {
                     Secure Checkout
                   </p>
 
-                  <p className="mt-1 text-[10px] text-slate-400">
+                  <p className="mt-1 text-[10px] text-slate-500">
                     Protected payments
                   </p>
                 </div>
               </div>
 
-              {/* DELIVERY */}
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
                   🚚
                 </div>
@@ -1881,14 +1886,13 @@ export default function HomePage() {
                     Reliable Delivery
                   </p>
 
-                  <p className="mt-1 text-[10px] text-slate-400">
+                  <p className="mt-1 text-[10px] text-slate-500">
                     Convenient shipping
                   </p>
                 </div>
               </div>
 
-              {/* AI */}
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-lg">
                   🤖
                 </div>
@@ -1896,14 +1900,13 @@ export default function HomePage() {
                 <div>
                   <p className="text-xs font-black text-white">AI Assistance</p>
 
-                  <p className="mt-1 text-[10px] text-slate-400">
+                  <p className="mt-1 text-[10px] text-slate-500">
                     Smart shopping help
                   </p>
                 </div>
               </div>
 
-              {/* QUALITY */}
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-lg">
                   ✨
                 </div>
@@ -1913,7 +1916,7 @@ export default function HomePage() {
                     Quality Products
                   </p>
 
-                  <p className="mt-1 text-[10px] text-slate-400">
+                  <p className="mt-1 text-[10px] text-slate-500">
                     Shop with confidence
                   </p>
                 </div>
@@ -1924,7 +1927,7 @@ export default function HomePage() {
           {/* ================= PAYMENT ================= */}
           <div className="flex flex-col gap-6 py-7 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
                 We accept
               </p>
 
@@ -1943,14 +1946,13 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* SECURITY */}
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
               <span className="text-lg">🛡️</span>
 
               <div>
                 <p className="text-xs font-bold text-white">Safe & Secure</p>
 
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px] text-slate-500">
                   Your information is protected
                 </p>
               </div>
@@ -1961,13 +1963,13 @@ export default function HomePage() {
           <div className="border-t border-white/10 py-6">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500">
                   © {new Date().getFullYear()}{" "}
-                  <span className="font-bold text-white">E-Shop</span>. All
+                  <span className="font-bold text-slate-300">E-Shop</span>. All
                   rights reserved.
                 </p>
 
-                <p className="mt-1 text-[10px] text-slate-500">
+                <p className="mt-1 text-[10px] text-slate-600">
                   Built for a smarter and simpler shopping experience.
                 </p>
               </div>
@@ -1975,21 +1977,21 @@ export default function HomePage() {
               <div className="flex flex-wrap gap-5">
                 <Link
                   href="#"
-                  className="text-xs text-slate-400 transition hover:text-blue-300"
+                  className="text-xs text-slate-500 transition hover:text-blue-400"
                 >
                   Privacy Policy
                 </Link>
 
                 <Link
                   href="#"
-                  className="text-xs text-slate-400 transition hover:text-blue-300"
+                  className="text-xs text-slate-500 transition hover:text-blue-400"
                 >
                   Terms & Conditions
                 </Link>
 
                 <Link
                   href="#"
-                  className="text-xs text-slate-400 transition hover:text-blue-300"
+                  className="text-xs text-slate-500 transition hover:text-blue-400"
                 >
                   Help Center
                 </Link>
@@ -2000,8 +2002,8 @@ export default function HomePage() {
       </footer>
 
       {/* ========================================================
-    AI CHATBOT
-======================================================== */}
+          AI CHATBOT
+      ======================================================== */}
       <Chatbot />
     </main>
   );
