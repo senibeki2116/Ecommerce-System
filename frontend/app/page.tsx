@@ -102,7 +102,7 @@ export default function HomePage() {
 
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Full-screen desktop hover menu
+  // Desktop full-width hover menu
   const [shopMenuOpen, setShopMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -240,7 +240,9 @@ export default function HomePage() {
     setAddedProductId(product.id);
 
     window.setTimeout(() => {
-      setAddedProductId((current) => (current === product.id ? null : current));
+      setAddedProductId((current) =>
+        current === product.id ? null : current,
+      );
     }, 1500);
   };
 
@@ -394,342 +396,299 @@ export default function HomePage() {
             </div>
           </Link>
 
-          {/* ================= SHOP HOVER AREA ================= */}
+          {/* ================= DESKTOP HAMBURGER MENU ================= */}
           <div
-            className="relative ml-2 hidden h-full items-center lg:flex"
+            className="relative hidden h-full items-center lg:flex"
             onMouseEnter={() => setShopMenuOpen(true)}
             onMouseLeave={() => setShopMenuOpen(false)}
           >
             <button
               type="button"
-              className={`relative flex h-full items-center gap-1 px-4 text-sm font-bold transition duration-200 ${
+              aria-label="Open navigation menu"
+              className={`flex h-12 w-12 items-center justify-center transition ${
                 shopMenuOpen
                   ? "text-blue-600"
                   : "text-slate-700 hover:text-blue-600"
               }`}
             >
-              Shop
-              <span
-                className={`text-xs transition-transform duration-300 ${
-                  shopMenuOpen ? "rotate-180" : ""
-                }`}
-              >
-                ⌄
+              <span className="flex w-7 flex-col gap-1.5">
+                <span
+                  className={`block h-0.5 w-7 rounded-full bg-current transition-all duration-300 ${
+                    shopMenuOpen ? "translate-y-2 rotate-45" : ""
+                  }`}
+                />
+
+                <span
+                  className={`block h-0.5 w-7 rounded-full bg-current transition-all duration-300 ${
+                    shopMenuOpen ? "opacity-0" : "opacity-100"
+                  }`}
+                />
+
+                <span
+                  className={`block h-0.5 w-7 rounded-full bg-current transition-all duration-300 ${
+                    shopMenuOpen ? "-translate-y-2 -rotate-45" : ""
+                  }`}
+                />
               </span>
-              <span
-                className={`absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-blue-600 transition-all duration-300 ${
-                  shopMenuOpen ? "scale-x-100" : "scale-x-0"
-                }`}
-              />
             </button>
 
-            {/* FULL SCREEN HOVER OVERLAY */}
-            {shopMenuOpen && (
-              <div
-                className="fixed left-0 right-0 top-26 z-90 h-[calc(100vh-104px)] bg-slate-950/55 backdrop-blur-[3px]"
-                onMouseEnter={() => setShopMenuOpen(true)}
-                onMouseLeave={() => setShopMenuOpen(false)}
-              >
-                <div
-                  className="mx-auto h-full max-w-7xl overflow-y-auto px-4 pb-10 pt-5 sm:px-6 lg:px-8"
-                  onMouseEnter={() => setShopMenuOpen(true)}
-                  onMouseLeave={() => setShopMenuOpen(false)}
-                >
-                  <div
-                    className="overflow-hidden rounded-4xl border border-white/10 bg-white shadow-2xl shadow-black/30"
-                    onMouseEnter={() => setShopMenuOpen(true)}
-                  >
-                    {/* MENU TOP */}
-                    <div className="border-b border-slate-200 bg-linear-to-r from-slate-950 via-slate-900 to-blue-950 px-7 py-8 text-white md:px-10">
-                      <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.25em] text-blue-300">
-                            E-SHOP MENU
-                          </p>
+            {/* FULL WIDTH SLIDE-DOWN MENU */}
+            <div
+              className={`fixed left-0 right-0 top-26 z-90 overflow-hidden border-t border-slate-200 bg-white shadow-2xl transition-all duration-500 ease-out ${
+                shopMenuOpen
+                  ? "visible max-h-[calc(100vh-104px)] translate-y-0 opacity-100"
+                  : "invisible max-h-0 -translate-y-4 opacity-0"
+              }`}
+              onMouseEnter={() => setShopMenuOpen(true)}
+              onMouseLeave={() => setShopMenuOpen(false)}
+            >
+              <div className="max-h-[calc(100vh-104px)] overflow-y-auto">
+                <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+                  {/* MENU HEADER */}
+                  <div className="mb-8 border-b border-slate-200 pb-7">
+                    <p className="text-xs font-black uppercase tracking-[0.25em] text-blue-600">
+                      E-SHOP
+                    </p>
 
-                          <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
-                            What are you looking for?
-                          </h2>
+                    <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+                      What are you looking for?
+                    </h2>
 
-                          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                            Explore products, categories, deals and everything
-                            you need from one place.
-                          </p>
-                        </div>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Explore products, categories and everything you need.
+                    </p>
+                  </div>
+
+                  {/* MENU LINKS */}
+                  <div className="grid gap-10 md:grid-cols-3">
+                    {/* SHOP */}
+                    <div>
+                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-400">
+                        Shop
+                      </h3>
+
+                      <div className="space-y-1">
+                        <Link
+                          href="/"
+                          onClick={() => setShopMenuOpen(false)}
+                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                        >
+                          <span>Home</span>
+
+                          <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
+                            →
+                          </span>
+                        </Link>
 
                         <Link
                           href="/products"
                           onClick={() => setShopMenuOpen(false)}
-                          className="inline-flex w-fit items-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-950 transition duration-200 hover:-translate-y-0.5 hover:bg-blue-50"
+                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
                         >
-                          Explore Products
-                          <span className="ml-2">→</span>
+                          <span>All Products</span>
+
+                          <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
+                            →
+                          </span>
+                        </Link>
+
+                        <Link
+                          href="/categories"
+                          onClick={() => setShopMenuOpen(false)}
+                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                        >
+                          <span>Categories</span>
+
+                          <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
+                            →
+                          </span>
+                        </Link>
+
+                        <Link
+                          href="/products"
+                          onClick={() => setShopMenuOpen(false)}
+                          className="group flex items-center justify-between py-4 text-base font-bold text-blue-600 transition hover:pl-2 hover:text-blue-700"
+                        >
+                          <span>🔥 Today&apos;s Deals</span>
+
+                          <span className="transition group-hover:translate-x-1">
+                            →
+                          </span>
                         </Link>
                       </div>
                     </div>
 
-                    {/* MENU CONTENT */}
-                    <div className="grid gap-8 p-7 md:grid-cols-3 md:p-10">
-                      {/* SHOP */}
-                      <div>
-                        <div className="mb-4 flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg">
-                            🛍️
-                          </div>
+                    {/* CATEGORIES */}
+                    <div>
+                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-400">
+                        Categories
+                      </h3>
 
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
-                              Shop
-                            </p>
+                      {categories.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-x-8">
+                          {categories.slice(0, 8).map((category) => (
+                            <Link
+                              key={category.id}
+                              href={`/products?category=${encodeURIComponent(
+                                category.name,
+                              )}`}
+                              onClick={() => setShopMenuOpen(false)}
+                              className="group border-b border-slate-100 py-4 text-sm font-bold text-slate-700 transition hover:pl-2 hover:text-blue-600"
+                            >
+                              <span className="mr-2 text-xs text-slate-400">
+                                {getInitials(category.name)}
+                              </span>
 
-                            <h3 className="font-black text-slate-950">
-                              Discover
-                            </h3>
-                          </div>
+                              {category.name}
+                            </Link>
+                          ))}
                         </div>
+                      ) : (
+                        <p className="py-4 text-sm text-slate-400">
+                          Categories are loading...
+                        </p>
+                      )}
+                    </div>
 
-                        <div className="space-y-2">
-                          <Link
-                            href="/"
-                            onClick={() => setShopMenuOpen(false)}
-                            className="group flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-700 transition duration-200 hover:translate-x-1 hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <span>Home</span>
-                            <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                              →
-                            </span>
-                          </Link>
+                    {/* CUSTOMER */}
+                    <div>
+                      <h3 className="mb-4 text-sm font-black uppercase tracking-widest text-slate-400">
+                        Customer
+                      </h3>
 
-                          <Link
-                            href="/products"
-                            onClick={() => setShopMenuOpen(false)}
-                            className="group flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-700 transition duration-200 hover:translate-x-1 hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <span>All Products</span>
-                            <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                              →
-                            </span>
-                          </Link>
+                      <div className="space-y-1">
+                        <Link
+                          href="/orders"
+                          onClick={() => setShopMenuOpen(false)}
+                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                        >
+                          <span>📦 My Orders</span>
 
-                          <Link
-                            href="/categories"
-                            onClick={() => setShopMenuOpen(false)}
-                            className="group flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-700 transition duration-200 hover:translate-x-1 hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <span>Categories</span>
-                            <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                              →
-                            </span>
-                          </Link>
+                          <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
+                            →
+                          </span>
+                        </Link>
 
-                          <Link
-                            href="/products"
-                            onClick={() => setShopMenuOpen(false)}
-                            className="group flex items-center justify-between rounded-2xl bg-blue-600 px-4 py-3.5 text-sm font-bold text-white transition duration-200 hover:translate-x-1 hover:bg-blue-700"
-                          >
-                            <span>🔥 Today&apos;s Deals</span>
-                            <span className="transition group-hover:translate-x-1">
-                              →
-                            </span>
-                          </Link>
-                        </div>
-                      </div>
+                        <Link
+                          href="/wishlist"
+                          onClick={() => setShopMenuOpen(false)}
+                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-rose-500"
+                        >
+                          <span>
+                            ♡ Wishlist
 
-                      {/* CATEGORIES */}
-                      <div>
-                        <div className="mb-4 flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-lg">
-                            📦
-                          </div>
-
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-emerald-600">
-                              Categories
-                            </p>
-
-                            <h3 className="font-black text-slate-950">
-                              Explore
-                            </h3>
-                          </div>
-                        </div>
-
-                        {categories.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-2">
-                            {categories.slice(0, 8).map((category) => (
-                              <Link
-                                key={category.id}
-                                href={`/products?category=${encodeURIComponent(
-                                  category.name,
-                                )}`}
-                                onClick={() => setShopMenuOpen(false)}
-                                className="group rounded-2xl border border-slate-200 p-3 transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-black text-slate-600 transition group-hover:bg-blue-100 group-hover:text-blue-600">
-                                    {getInitials(category.name)}
-                                  </div>
-
-                                  <span className="line-clamp-1 text-xs font-bold text-slate-700 group-hover:text-blue-600">
-                                    {category.name}
-                                  </span>
-                                </div>
-                              </Link>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
-                            Categories are loading...
-                          </div>
-                        )}
-                      </div>
-
-                      {/* CUSTOMER */}
-                      <div>
-                        <div className="mb-4 flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-lg">
-                            ❤️
-                          </div>
-
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-rose-500">
-                              Customer
-                            </p>
-
-                            <h3 className="font-black text-slate-950">
-                              Your Account
-                            </h3>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Link
-                            href="/orders"
-                            onClick={() => setShopMenuOpen(false)}
-                            className="group flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-700 transition duration-200 hover:translate-x-1 hover:bg-slate-50 hover:text-blue-600"
-                          >
-                            <span>📦 My Orders</span>
-                            <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                              →
-                            </span>
-                          </Link>
-
-                          <Link
-                            href="/wishlist"
-                            onClick={() => setShopMenuOpen(false)}
-                            className="group flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-700 transition duration-200 hover:translate-x-1 hover:bg-rose-50 hover:text-rose-500"
-                          >
-                            <span>♡ Wishlist</span>
-
-                            {wishlist.length > 0 ? (
-                              <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-black text-rose-600">
+                            {wishlist.length > 0 && (
+                              <span className="ml-2 rounded-full bg-rose-100 px-2 py-1 text-[10px] text-rose-600">
                                 {wishlist.length}
                               </span>
-                            ) : (
-                              <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                                →
-                              </span>
                             )}
-                          </Link>
+                          </span>
 
-                          <Link
-                            href="/cart"
-                            onClick={() => setShopMenuOpen(false)}
-                            className="group flex items-center justify-between rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-700 transition duration-200 hover:translate-x-1 hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <span>🛒 Shopping Cart</span>
+                          <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
+                            →
+                          </span>
+                        </Link>
 
-                            {cartCount > 0 ? (
-                              <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-black text-blue-600">
+                        <Link
+                          href="/cart"
+                          onClick={() => setShopMenuOpen(false)}
+                          className="group flex items-center justify-between border-b border-slate-100 py-4 text-base font-bold text-slate-800 transition hover:pl-2 hover:text-blue-600"
+                        >
+                          <span>
+                            🛒 Shopping Cart
+
+                            {cartCount > 0 && (
+                              <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-[10px] text-blue-600">
                                 {cartCount}
                               </span>
-                            ) : (
-                              <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
-                                →
-                              </span>
                             )}
-                          </Link>
+                          </span>
 
-                          <Link
-                            href={isLoggedIn ? "/profile" : "/login"}
-                            onClick={() => setShopMenuOpen(false)}
-                            className="group flex items-center justify-between rounded-2xl bg-slate-950 px-4 py-3.5 text-sm font-bold text-white transition duration-200 hover:translate-x-1 hover:bg-blue-600"
-                          >
-                            <span>
-                              {isLoggedIn
-                                ? "👤 My Profile"
-                                : "🔐 Login / Register"}
-                            </span>
+                          <span className="opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100">
+                            →
+                          </span>
+                        </Link>
 
-                            <span className="transition group-hover:translate-x-1">
-                              →
-                            </span>
-                          </Link>
-                        </div>
+                        <Link
+                          href={isLoggedIn ? "/profile" : "/login"}
+                          onClick={() => setShopMenuOpen(false)}
+                          className="group flex items-center justify-between py-4 text-base font-bold text-slate-900 transition hover:pl-2 hover:text-blue-600"
+                        >
+                          <span>
+                            {isLoggedIn
+                              ? "👤 My Profile"
+                              : "🔐 Login / Register"}
+                          </span>
+
+                          <span className="transition group-hover:translate-x-1">
+                            →
+                          </span>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BOTTOM FEATURES */}
+                  <div className="mt-10 grid border-t border-slate-200 pt-7 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="flex items-center gap-3 py-3 lg:border-r lg:border-slate-200 lg:px-6">
+                      <span className="text-xl">🚚</span>
+
+                      <div>
+                        <p className="text-xs font-black text-slate-900">
+                          Reliable Delivery
+                        </p>
+
+                        <p className="text-[10px] text-slate-500">
+                          Convenient shopping
+                        </p>
                       </div>
                     </div>
 
-                    {/* BOTTOM FEATURE BAR */}
-                    <div className="grid border-t border-slate-200 bg-slate-50 md:grid-cols-4">
-                      <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-5 md:border-b-0 md:border-r">
-                        <span className="text-xl">🚚</span>
+                    <div className="flex items-center gap-3 py-3 lg:border-r lg:border-slate-200 lg:px-6">
+                      <span className="text-xl">🔒</span>
 
-                        <div>
-                          <p className="text-xs font-black text-slate-900">
-                            Reliable Delivery
-                          </p>
+                      <div>
+                        <p className="text-xs font-black text-slate-900">
+                          Secure Checkout
+                        </p>
 
-                          <p className="mt-0.5 text-[10px] text-slate-500">
-                            Convenient shopping
-                          </p>
-                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Shop with confidence
+                        </p>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-5 md:border-b-0 md:border-r">
-                        <span className="text-xl">🔒</span>
+                    <div className="flex items-center gap-3 py-3 lg:border-r lg:border-slate-200 lg:px-6">
+                      <span className="text-xl">🤖</span>
 
-                        <div>
-                          <p className="text-xs font-black text-slate-900">
-                            Secure Checkout
-                          </p>
+                      <div>
+                        <p className="text-xs font-black text-slate-900">
+                          AI Assistant
+                        </p>
 
-                          <p className="mt-0.5 text-[10px] text-slate-500">
-                            Shop with confidence
-                          </p>
-                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Smart product help
+                        </p>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-5 md:border-b-0 md:border-r">
-                        <span className="text-xl">🤖</span>
+                    <div className="flex items-center gap-3 py-3 lg:px-6">
+                      <span className="text-xl">✨</span>
 
-                        <div>
-                          <p className="text-xs font-black text-slate-900">
-                            AI Assistant
-                          </p>
+                      <div>
+                        <p className="text-xs font-black text-slate-900">
+                          Easy Shopping
+                        </p>
 
-                          <p className="mt-0.5 text-[10px] text-slate-500">
-                            Smart product help
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 px-6 py-5">
-                        <span className="text-xl">✨</span>
-
-                        <div>
-                          <p className="text-xs font-black text-slate-900">
-                            Easy Shopping
-                          </p>
-
-                          <p className="mt-0.5 text-[10px] text-slate-500">
-                            Simple experience
-                          </p>
-                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Simple experience
+                        </p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* SEARCH */}
@@ -843,7 +802,10 @@ export default function HomePage() {
 
                 <div>
                   <p className="font-black">E-Shop</p>
-                  <p className="text-xs text-slate-400">Smart shopping</p>
+
+                  <p className="text-xs text-slate-400">
+                    Smart shopping
+                  </p>
                 </div>
               </Link>
 
@@ -950,7 +912,9 @@ export default function HomePage() {
 
             <h1 className="max-w-3xl text-4xl font-black leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
               Everything you need.
-              <span className="block text-blue-600">All in one place.</span>
+              <span className="block text-blue-600">
+                All in one place.
+              </span>
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
@@ -981,7 +945,9 @@ export default function HomePage() {
                   {products.length}+
                 </p>
 
-                <p className="mt-1 text-xs text-slate-500">Products</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Products
+                </p>
               </div>
 
               <div>
@@ -989,13 +955,19 @@ export default function HomePage() {
                   {categories.length}+
                 </p>
 
-                <p className="mt-1 text-xs text-slate-500">Categories</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Categories
+                </p>
               </div>
 
               <div>
-                <p className="text-2xl font-black text-slate-950">100%</p>
+                <p className="text-2xl font-black text-slate-950">
+                  100%
+                </p>
 
-                <p className="mt-1 text-xs text-slate-500">Secure shopping</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Secure shopping
+                </p>
               </div>
             </div>
           </div>
@@ -1082,7 +1054,9 @@ export default function HomePage() {
             <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
               <div className="text-4xl">🛍️</div>
 
-              <h3 className="mt-3 text-lg font-bold">Deals are coming soon</h3>
+              <h3 className="mt-3 text-lg font-bold">
+                Deals are coming soon
+              </h3>
 
               <p className="mt-2 text-sm text-slate-500">
                 Check back soon for special offers.
@@ -1155,7 +1129,8 @@ export default function HomePage() {
                         </span>
 
                         <span className="font-bold text-emerald-600">
-                          Save ${(product.price - dealPrice).toFixed(2)}
+                          Save $
+                          {(product.price - dealPrice).toFixed(2)}
                         </span>
                       </div>
 
@@ -1325,7 +1300,9 @@ export default function HomePage() {
             <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
               <div className="text-5xl">🔎</div>
 
-              <h3 className="mt-4 text-xl font-black">No products found</h3>
+              <h3 className="mt-4 text-xl font-black">
+                No products found
+              </h3>
 
               <p className="mt-2 text-sm text-slate-500">
                 Try another search term.
@@ -1383,9 +1360,13 @@ export default function HomePage() {
 
                     <div className="p-5">
                       <div className="mb-3 flex items-center gap-1 text-xs">
-                        <span className="text-amber-400">★★★★★</span>
+                        <span className="text-amber-400">
+                          ★★★★★
+                        </span>
 
-                        <span className="text-slate-400">Popular</span>
+                        <span className="text-slate-400">
+                          Popular
+                        </span>
                       </div>
 
                       <Link
@@ -1457,7 +1438,9 @@ export default function HomePage() {
 
               <h2 className="mt-3 max-w-2xl text-3xl font-black tracking-tight text-white sm:text-4xl">
                 Better products.
-                <span className="block text-blue-400">Better shopping.</span>
+                <span className="block text-blue-400">
+                  Better shopping.
+                </span>
               </h2>
 
               <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
@@ -1478,7 +1461,9 @@ export default function HomePage() {
               <div className="rounded-3xl bg-white/10 p-5 transition hover:bg-white/15">
                 <div className="text-2xl">🚚</div>
 
-                <h3 className="mt-4 font-bold text-white">Reliable Delivery</h3>
+                <h3 className="mt-4 font-bold text-white">
+                  Reliable Delivery
+                </h3>
 
                 <p className="mt-1 text-xs leading-5 text-slate-400">
                   Convenient order delivery.
@@ -1488,7 +1473,9 @@ export default function HomePage() {
               <div className="rounded-3xl bg-white/10 p-5 transition hover:bg-white/15">
                 <div className="text-2xl">🔒</div>
 
-                <h3 className="mt-4 font-bold text-white">Secure Checkout</h3>
+                <h3 className="mt-4 font-bold text-white">
+                  Secure Checkout
+                </h3>
 
                 <p className="mt-1 text-xs leading-5 text-slate-400">
                   Shop with confidence.
@@ -1498,7 +1485,9 @@ export default function HomePage() {
               <div className="rounded-3xl bg-white/10 p-5 transition hover:bg-white/15">
                 <div className="text-2xl">♡</div>
 
-                <h3 className="mt-4 font-bold text-white">Save Favorites</h3>
+                <h3 className="mt-4 font-bold text-white">
+                  Save Favorites
+                </h3>
 
                 <p className="mt-1 text-xs leading-5 text-slate-400">
                   Keep products you love.
@@ -1508,7 +1497,9 @@ export default function HomePage() {
               <div className="rounded-3xl bg-white/10 p-5 transition hover:bg-white/15">
                 <div className="text-2xl">✨</div>
 
-                <h3 className="mt-4 font-bold text-white">Easy Shopping</h3>
+                <h3 className="mt-4 font-bold text-white">
+                  Easy Shopping
+                </h3>
 
                 <p className="mt-1 text-xs leading-5 text-slate-400">
                   Simple and modern experience.
@@ -1528,11 +1519,13 @@ export default function HomePage() {
                 ⚡
               </div>
 
-              <h3 className="mt-5 text-lg font-black">Fast & reliable</h3>
+              <h3 className="mt-5 text-lg font-black">
+                Fast & reliable
+              </h3>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Browse products, manage your cart and place orders with a smooth
-                shopping experience.
+                Browse products, manage your cart and place orders with a
+                smooth shopping experience.
               </p>
             </div>
 
@@ -1541,7 +1534,9 @@ export default function HomePage() {
                 🔒
               </div>
 
-              <h3 className="mt-5 text-lg font-black">Secure shopping</h3>
+              <h3 className="mt-5 text-lg font-black">
+                Secure shopping
+              </h3>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
                 Your account and checkout experience are protected with secure
@@ -1554,7 +1549,9 @@ export default function HomePage() {
                 ♥
               </div>
 
-              <h3 className="mt-5 text-lg font-black">Quality products</h3>
+              <h3 className="mt-5 text-lg font-black">
+                Quality products
+              </h3>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
                 Discover products across multiple categories and save your
@@ -1584,8 +1581,9 @@ export default function HomePage() {
                 </h2>
 
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-blue-100 sm:text-base">
-                  Ask our AI assistant to search products, compare options, find
-                  products within your budget and even help manage your cart.
+                  Ask our AI assistant to search products, compare options,
+                  find products within your budget and even help manage your
+                  cart.
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-2">
@@ -1639,7 +1637,9 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-black text-slate-950">Shop</h3>
+              <h3 className="text-sm font-black text-slate-950">
+                Shop
+              </h3>
 
               <div className="mt-4 space-y-3 text-sm text-slate-500">
                 <Link
@@ -1673,7 +1673,9 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-black text-slate-950">Account</h3>
+              <h3 className="text-sm font-black text-slate-950">
+                Account
+              </h3>
 
               <div className="mt-4 space-y-3 text-sm text-slate-500">
                 <Link
@@ -1698,13 +1700,16 @@ export default function HomePage() {
                 </Link>
 
                 <p>support@eshop.com</p>
+
                 <p>+251 900 000 000</p>
               </div>
             </div>
           </div>
 
           <div className="mt-10 flex flex-col gap-3 border-t border-slate-200 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-            <p>© {new Date().getFullYear()} E-Shop. All rights reserved.</p>
+            <p>
+              © {new Date().getFullYear()} E-Shop. All rights reserved.
+            </p>
 
             <p>Main Store · Ethiopia</p>
           </div>

@@ -1116,7 +1116,7 @@ export default function Chatbot() {
 
     return (
       <div className="mt-3 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-4">
+        <div className="bg-linear-to-r from-blue-50 via-indigo-50 to-purple-50 p-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm">
               ⚖️
@@ -1201,11 +1201,11 @@ export default function Chatbot() {
           data-chatbot-trigger
           onClick={() => setIsOpen(true)}
           aria-label="Open ShopEase assistant"
-          className="fixed bottom-5 right-5 z-[100] group"
+          className="fixed bottom-5 right-5 z-100 group"
         >
           <span className="absolute -inset-1 rounded-full bg-blue-500/20 blur-md transition group-hover:bg-blue-500/40" />
 
-          <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-2xl text-white shadow-[0_12px_35px_rgba(37,99,235,0.4)] transition duration-300 group-hover:scale-110">
+          <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-r from-blue-600 via-indigo-600 to-purple-600 text-2xl text-white shadow-[0_12px_35px_rgba(37,99,235,0.4)] transition duration-300 group-hover:scale-110">
             <span>🤖</span>
           </span>
 
@@ -1217,9 +1217,9 @@ export default function Chatbot() {
 
       {/* CHAT WINDOW */}
       {isOpen && (
-        <div className="fixed bottom-3 right-3 z-[100] flex h-[min(760px,calc(100dvh-24px))] w-[min(460px,calc(100vw-24px))] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.28)] sm:bottom-6 sm:right-6">
+        <div className="fixed bottom-3 right-3 z-100 flex h-[min(760px,calc(100dvh-24px))] w-[min(460px,calc(100vw-24px))] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.28)] sm:bottom-6 sm:right-6">
           {/* HEADER */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 px-5 py-5 text-white">
+          <div className="relative overflow-hidden bg-linear-to-br from-slate-950 via-blue-950 to-indigo-900 px-5 py-5 text-white">
             <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-blue-500/20 blur-2xl" />
             <div className="absolute -bottom-20 left-20 h-40 w-40 rounded-full bg-purple-500/20 blur-2xl" />
 
@@ -1307,7 +1307,7 @@ export default function Chatbot() {
           </div>
 
           {/* MESSAGES */}
-          <div className="flex-1 space-y-5 overflow-y-auto bg-gradient-to-b from-slate-50 to-white px-4 py-5">
+          <div className="flex-1 space-y-5 overflow-y-auto bg-linear-to-b from-slate-50 to-white px-4 py-5">
             {messages.map((item, index) => {
               return (
                 <div
@@ -1317,7 +1317,7 @@ export default function Chatbot() {
                   }`}
                 >
                   {item.role === "assistant" && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-sm text-white shadow-sm">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 text-sm text-white shadow-sm">
                       🤖
                     </div>
                   )}
@@ -1330,7 +1330,7 @@ export default function Chatbot() {
                     <div
                       className={`whitespace-pre-line rounded-2xl px-4 py-3 text-[12px] leading-5 shadow-sm ${
                         item.role === "user"
-                          ? "rounded-br-md bg-gradient-to-br from-blue-600 to-indigo-600 text-white"
+                          ? "rounded-br-md bg-linear-to-br from-blue-600 to-indigo-600 text-white"
                           : "rounded-bl-md border border-slate-200 bg-white text-slate-700"
                       }`}
                     >
@@ -1368,7 +1368,7 @@ export default function Chatbot() {
             {/* TYPING */}
             {loading && (
               <div className="flex items-start gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-sm text-white">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 text-sm text-white">
                   🤖
                 </div>
 
@@ -1447,7 +1447,7 @@ export default function Chatbot() {
                   type="submit"
                   disabled={loading || !message.trim()}
                   aria-label="Send message"
-                  className="flex h-10 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20 transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-10 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20 transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {loading ? (
                     <svg
