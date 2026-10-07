@@ -40,16 +40,40 @@ export default function LoginPage() {
         );
       }
 
-      // Save JWT token
-      localStorage.setItem("accessToken", data.accessToken);
+      // =====================================================
+      // SAVE JWT TOKEN
+      // =====================================================
 
-      // Save logged-in user
+      if (data.accessToken) {
+        localStorage.setItem("accessToken", data.accessToken);
+      }
+
+      // =====================================================
+      // SAVE LOGGED-IN USER
+      // =====================================================
+
       if (data.user) {
         localStorage.setItem("user", JSON.stringify(data.user));
       }
 
-      // Redirect to homepage
-      router.push("/");
+      // =====================================================
+      // CHECK USER ROLE
+      // =====================================================
+
+      const userRole = String(
+        data.user?.role || data.user?.roles?.[0] || data.user?.userRole || "",
+      ).toUpperCase();
+
+      // =====================================================
+      // ADMIN → ADMIN PAGE
+      // USER → HOME PAGE
+      // =====================================================
+
+      if (userRole === "ADMIN") {
+        router.push("/admin");
+      } else {
+        router.push("/");
+      }
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
@@ -167,7 +191,7 @@ export default function LoginPage() {
 
               <p className="mt-6 max-w-lg text-lg leading-8 text-slate-500">
                 Sign in to your E-Shop account and continue discovering products
-                you'll love.
+                you&apos;ll love.
               </p>
 
               {/* Product visual */}

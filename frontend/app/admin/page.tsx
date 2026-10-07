@@ -325,6 +325,8 @@ export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [desktopSearchOpen, setDesktopSearchOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
@@ -563,11 +565,75 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    fetchDashboardData();
-    fetchAdminAlerts();
-  }, []);
+    let cancelled = false;
 
+    const checkAdminAccess = () => {
+      const token = localStorage.getItem("accessToken");
+      const storedUser = localStorage.getItem("user");
+
+      // No authentication information
+      if (!token || !storedUser) {
+        if (!cancelled) {
+          setIsAuthorized(false);
+          setIsCheckingAuth(false);
+        }
+
+        window.location.replace("/login");
+        return;
+      }
+
+      try {
+        const user = JSON.parse(storedUser);
+
+        const userRole = String(
+          user?.role || user?.roles?.[0] || user?.userRole || "",
+        ).toUpperCase();
+
+        // Normal users are NEVER allowed to render the admin dashboard
+        if (userRole !== "ADMIN") {
+          if (!cancelled) {
+            setIsAuthorized(false);
+            setIsCheckingAuth(false);
+          }
+
+          window.location.replace("/");
+          return;
+        }
+
+        // Admin verified
+        if (!cancelled) {
+          setIsAuthorized(true);
+          setIsCheckingAuth(false);
+        }
+
+        fetchDashboardData();
+        fetchAdminAlerts();
+      } catch (error) {
+        console.error("Invalid authentication data:", error);
+
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("user");
+
+        if (!cancelled) {
+          setIsAuthorized(false);
+          setIsCheckingAuth(false);
+        }
+
+        window.location.replace("/login");
+      }
+    };
+
+    checkAdminAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   useEffect(() => {
+    if (!isAuthorized) {
+      return;
+    }
+
     const interval = window.setInterval(() => {
       fetchAdminAlerts();
     }, 30000);
@@ -575,7 +641,7 @@ export default function AdminDashboard() {
     return () => {
       window.clearInterval(interval);
     };
-  }, []);
+  }, [isAuthorized]);
 
   const totalOrders = orders.length;
 
@@ -934,6 +1000,13 @@ export default function AdminDashboard() {
     setMobileSearchOpen(false);
     setSidebarOpen(false);
   };
+  if (isCheckingAuth) {
+    return null;
+  }
+
+  if (!isAuthorized) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f8fb] text-slate-900">
