@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useCart } from "../app/Context/CartContext";
 
 const BACKEND_URL =
@@ -10,10 +11,15 @@ const BACKEND_URL =
 const AI_API_URL =
   process.env.NEXT_PUBLIC_AI_API_URL?.trim() || "http://127.0.0.1:8000";
 
-type ProductCategory = {
-  id?: number;
-  name?: string;
-};
+type ProductCategory =
+  | string
+  | {
+      id?: number;
+      name?: string;
+      title?: string;
+    }
+  | null
+  | undefined;
 
 type Product = {
   id: number;
@@ -22,40 +28,60 @@ type Product = {
   price: number;
   stock: number;
   image?: string | null;
-  images?: string[] | null;
-  imageUrl?: string | null;
-  category?: string | ProductCategory | null;
+  category?: ProductCategory;
 };
 
 type Message = {
   role: "user" | "assistant";
   content: string;
   products?: Product[];
-  comparison?: boolean;
 };
 
-type SpeechRecognitionEvent = Event & {
-  results: {
-    [index: number]: {
-      [index: number]: {
-        transcript: string;
-      };
-    };
-  };
-};
+interface SpeechRecognitionResultItem {
+  transcript: string;
+  confidence?: number;
+}
 
-type SpeechRecognitionInstance = {
+interface SpeechRecognitionResult {
+  readonly length: number;
+  readonly isFinal: boolean;
+  [index: number]: SpeechRecognitionResultItem;
+}
+
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  readonly results: SpeechRecognitionResultList;
+  readonly resultIndex: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: string;
+  readonly message?: string;
+}
+
+interface SpeechRecognitionInstance {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
+  maxAlternatives: number;
+
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+
   start: () => void;
   stop: () => void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onend: (() => void) | null;
-  onerror: ((event: Event) => void) | null;
-};
+  abort: () => void;
+}
 
-type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionInstance;
+}
 
 declare global {
   interface Window {
@@ -73,183 +99,710 @@ const QUICK_QUESTIONS = [
 ];
 
 const DEFAULT_PRODUCT_IMAGE =
-  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80";
+  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80";
 
-function normalizeText(value: string): string {
+const INITIAL_MESSAGE: Message = {
+  role: "assistant",
+  content:
+    "Hi! 👋 I'm your ShopEase assistant. I can help you find products, compare prices, check stock, and choose the right product for you.",
+};
+
+function normalizeText(value: string) {
   return value
     .toLowerCase()
+    .replace(/[’']/g, "")
     .replace(/[^\w\s$.-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function cleanMarkdown(value: string): string {
+function cleanMarkdown(value: string) {
   return value
+    .replace(/```[\s\S]*?```/g, "")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/__(.*?)__/g, "$1")
-    .replace(/\*(.*?)\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/^#{1,6}\s*/gm, "")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s*[-*]\s+/gm, "• ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-function getProductImage(product: Product): string {
-  if (product.image?.trim()) {
+function getProductImage(product: Product) {
+  if (product.image && product.image.trim()) {
     return product.image;
-  }
-
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    if (product.images[0]?.trim()) {
-      return product.images[0];
-    }
-  }
-
-  if (product.imageUrl?.trim()) {
-    return product.imageUrl;
   }
 
   return DEFAULT_PRODUCT_IMAGE;
 }
 
-function getCategoryName(product: Product): string {
-  if (typeof product.category === "string" && product.category.trim()) {
-    return product.category;
+function getCategoryName(category: ProductCategory) {
+  if (!category) return "";
+
+  if (typeof category === "string") {
+    return category;
   }
 
-  if (
-    product.category &&
-    typeof product.category === "object" &&
-    product.category.name
-  ) {
-    return product.category.name;
-  }
-
-  return "Product";
+  return category.name || category.title || "";
 }
 
 function extractProducts(data: unknown): Product[] {
   if (Array.isArray(data)) {
-    return data as Product[];
+    return data.filter(Boolean) as Product[];
   }
 
   if (!data || typeof data !== "object") {
     return [];
   }
 
-  const value = data as Record<string, unknown>;
+  const object = data as Record<string, unknown>;
 
-  if (Array.isArray(value.products)) {
-    return value.products as Product[];
-  }
+  const possibleArrays = [
+    object.products,
+    object.data,
+    object.items,
+    object.results,
+  ];
 
-  if (Array.isArray(value.data)) {
-    return value.data as Product[];
-  }
+  for (const value of possibleArrays) {
+    if (Array.isArray(value)) {
+      return value.filter(Boolean) as Product[];
+    }
 
-  if (
-    value.data &&
-    typeof value.data === "object" &&
-    Array.isArray((value.data as Record<string, unknown>).products)
-  ) {
-    return (value.data as Record<string, unknown>).products as Product[];
+    if (value && typeof value === "object") {
+      const nested = value as Record<string, unknown>;
+
+      if (Array.isArray(nested.products)) {
+        return nested.products.filter(Boolean) as Product[];
+      }
+
+      if (Array.isArray(nested.items)) {
+        return nested.items.filter(Boolean) as Product[];
+      }
+    }
   }
 
   return [];
 }
 
-function isComparisonMessage(message: string): boolean {
-  const text = normalizeText(message);
+function isComparisonMessage(text: string) {
+  const normalized = normalizeText(text);
 
   return (
-    text.includes("compare") ||
-    text.includes("comparison") ||
-    text.includes("difference") ||
-    text.includes("versus") ||
-    text.includes(" vs ")
+    normalized.includes("compare") ||
+    normalized.includes("comparison") ||
+    normalized.includes("difference between") ||
+    normalized.includes("versus") ||
+    normalized.includes(" vs ")
   );
 }
 
-function isRecommendationMessage(message: string): boolean {
-  const text = normalizeText(message);
+function isRecommendationMessage(text: string) {
+  const normalized = normalizeText(text);
 
   return (
-    text.includes("recommend") ||
-    text.includes("suggest") ||
-    text.includes("best") ||
-    text.includes("what should i buy") ||
-    text.includes("which one should")
+    normalized.includes("recommend") ||
+    normalized.includes("suggest") ||
+    normalized.includes("best product") ||
+    normalized.includes("what should i buy") ||
+    normalized.includes("which one should i buy")
   );
 }
 
-function isProductQuestion(message: string): boolean {
-  const text = normalizeText(message);
+function isProductQuestion(text: string) {
+  const normalized = normalizeText(text);
 
-  const words = [
+  const keywords = [
     "product",
     "products",
     "phone",
     "phones",
-    "iphone",
-    "samsung",
-    "mobile",
-    "smartphone",
     "laptop",
     "laptops",
     "computer",
-    "tablet",
+    "computers",
     "headphone",
     "headphones",
-    "earbuds",
     "watch",
-    "smartwatch",
+    "watches",
+    "tablet",
+    "tablets",
     "camera",
+    "cameras",
     "keyboard",
+    "keyboards",
     "mouse",
-    "gaming",
     "speaker",
-    "audio",
+    "speakers",
+    "gaming",
     "electronics",
     "accessories",
     "price",
-    "cost",
     "cheap",
     "cheapest",
-    "expensive",
     "stock",
     "available",
     "buy",
-    "purchase",
   ];
 
-  return words.some((word) => text.includes(word));
+  return keywords.some((keyword) => normalized.includes(keyword));
 }
 
 export default function Chatbot() {
   const { addToCart } = useCart();
 
+  /*
+   * This makes the chatbot render directly under <body>.
+   *
+   * That prevents parent components with:
+   * - overflow-hidden
+   * - hover states
+   * - transforms
+   * - stacking contexts
+   * - z-index problems
+   *
+   * from affecting the chatbot UI.
+   */
+  const [mounted, setMounted] = useState(false);
+
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [isListening, setIsListening] = useState(false);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi! 👋 I'm your ShopEase assistant. I can help you find products, compare prices, check stock, and choose the right product for you.",
-    },
-  ]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [voicesAvailable, setVoicesAvailable] = useState(false);
+
+  const [voiceError, setVoiceError] = useState("");
+  const [speechError, setSpeechError] = useState("");
+
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [recognitionSupported, setRecognitionSupported] = useState(false);
+
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
 
   const [addedProducts, setAddedProducts] = useState<number[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
+  const speakingIndexRef = useRef<number | null>(null);
+
+  const speechRunIdRef = useRef(0);
+
+  const speechTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+
+  const voiceErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const speechErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    setMounted(true);
+
+    return () => {
+      setMounted(false);
+    };
+  }, []);
+
   /*
-   * OPEN CHATBOT FROM OTHER COMPONENTS
+   * ------------------------------------------------------------
+   * SPEECH SYNTHESIS
+   * ------------------------------------------------------------
    */
+
+  const selectBestVoice = useCallback(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      return null;
+    }
+
+    const voices = window.speechSynthesis.getVoices();
+
+    if (!voices.length) {
+      return null;
+    }
+
+    const preferredNames = [
+      "Microsoft Aria",
+      "Microsoft Jenny",
+      "Google US English",
+      "Samantha",
+      "Karen",
+      "Daniel",
+      "Alex",
+    ];
+
+    for (const preferredName of preferredNames) {
+      const voice = voices.find((item) =>
+        item.name.toLowerCase().includes(preferredName.toLowerCase()),
+      );
+
+      if (voice) {
+        return voice;
+      }
+    }
+
+    const englishUS = voices.find(
+      (voice) => voice.lang.toLowerCase() === "en-us",
+    );
+
+    if (englishUS) {
+      return englishUS;
+    }
+
+    const english = voices.find((voice) =>
+      voice.lang.toLowerCase().startsWith("en"),
+    );
+
+    return english || voices[0];
+  }, []);
+
+  const loadVoices = useCallback(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      setVoicesAvailable(false);
+      return;
+    }
+
+    const voices = window.speechSynthesis.getVoices();
+
+    setVoicesAvailable(voices.length > 0);
+
+    const selectedVoice = selectBestVoice();
+
+    if (selectedVoice) {
+      selectedVoiceRef.current = selectedVoice;
+    }
+  }, [selectBestVoice]);
+
+  const stopSpeaking = useCallback(() => {
+    speechRunIdRef.current += 1;
+
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window &&
+      window.speechSynthesis
+    ) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // Ignore browser errors.
+      }
+    }
+
+    speakingIndexRef.current = null;
+    setSpeakingIndex(null);
+  }, []);
+
+  const showSpeechError = useCallback((text: string) => {
+    setSpeechError(text);
+
+    if (speechErrorTimeoutRef.current) {
+      clearTimeout(speechErrorTimeoutRef.current);
+    }
+
+    speechErrorTimeoutRef.current = setTimeout(() => {
+      setSpeechError("");
+    }, 4500);
+  }, []);
+
+  const splitSpeechText = useCallback((text: string) => {
+    const cleaned = cleanMarkdown(text).replace(/\s+/g, " ").trim();
+
+    if (!cleaned) {
+      return [];
+    }
+
+    const sentences = cleaned.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleaned];
+
+    const chunks: string[] = [];
+    let current = "";
+
+    for (const sentence of sentences) {
+      const trimmed = sentence.trim();
+
+      if (!trimmed) continue;
+
+      if (!current) {
+        current = trimmed;
+        continue;
+      }
+
+      if ((current + " " + trimmed).length <= 180) {
+        current += " " + trimmed;
+      } else {
+        chunks.push(current);
+        current = trimmed;
+      }
+    }
+
+    if (current) {
+      chunks.push(current);
+    }
+
+    return chunks;
+  }, []);
+
+  const speakMessage = useCallback(
+    (text: string, index: number) => {
+      if (!soundEnabled) {
+        return;
+      }
+
+      if (
+        typeof window === "undefined" ||
+        !("speechSynthesis" in window) ||
+        !window.speechSynthesis
+      ) {
+        showSpeechError(
+          "Your browser does not support text-to-speech. Please use Chrome or Edge.",
+        );
+        return;
+      }
+
+      if (speakingIndexRef.current === index) {
+        stopSpeaking();
+        return;
+      }
+
+      stopSpeaking();
+
+      setSpeechError("");
+
+      loadVoices();
+
+      const chunks = splitSpeechText(text);
+
+      if (!chunks.length) {
+        return;
+      }
+
+      const runId = speechRunIdRef.current;
+
+      speakingIndexRef.current = index;
+      setSpeakingIndex(index);
+
+      speechTimeoutRef.current = setTimeout(() => {
+        if (speechRunIdRef.current !== runId) {
+          return;
+        }
+
+        let chunkIndex = 0;
+
+        const speakNextChunk = () => {
+          if (speechRunIdRef.current !== runId) {
+            return;
+          }
+
+          if (chunkIndex >= chunks.length) {
+            speakingIndexRef.current = null;
+            setSpeakingIndex(null);
+            speechTimeoutRef.current = null;
+            return;
+          }
+
+          const utterance = new SpeechSynthesisUtterance(chunks[chunkIndex]);
+
+          const voice = selectedVoiceRef.current || selectBestVoice();
+
+          if (voice) {
+            utterance.voice = voice;
+          }
+
+          utterance.lang = voice?.lang || "en-US";
+          utterance.rate = 0.95;
+          utterance.pitch = 1;
+          utterance.volume = 1;
+
+          utterance.onend = () => {
+            if (speechRunIdRef.current !== runId) {
+              return;
+            }
+
+            chunkIndex += 1;
+
+            speechTimeoutRef.current = setTimeout(() => {
+              speakNextChunk();
+            }, 60);
+          };
+
+          utterance.onerror = (event) => {
+            if (speechRunIdRef.current !== runId) {
+              return;
+            }
+
+            const errorType = event.error || "";
+
+            if (errorType === "canceled" || errorType === "interrupted") {
+              speakingIndexRef.current = null;
+              setSpeakingIndex(null);
+              return;
+            }
+
+            speakingIndexRef.current = null;
+            setSpeakingIndex(null);
+
+            showSpeechError(
+              "I couldn't play the voice response. Please try Listen again.",
+            );
+          };
+
+          try {
+            window.speechSynthesis.resume();
+            window.speechSynthesis.speak(utterance);
+          } catch {
+            speakingIndexRef.current = null;
+            setSpeakingIndex(null);
+
+            showSpeechError(
+              "Voice playback could not start. Please try again.",
+            );
+          }
+        };
+
+        speakNextChunk();
+      }, 80);
+    },
+    [
+      loadVoices,
+      selectBestVoice,
+      soundEnabled,
+      splitSpeechText,
+      stopSpeaking,
+      showSpeechError,
+    ],
+  );
+
+  /*
+   * ------------------------------------------------------------
+   * SPEECH RECOGNITION
+   * ------------------------------------------------------------
+   */
+
+  const getSpeechRecognitionConstructor =
+    useCallback((): SpeechRecognitionConstructor | null => {
+      if (typeof window === "undefined") {
+        return null;
+      }
+
+      return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    }, []);
+
+  const showVoiceError = useCallback((text: string) => {
+    setVoiceError(text);
+
+    if (voiceErrorTimeoutRef.current) {
+      clearTimeout(voiceErrorTimeoutRef.current);
+    }
+
+    voiceErrorTimeoutRef.current = setTimeout(() => {
+      setVoiceError("");
+    }, 5000);
+  }, []);
+
+  const stopVoiceInput = useCallback(() => {
+    const recognition = recognitionRef.current;
+
+    if (recognition) {
+      try {
+        recognition.abort();
+      } catch {
+        try {
+          recognition.stop();
+        } catch {
+          // Ignore cleanup errors.
+        }
+      }
+    }
+
+    recognitionRef.current = null;
+    setIsListening(false);
+  }, []);
+
+  const startVoiceInput = useCallback(() => {
+    if (loading) {
+      return;
+    }
+
+    const Recognition = getSpeechRecognitionConstructor();
+
+    if (!Recognition) {
+      showVoiceError(
+        "Voice input is not supported in this browser. Please use Chrome or Edge.",
+      );
+      return;
+    }
+
+    if (isListening) {
+      stopVoiceInput();
+      return;
+    }
+
+    stopSpeaking();
+
+    setVoiceError("");
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {
+        // Ignore.
+      }
+
+      recognitionRef.current = null;
+    }
+
+    const recognition = new Recognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      if (recognitionRef.current === recognition) {
+        setIsListening(true);
+      }
+    };
+
+    recognition.onresult = (event) => {
+      if (recognitionRef.current !== recognition) {
+        return;
+      }
+
+      const result = event.results[event.resultIndex];
+
+      if (!result) {
+        return;
+      }
+
+      const transcript = result[0]?.transcript?.trim();
+
+      if (transcript) {
+        setMessage(transcript);
+        setVoiceError("");
+      }
+    };
+
+    recognition.onerror = (event) => {
+      if (recognitionRef.current !== recognition) {
+        return;
+      }
+
+      const error = event.error;
+
+      if (error === "no-speech") {
+        showVoiceError(
+          "I didn't hear anything. Tap the microphone and try speaking again.",
+        );
+      } else if (error === "not-allowed" || error === "service-not-allowed") {
+        showVoiceError(
+          "Microphone permission was blocked. Allow microphone access in your browser and try again.",
+        );
+      } else if (error === "audio-capture") {
+        showVoiceError(
+          "I couldn't access your microphone. Check that your microphone is connected and not being used by another app.",
+        );
+      } else if (error === "network") {
+        showVoiceError(
+          "Voice recognition could not connect to the browser's speech service. Check your internet connection and try again.",
+        );
+      } else if (error === "aborted") {
+        setVoiceError("");
+      } else {
+        showVoiceError("Voice input stopped unexpectedly. Please try again.");
+      }
+
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null;
+        setIsListening(false);
+      }
+    };
+
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null;
+        setIsListening(false);
+      }
+    };
+
+    recognitionRef.current = recognition;
+
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+
+      showVoiceError("I couldn't start the microphone. Please try again.");
+    }
+  }, [
+    getSpeechRecognitionConstructor,
+    isListening,
+    loading,
+    showVoiceError,
+    stopSpeaking,
+    stopVoiceInput,
+  ]);
+
+  /*
+   * ------------------------------------------------------------
+   * BROWSER SUPPORT
+   * ------------------------------------------------------------
+   */
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const recognitionConstructor = getSpeechRecognitionConstructor();
+
+    setRecognitionSupported(Boolean(recognitionConstructor));
+
+    setSpeechSupported(
+      "speechSynthesis" in window && Boolean(window.speechSynthesis),
+    );
+
+    if ("speechSynthesis" in window && window.speechSynthesis) {
+      loadVoices();
+
+      const handleVoicesChanged = () => {
+        loadVoices();
+      };
+
+      window.speechSynthesis.addEventListener(
+        "voiceschanged",
+        handleVoicesChanged,
+      );
+
+      return () => {
+        window.speechSynthesis.removeEventListener(
+          "voiceschanged",
+          handleVoicesChanged,
+        );
+      };
+    }
+  }, [getSpeechRecognitionConstructor, loadVoices]);
+
+  /*
+   * ------------------------------------------------------------
+   * EXTERNAL OPEN EVENT
+   * ------------------------------------------------------------
+   */
+
   useEffect(() => {
     const handleOpenChatbot = (event: Event) => {
       const customEvent = event as CustomEvent<{
@@ -286,30 +839,28 @@ export default function Chatbot() {
   }, []);
 
   /*
+   * ------------------------------------------------------------
    * AUTO SCROLL
+   * ------------------------------------------------------------
    */
+
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
+      block: "end",
     });
-  }, [messages, loading]);
+  }, [messages, loading, isOpen]);
 
   /*
-   * CLEANUP
+   * ------------------------------------------------------------
+   * CART
+   * ------------------------------------------------------------
    */
-  useEffect(() => {
-    return () => {
-      recognitionRef.current?.stop();
 
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
-
-  /*
-   * ADD TO CART
-   */
   function handleAddToCart(product: Product) {
     if (product.stock <= 0) {
       return;
@@ -334,101 +885,11 @@ export default function Chatbot() {
   }
 
   /*
-   * VOICE INPUT
+   * ------------------------------------------------------------
+   * PRODUCTS
+   * ------------------------------------------------------------
    */
-  function startVoiceInput() {
-    if (loading || typeof window === "undefined") {
-      return;
-    }
 
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert(
-        "Voice input is not supported in this browser. Please use Chrome or Edge.",
-      );
-      return;
-    }
-
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0]?.[0]?.transcript || "";
-
-      if (transcript.trim()) {
-        setMessage(transcript.trim());
-      }
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-
-    try {
-      recognition.start();
-      setIsListening(true);
-    } catch {
-      setIsListening(false);
-    }
-  }
-
-  /*
-   * TEXT TO SPEECH
-   */
-  function speakMessage(text: string, index: number) {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      return;
-    }
-
-    if (speakingIndex === index) {
-      window.speechSynthesis.cancel();
-      setSpeakingIndex(null);
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    const speech = new SpeechSynthesisUtterance(text);
-
-    speech.lang = "en-US";
-    speech.rate = 1;
-    speech.pitch = 1;
-
-    speech.onstart = () => {
-      setSpeakingIndex(index);
-    };
-
-    speech.onend = () => {
-      setSpeakingIndex(null);
-    };
-
-    speech.onerror = () => {
-      setSpeakingIndex(null);
-    };
-
-    window.speechSynthesis.speak(speech);
-  }
-
-  /*
-   * FETCH PRODUCTS
-   */
   async function fetchProducts(): Promise<Product[]> {
     const controller = new AbortController();
 
@@ -444,7 +905,9 @@ export default function Chatbot() {
       });
 
       if (!response.ok) {
-        throw new Error(`Products API returned ${response.status}`);
+        throw new Error(
+          `Product request failed with status ${response.status}`,
+        );
       }
 
       const data = await response.json();
@@ -455,9 +918,6 @@ export default function Chatbot() {
     }
   }
 
-  /*
-   * FIND PRODUCTS
-   */
   async function findProducts(query: string): Promise<Product[]> {
     const products = await fetchProducts();
 
@@ -465,241 +925,131 @@ export default function Chatbot() {
       return [];
     }
 
-    const text = normalizeText(query);
+    const normalized = normalizeText(query);
 
-    /*
-     * PRICE UNDER
-     */
-    const underMatch = text.match(
-      /(?:under|below|less than|cheaper than)\s*\$?\s*(\d+(?:\.\d+)?)/,
+    const underMatch = normalized.match(
+      /(?:under|below|less than|cheaper than)\s*\$?\s*(\d+(?:\.\d+)?)/i,
     );
 
     if (underMatch) {
-      const maxPrice = Number(underMatch[1]);
+      const amount = Number(underMatch[1]);
 
       return products
-        .filter((product) => Number(product.price) <= maxPrice)
+        .filter((product) => Number(product.price) <= amount)
         .sort((a, b) => Number(a.price) - Number(b.price))
         .slice(0, 6);
     }
 
-    /*
-     * PRICE ABOVE
-     */
-    const aboveMatch = text.match(
-      /(?:above|over|more than|greater than)\s*\$?\s*(\d+(?:\.\d+)?)/,
-    );
-
-    if (aboveMatch) {
-      const minPrice = Number(aboveMatch[1]);
-
-      return products
-        .filter((product) => Number(product.price) >= minPrice)
-        .sort((a, b) => Number(a.price) - Number(b.price))
-        .slice(0, 6);
-    }
-
-    /*
-     * CHEAPEST
-     */
     if (
-      text.includes("cheapest") ||
-      text.includes("lowest price") ||
-      text.includes("most affordable")
+      normalized.includes("cheapest") ||
+      normalized.includes("lowest price") ||
+      normalized.includes("least expensive")
     ) {
-      return products
-        .filter((product) => product.stock > 0)
+      return [...products]
         .sort((a, b) => Number(a.price) - Number(b.price))
         .slice(0, 6);
     }
 
-    /*
-     * MOST EXPENSIVE
-     */
     if (
-      text.includes("most expensive") ||
-      text.includes("highest price") ||
-      text.includes("most costly")
+      normalized.includes("most expensive") ||
+      normalized.includes("highest price")
     ) {
       return [...products]
         .sort((a, b) => Number(b.price) - Number(a.price))
         .slice(0, 6);
     }
 
-    /*
-     * OUT OF STOCK
-     */
     if (
-      text.includes("out of stock") ||
-      text.includes("sold out") ||
-      text.includes("unavailable")
+      normalized.includes("out of stock") ||
+      normalized.includes("sold out")
     ) {
-      return products.filter((product) => product.stock <= 0).slice(0, 6);
+      return products
+        .filter((product) => Number(product.stock) <= 0)
+        .slice(0, 6);
     }
 
-    /*
-     * AVAILABLE
-     */
-    if (
-      text.includes("in stock") ||
-      text.includes("available") ||
-      text.includes("what can i buy")
-    ) {
-      return products.filter((product) => product.stock > 0).slice(0, 6);
+    if (normalized.includes("available") || normalized.includes("in stock")) {
+      return products
+        .filter((product) => Number(product.stock) > 0)
+        .slice(0, 6);
     }
 
-    /*
-     * CATEGORY KEYWORDS
-     */
-    const categoryGroups = [
-      {
-        words: ["phone", "phones", "iphone", "samsung", "mobile", "smartphone"],
-        matches: ["phone", "iphone", "samsung", "mobile", "smartphone"],
-      },
-      {
-        words: ["laptop", "laptops", "computer", "computers", "notebook"],
-        matches: ["laptop", "computer", "notebook"],
-      },
-      {
-        words: ["headphone", "headphones", "earbuds", "earphone", "earphones"],
-        matches: ["headphone", "earbud", "earphone"],
-      },
-      {
-        words: ["watch", "watches", "smartwatch"],
-        matches: ["watch", "smartwatch"],
-      },
-      {
-        words: ["tablet", "tablets", "ipad"],
-        matches: ["tablet", "ipad"],
-      },
-      {
-        words: ["camera", "cameras"],
-        matches: ["camera"],
-      },
-      {
-        words: ["keyboard", "keyboards"],
-        matches: ["keyboard"],
-      },
-      {
-        words: ["mouse", "mice"],
-        matches: ["mouse"],
-      },
-      {
-        words: ["speaker", "speakers", "audio"],
-        matches: ["speaker", "audio"],
-      },
-      {
-        words: ["gaming", "gamer"],
-        matches: ["gaming"],
-      },
-      {
-        words: ["electronics", "electronic"],
-        matches: ["electronic"],
-      },
-      {
-        words: ["accessory", "accessories"],
-        matches: ["accessory", "accessories"],
-      },
-    ];
+    const categoryKeywords: Record<string, string[]> = {
+      phone: ["phone", "phones", "smartphone", "smartphones", "mobile"],
+      laptop: ["laptop", "laptops", "notebook", "notebooks", "computer"],
+      headphones: [
+        "headphone",
+        "headphones",
+        "earphone",
+        "earphones",
+        "earbuds",
+      ],
+      watch: ["watch", "watches", "smartwatch", "smartwatches"],
+      tablet: ["tablet", "tablets", "ipad"],
+      camera: ["camera", "cameras"],
+      keyboard: ["keyboard", "keyboards"],
+      mouse: ["mouse", "mice"],
+      speaker: ["speaker", "speakers"],
+      gaming: ["gaming", "game", "console", "xbox", "playstation"],
+      electronics: ["electronics", "electronic"],
+      accessories: ["accessory", "accessories"],
+    };
 
-    for (const group of categoryGroups) {
-      if (!group.words.some((word) => text.includes(word))) {
-        continue;
-      }
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      if (keywords.some((keyword) => normalized.includes(keyword))) {
+        const categoryProducts = products.filter((product) => {
+          const productCategory = normalizeText(
+            getCategoryName(product.category),
+          );
 
-      const matches = products.filter((product) => {
-        const productText = normalizeText(
-          [
-            product.name,
-            product.description ?? "",
-            getCategoryName(product),
-          ].join(" "),
-        );
+          const productText = normalizeText(
+            `${product.name} ${product.description ?? ""} ${productCategory}`,
+          );
 
-        return group.matches.some((keyword) => productText.includes(keyword));
-      });
+          return (
+            productText.includes(category) ||
+            keywords.some((keyword) => productText.includes(keyword))
+          );
+        });
 
-      if (matches.length) {
-        return matches.slice(0, 6);
+        if (categoryProducts.length) {
+          return categoryProducts.slice(0, 6);
+        }
       }
     }
 
-    /*
-     * GENERAL PRODUCT SEARCH
-     */
-    const ignoredWords = new Set([
-      "show",
-      "find",
-      "give",
-      "some",
-      "product",
-      "products",
-      "please",
-      "want",
-      "recommend",
-      "recommendation",
-      "what",
-      "would",
-      "you",
-      "suggest",
-      "best",
-      "good",
-      "great",
-      "the",
-      "for",
-      "can",
-      "could",
-      "help",
-      "with",
-      "tell",
-      "about",
-      "me",
-      "have",
-      "do",
-      "does",
-      "there",
-      "is",
-      "are",
-      "any",
-      "price",
-      "cost",
-      "much",
-      "i",
-      "need",
-      "looking",
-      "look",
-      "buy",
-      "purchase",
-    ]);
-
-    const words = text
+    const searchWords = normalized
       .split(" ")
-      .filter((word) => word.length >= 3 && !ignoredWords.has(word));
+      .filter((word) => word.length >= 3);
 
-    if (words.length) {
-      const matches = products.filter((product) => {
+    const matchingProducts = products
+      .map((product) => {
         const productText = normalizeText(
-          [
-            product.name,
-            product.description ?? "",
-            getCategoryName(product),
-          ].join(" "),
+          `${product.name} ${product.description ?? ""} ${getCategoryName(
+            product.category,
+          )}`,
         );
 
-        return words.some((word) => productText.includes(word));
-      });
+        const score = searchWords.reduce(
+          (total, word) => total + (productText.includes(word) ? 1 : 0),
+          0,
+        );
 
-      if (matches.length) {
-        return matches.slice(0, 6);
-      }
+        return {
+          product,
+          score,
+        };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    if (matchingProducts.length) {
+      return matchingProducts.map((item) => item.product).slice(0, 6);
     }
 
-    /*
-     * RECOMMENDATIONS
-     */
     if (isRecommendationMessage(query)) {
       return products
-        .filter((product) => product.stock > 0)
+        .filter((product) => Number(product.stock) > 0)
         .sort((a, b) => Number(b.stock) - Number(a.stock))
         .slice(0, 6);
     }
@@ -708,96 +1058,133 @@ export default function Chatbot() {
   }
 
   /*
-   * LOCAL RESPONSES
+   * ------------------------------------------------------------
+   * LOCAL RESPONSE
+   * ------------------------------------------------------------
    */
-  function getLocalResponse(input: string): string | null {
-    const text = normalizeText(input);
 
-    if (/^(hi|hello|hey|hi there|hello there|hey there)$/.test(text)) {
-      return "Hello! 👋 Welcome to ShopEase! What are you shopping for today?";
+  function getLocalResponse(text: string): string | null {
+    const normalized = normalizeText(text);
+
+    if (
+      normalized === "hi" ||
+      normalized === "hello" ||
+      normalized === "hey" ||
+      normalized.startsWith("hi ") ||
+      normalized.startsWith("hello ")
+    ) {
+      return "Hello! 👋 How can I help you today? I can find products, compare prices, check stock, or recommend something for you.";
     }
 
-    if (text.includes("thank") || text.includes("thanks")) {
-      return "You're very welcome! 😊 I'm happy to help.";
+    if (
+      normalized.includes("thank you") ||
+      normalized === "thanks" ||
+      normalized.includes("thanks")
+    ) {
+      return "You're very welcome! 😊 Let me know if you need anything else.";
     }
 
-    if (text === "bye" || text.includes("goodbye")) {
-      return "Goodbye! 👋 Thanks for shopping with ShopEase.";
+    if (
+      normalized === "bye" ||
+      normalized === "goodbye" ||
+      normalized.includes("see you")
+    ) {
+      return "Goodbye! 👋 Have a great day and happy shopping!";
     }
 
-    if (text === "ok" || text === "okay" || text === "great") {
-      return "Great! 😊 What would you like to find next?";
+    if (
+      normalized === "ok" ||
+      normalized === "okay" ||
+      normalized === "great"
+    ) {
+      return "Great! 😊 I'm here whenever you need help.";
     }
 
     return null;
   }
 
-  /*
-   * CREATE PRODUCT RESPONSE
-   */
-  function createProductResponse(
-    userMessage: string,
-    products: Product[],
-  ): string {
-    const text = normalizeText(userMessage);
+  function createProductResponse(userMessage: string, products: Product[]) {
+    if (!products.length) {
+      return "I couldn't find matching products right now. Try another category, price range, or product name.";
+    }
+
+    const normalized = normalizeText(userMessage);
 
     if (isComparisonMessage(userMessage)) {
-      if (products.length >= 2) {
-        return `I found ${products.length} products for comparison. 👇`;
-      }
+      const names = products
+        .slice(0, 3)
+        .map((product) => product.name)
+        .join(", ");
 
-      return "I found one matching product. Try saying something like “compare iPhone 17 and Samsung Galaxy S25”.";
+      return `I found these products that you can compare: ${names}. I've displayed them below so you can check their prices and availability.`;
     }
 
     if (isRecommendationMessage(userMessage)) {
-      return "Here are my recommendations based on the products currently available. 👇";
+      return "Here are some products I'd recommend based on what's currently available. I've selected products with available stock for you.";
     }
 
     if (
-      text.includes("under") ||
-      text.includes("below") ||
-      text.includes("less than") ||
-      text.includes("cheaper than")
+      normalized.includes("under") ||
+      normalized.includes("below") ||
+      normalized.includes("less than")
     ) {
-      return "Absolutely! 🎯 Here are products that fit your budget:";
+      return `I found ${products.length} product${
+        products.length === 1 ? "" : "s"
+      } within your requested price range.`;
     }
 
     if (
-      text.includes("cheapest") ||
-      text.includes("lowest price") ||
-      text.includes("most affordable")
+      normalized.includes("cheapest") ||
+      normalized.includes("lowest price")
     ) {
-      return "Here are the most affordable products currently in stock:";
-    }
+      const cheapest = products[0];
 
-    if (text.includes("most expensive") || text.includes("highest price")) {
-      return "Here are the highest-priced products in our store:";
+      return `The cheapest product I found is ${cheapest.name} at $${Number(
+        cheapest.price,
+      ).toFixed(2)}. I've displayed it below.`;
     }
 
     if (
-      text.includes("out of stock") ||
-      text.includes("sold out") ||
-      text.includes("unavailable")
+      normalized.includes("most expensive") ||
+      normalized.includes("highest price")
     ) {
-      return "Here are the products that are currently unavailable:";
+      const expensive = products[0];
+
+      return `The most expensive product I found is ${expensive.name} at $${Number(
+        expensive.price,
+      ).toFixed(2)}.`;
     }
 
-    if (text.includes("available") || text.includes("in stock")) {
-      return "Here are the products currently in stock:";
+    if (
+      normalized.includes("out of stock") ||
+      normalized.includes("sold out")
+    ) {
+      return `I found ${products.length} product${
+        products.length === 1 ? "" : "s"
+      } that are currently out of stock.`;
     }
 
-    return `I found ${products.length} product${
+    if (normalized.includes("available") || normalized.includes("in stock")) {
+      return `I found ${products.length} product${
+        products.length === 1 ? "" : "s"
+      } that are currently available.`;
+    }
+
+    return `I found ${products.length} matching product${
       products.length === 1 ? "" : "s"
-    } that match your request:`;
+    }. Take a look below.`;
   }
 
   /*
-   * ASK AI
+   * ------------------------------------------------------------
+   * AI API
+   * ------------------------------------------------------------
    */
+
   async function askAI(
     userMessage: string,
     products: Product[],
-  ): Promise<string> {
+  ): Promise<string | null> {
     const controller = new AbortController();
 
     const timeout = setTimeout(() => {
@@ -805,21 +1192,19 @@ export default function Chatbot() {
     }, 12000);
 
     try {
-      const productContext = products
-        .slice(0, 8)
-        .map(
-          (product) =>
-            `${product.name} | $${Number(product.price).toFixed(2)} | ${
-              product.stock > 0 ? `${product.stock} in stock` : "out of stock"
-            } | Category: ${getCategoryName(product)}`,
-        )
-        .join("\n");
+      const productContext = products.slice(0, 12).map((product) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: Number(product.price),
+        stock: Number(product.stock),
+        category: getCategoryName(product.category),
+      }));
 
       const response = await fetch(`${AI_API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
         body: JSON.stringify({
           message: userMessage,
@@ -829,45 +1214,47 @@ export default function Chatbot() {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-
-        console.error("AI service error:", response.status, errorText);
-
-        throw new Error(`AI service returned ${response.status}`);
+        throw new Error(`AI request failed with status ${response.status}`);
       }
 
       const data = await response.json();
 
-      const reply =
-        typeof data.reply === "string"
-          ? data.reply
-          : typeof data.response === "string"
-            ? data.response
-            : typeof data.message === "string"
-              ? data.message
-              : "";
+      const reply = data?.reply ?? data?.response ?? data?.message ?? null;
 
-      if (!reply.trim()) {
-        throw new Error("AI returned an empty response");
+      if (typeof reply !== "string" || !reply.trim()) {
+        return null;
       }
 
       return cleanMarkdown(reply);
+    } catch (error) {
+      console.error("AI chatbot error:", error);
+
+      return null;
     } finally {
       clearTimeout(timeout);
     }
   }
 
   /*
+   * ------------------------------------------------------------
    * SEND MESSAGE
+   * ------------------------------------------------------------
    */
-  async function sendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+
+  async function sendMessage(event?: FormEvent) {
+    event?.preventDefault();
 
     const userMessage = message.trim();
 
     if (!userMessage || loading) {
       return;
     }
+
+    stopSpeaking();
+    stopVoiceInput();
+
+    setVoiceError("");
+    setSpeechError("");
 
     setMessages((current) => [
       ...current,
@@ -881,9 +1268,6 @@ export default function Chatbot() {
     setLoading(true);
 
     try {
-      /*
-       * 1. LOCAL RESPONSE
-       */
       const localResponse = getLocalResponse(userMessage);
 
       if (localResponse) {
@@ -898,90 +1282,62 @@ export default function Chatbot() {
         return;
       }
 
-      /*
-       * 2. PRODUCT SEARCH
-       */
       let products: Product[] = [];
 
       try {
         products = await findProducts(userMessage);
       } catch (error) {
-        console.error("Product search failed:", error);
+        console.error("Product search error:", error);
       }
 
-      /*
-       * 3. PRODUCT RESPONSE
-       */
-      if (products.length > 0) {
+      if (products.length) {
+        const response = createProductResponse(userMessage, products);
+
         setMessages((current) => [
           ...current,
           {
             role: "assistant",
-            content: createProductResponse(userMessage, products),
+            content: response,
             products,
-            comparison: isComparisonMessage(userMessage),
           },
         ]);
 
         return;
       }
 
-      /*
-       * 4. AI RESPONSE
-       */
-      try {
-        const aiReply = await askAI(userMessage, products);
+      const aiResponse = await askAI(userMessage, products);
 
-        if (aiReply) {
-          setMessages((current) => [
-            ...current,
-            {
-              role: "assistant",
-              content: aiReply,
-            },
-          ]);
+      if (aiResponse) {
+        setMessages((current) => [
+          ...current,
+          {
+            role: "assistant",
+            content: aiResponse,
+          },
+        ]);
 
-          return;
-        }
-      } catch (error) {
-        console.error("AI request failed:", error);
+        return;
       }
 
-      /*
-       * 5. PRODUCT FALLBACK
-       */
       if (isProductQuestion(userMessage)) {
         setMessages((current) => [
           ...current,
           {
             role: "assistant",
             content:
-              "I couldn't find a matching product right now. 😔\n\nTry:\n• Show me phones\n• Show laptops\n• Products under $100\n• What is the cheapest product?\n• Compare iPhone 17 and Samsung Galaxy S25",
+              "I couldn't find a matching product right now. Please try a different product name, category, or price range.",
           },
         ]);
 
         return;
       }
 
-      /*
-       * 6. FINAL FALLBACK
-       */
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
           content:
-            "I'm having trouble connecting to my AI assistant right now. 😔 Please try again in a moment.",
-        },
-      ]);
-    } catch (error) {
-      console.error("CHATBOT ERROR:", error);
-
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: "Sorry 😔 Something went wrong. Please try again.",
+            "I'm sorry, I couldn't process that request right now. Please try again.",
         },
       ]);
     } finally {
@@ -990,315 +1346,463 @@ export default function Chatbot() {
   }
 
   /*
-   * CLEAR CHAT
+   * ------------------------------------------------------------
+   * CHAT CONTROLS
+   * ------------------------------------------------------------
    */
-  function clearChat() {
-    if (loading) {
-      return;
+
+  function toggleSound() {
+    if (soundEnabled) {
+      stopSpeaking();
+      setSoundEnabled(false);
+    } else {
+      setSoundEnabled(true);
+      setSpeechError("");
+      loadVoices();
     }
-
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-
-    setMessages([
-      {
-        role: "assistant",
-        content:
-          "Hi! 👋 Welcome back to ShopEase. What can I help you find today?",
-      },
-    ]);
-
-    setMessage("");
-    setSpeakingIndex(null);
   }
 
   /*
-   * PRODUCT CARD
+   * NEW REFRESH BUTTON
+   *
+   * This resets the chatbot conversation completely.
+   * It does NOT close the chatbot.
    */
-  function renderProductCard(product: Product) {
-    const added = addedProducts.includes(product.id);
+  function refreshChat() {
+    stopSpeaking();
+    stopVoiceInput();
+
+    setVoiceError("");
+    setSpeechError("");
+    setMessage("");
+    setLoading(false);
+    setAddedProducts([]);
+
+    setMessages([
+      {
+        ...INITIAL_MESSAGE,
+      },
+    ]);
+  }
+
+  function closeChat() {
+    stopSpeaking();
+    stopVoiceInput();
+
+    setVoiceError("");
+    setSpeechError("");
+
+    setIsOpen(false);
+  }
+
+  function openChat() {
+    setIsOpen(true);
+  }
+
+  /*
+   * ------------------------------------------------------------
+   * PRODUCT CARD
+   * ------------------------------------------------------------
+   */
+
+  function ProductCard({
+    product,
+    comparison = false,
+  }: {
+    product: Product;
+    comparison?: boolean;
+  }) {
+    const isAdded = addedProducts.includes(product.id);
+
+    const outOfStock = Number(product.stock) <= 0;
 
     return (
       <div
-        key={product.id}
-        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        className={`group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-lg ${
+          comparison ? "min-w-47.5" : ""
+        }`}
       >
-        <div className="relative h-32 bg-slate-100">
+        <div className="relative aspect-4/3 overflow-hidden bg-slate-100">
           <img
             src={getProductImage(product)}
             alt={product.name}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
             onError={(event) => {
               event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
             }}
           />
 
-          <div className="absolute left-2.5 top-2.5 rounded-full bg-white/95 px-2.5 py-1 text-[9px] font-bold text-slate-700 shadow-sm">
-            {getCategoryName(product)}
-          </div>
-
-          <div
-            className={`absolute right-2.5 top-2.5 rounded-full px-2.5 py-1 text-[9px] font-bold shadow-sm ${
-              product.stock > 0
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-red-50 text-red-600"
-            }`}
-          >
-            {product.stock > 0 ? `${product.stock} left` : "Sold out"}
+          <div className="absolute left-2.5 top-2.5">
+            <span
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm backdrop-blur ${
+                outOfStock
+                  ? "bg-red-500/90 text-white"
+                  : "bg-emerald-500/90 text-white"
+              }`}
+            >
+              {outOfStock ? "Out of stock" : `${product.stock} in stock`}
+            </span>
           </div>
         </div>
 
         <div className="p-3.5">
-          <h3 className="line-clamp-1 text-sm font-extrabold text-slate-900">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-500">
+            {getCategoryName(product.category) || "Product"}
+          </div>
+
+          <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-5 text-slate-900">
             {product.name}
           </h3>
 
-          <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500">
-            {product.description || "No description available."}
-          </p>
+          {!comparison && product.description && (
+            <p className="mt-1.5 line-clamp-2 text-xs leading-4 text-slate-500">
+              {product.description}
+            </p>
+          )}
 
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-base font-black text-blue-600">
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="text-base font-extrabold text-slate-900">
               ${Number(product.price).toFixed(2)}
             </span>
 
-            <span
-              className={`text-[9px] font-bold ${
-                product.stock > 0 ? "text-emerald-600" : "text-red-500"
-              }`}
-            >
-              {product.stock > 0 ? "Available" : "Unavailable"}
-            </span>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
             <Link
               href={`/products/${product.id}`}
-              className="flex h-9 items-center justify-center rounded-xl border border-slate-200 text-[10px] font-bold text-slate-700 transition hover:bg-slate-50"
+              className="text-xs font-semibold text-indigo-600 transition hover:text-indigo-800"
             >
               View
             </Link>
-
-            <button
-              type="button"
-              onClick={() => handleAddToCart(product)}
-              disabled={product.stock <= 0 || added}
-              className={`h-9 rounded-xl text-[10px] font-bold text-white transition ${
-                product.stock <= 0
-                  ? "bg-slate-300"
-                  : added
-                    ? "bg-emerald-500"
-                    : "bg-blue-600 hover:bg-blue-700"
-              }`}
-            >
-              {product.stock <= 0
-                ? "Sold Out"
-                : added
-                  ? "✓ Added"
-                  : "Add to Cart"}
-            </button>
           </div>
+
+          <button
+            type="button"
+            disabled={outOfStock || isAdded}
+            onClick={() => handleAddToCart(product)}
+            className={`mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition ${
+              outOfStock
+                ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                : isAdded
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-900 text-white hover:bg-indigo-600 active:scale-[0.98]"
+            }`}
+          >
+            {isAdded ? (
+              <>
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <path d="m5 12 4 4L19 6" />
+                </svg>
+                Added
+              </>
+            ) : outOfStock ? (
+              "Out of stock"
+            ) : (
+              <>
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="9" cy="20" r="1" />
+                  <circle cx="18" cy="20" r="1" />
+                  <path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.6L21 8H6" />
+                </svg>
+                Add to cart
+              </>
+            )}
+          </button>
         </div>
       </div>
     );
   }
 
   /*
-   * COMPARISON
+   * ------------------------------------------------------------
+   * ASSISTANT MESSAGE
+   * ------------------------------------------------------------
    */
-  function renderComparison(products: Product[]) {
-    const items = products.slice(0, 3);
 
-    if (items.length < 2) {
-      return null;
-    }
+  function AssistantMessage({ item, index }: { item: Message; index: number }) {
+    const hasProducts = Boolean(item.products && item.products.length);
+
+    const comparison = hasProducts && isComparisonMessage(item.content);
 
     return (
-      <div className="mt-3 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-        <div className="bg-linear-to-r from-blue-50 via-indigo-50 to-purple-50 p-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm">
-              ⚖️
-            </div>
-
-            <div>
-              <h3 className="text-sm font-black text-slate-900">
-                Product comparison
-              </h3>
-
-              <p className="text-[10px] text-slate-500">
-                Price and availability
-              </p>
-            </div>
-          </div>
+      <div className="flex items-start gap-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-indigo-500 to-violet-600 text-sm text-white shadow-md">
+          ✦
         </div>
 
-        <div className="divide-y divide-slate-100">
-          {items.map((product) => (
-            <div key={product.id} className="p-3.5">
-              <div className="flex gap-3">
-                <img
-                  src={getProductImage(product)}
-                  alt={product.name}
-                  className="h-14 w-14 rounded-xl object-cover"
-                  onError={(event) => {
-                    event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
-                  }}
+        <div className="min-w-0 max-w-[88%]">
+          <div className="rounded-2xl rounded-tl-md border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
+            <p className="whitespace-pre-wrap text-[13px] leading-5 text-slate-700">
+              {item.content}
+            </p>
+
+            {soundEnabled && speechSupported && (
+              <button
+                type="button"
+                onClick={() => speakMessage(item.content, index)}
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-600"
+              >
+                {speakingIndex === index ? (
+                  <>
+                    <span className="flex items-end gap-0.5">
+                      <span className="h-2 w-0.5 animate-pulse rounded-full bg-indigo-500" />
+                      <span className="h-3 w-0.5 animate-pulse rounded-full bg-indigo-500 [animation-delay:120ms]" />
+                      <span className="h-2 w-0.5 animate-pulse rounded-full bg-indigo-500 [animation-delay:240ms]" />
+                    </span>
+                    Stop
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+                    </svg>
+                    Listen
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {hasProducts && (
+            <div
+              className={`mt-2.5 grid gap-2.5 ${
+                comparison
+                  ? "grid-cols-1 overflow-x-auto sm:grid-cols-2"
+                  : "grid-cols-1"
+              }`}
+            >
+              {item.products!.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  comparison={comparison}
                 />
-
-                <div className="min-w-0 flex-1">
-                  <h4 className="truncate text-sm font-bold text-slate-900">
-                    {product.name}
-                  </h4>
-
-                  <p className="mt-1 text-base font-black text-blue-600">
-                    ${Number(product.price).toFixed(2)}
-                  </p>
-
-                  <p
-                    className={`text-[9px] font-bold ${
-                      product.stock > 0 ? "text-emerald-600" : "text-red-500"
-                    }`}
-                  >
-                    {product.stock > 0
-                      ? `${product.stock} available`
-                      : "Out of stock"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Link
-                  href={`/products/${product.id}`}
-                  className="flex h-8 items-center justify-center rounded-lg border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-slate-50"
-                >
-                  View
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => handleAddToCart(product)}
-                  disabled={product.stock <= 0}
-                  className="rounded-lg bg-blue-600 text-[10px] font-bold text-white hover:bg-blue-700 disabled:bg-slate-300"
-                >
-                  Add to Cart
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     );
   }
 
-  return (
+  /*
+   * ------------------------------------------------------------
+   * DO NOT RENDER UNTIL CLIENT MOUNTED
+   * ------------------------------------------------------------
+   */
+
+  if (!mounted) {
+    return null;
+  }
+
+  /*
+   * ------------------------------------------------------------
+   * CHATBOT UI
+   *
+   * IMPORTANT:
+   * This is rendered directly into document.body.
+   *
+   * There is NO:
+   * onMouseLeave
+   * onMouseOut
+   * onMouseEnter that controls visibility
+   *
+   * Therefore moving the cursor outside the chatbot does
+   * NOT close it.
+   * ------------------------------------------------------------
+   */
+
+  const chatbotUI = (
     <>
-      {/* FLOATING BUTTON */}
       {!isOpen && (
         <button
           type="button"
-          data-chatbot-trigger
-          onClick={() => setIsOpen(true)}
-          aria-label="Open ShopEase assistant"
-          className="fixed bottom-5 right-5 z-100 group"
+          onClick={openChat}
+          aria-label="Open ShopEase AI assistant"
+          className="fixed bottom-5 right-5 z-999999 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-2xl shadow-indigo-500/30 transition duration-300 hover:scale-105 hover:shadow-indigo-500/50 active:scale-95 sm:bottom-6 sm:right-6"
         >
-          <span className="absolute -inset-1 rounded-full bg-blue-500/20 blur-md transition group-hover:bg-blue-500/40" />
+          <span className="absolute inset-0 animate-ping rounded-full bg-indigo-500 opacity-20" />
 
-          <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-r from-blue-600 via-indigo-600 to-purple-600 text-2xl text-white shadow-[0_12px_35px_rgba(37,99,235,0.4)] transition duration-300 group-hover:scale-110">
-            <span>🤖</span>
+          <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm">
+            <svg
+              className="h-7 w-7"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
+              <path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.5 8.5 0 0 1-3.7-.8L4 20l1.3-3.7A7.2 7.2 0 0 1 4.5 12c0-4.1 3.4-7.5 7.5-7.5S20 7.4 20 11.5Z" />
+              <path d="M9 12h.01M12 12h.01M15 12h.01" />
+            </svg>
           </span>
 
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[9px] text-white">
-            ✓
-          </span>
+          <span className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
         </button>
       )}
 
-      {/* CHAT WINDOW */}
       {isOpen && (
-        <div className="fixed bottom-3 right-3 z-100 flex h-[min(760px,calc(100dvh-24px))] w-[min(460px,calc(100vw-24px))] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.28)] sm:bottom-6 sm:right-6">
+        <section
+          aria-label="ShopEase AI assistant"
+          className="fixed inset-0 z-999999 flex flex-col overflow-hidden bg-slate-50 shadow-2xl sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(760px,calc(100dvh-40px))] sm:w-[min(470px,calc(100vw-40px))] sm:rounded-[30px]"
+        >
           {/* HEADER */}
-          <div className="relative overflow-hidden bg-linear-to-br from-slate-950 via-blue-950 to-indigo-900 px-5 py-5 text-white">
-            <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-blue-500/20 blur-2xl" />
-            <div className="absolute -bottom-20 left-20 h-40 w-40 rounded-full bg-purple-500/20 blur-2xl" />
+          <header className="relative shrink-0 overflow-hidden bg-linear-to-br from-slate-950 via-indigo-950 to-violet-900 px-4 pb-4 pt-4 text-white">
+            <div className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-violet-500/20 blur-3xl" />
 
-            <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-2xl shadow-inner ring-1 ring-white/10">
-                  🤖
-                  <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-emerald-400" />
+            <div className="absolute -bottom-24 -left-10 h-48 w-48 rounded-full bg-indigo-400/20 blur-3xl" />
+
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 shadow-inner ring-1 ring-white/15 backdrop-blur-md">
+                  <span className="text-xl">✦</span>
+
+                  <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-indigo-950 bg-emerald-400" />
                 </div>
 
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-black">ShopEase Assistant</h2>
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-extrabold tracking-wide">
+                    ShopEase Assistant
+                  </h2>
 
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-blue-100">
-                      AI
-                    </span>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[10px] font-medium text-indigo-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    Online • Ready to help
                   </div>
-
-                  <p className="mt-1 text-[10px] text-blue-100">
-                    Find products • Compare • Shop smarter
-                  </p>
                 </div>
               </div>
 
-              <div className="flex gap-1">
+              {/* HEADER BUTTONS */}
+              <div className="flex shrink-0 items-center gap-1">
+                {/* SOUND */}
                 <button
                   type="button"
-                  onClick={clearChat}
-                  disabled={loading}
-                  aria-label="Clear chat"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-sm transition hover:bg-white/10 disabled:opacity-40"
+                  onClick={toggleSound}
+                  title={soundEnabled ? "Turn voice off" : "Turn voice on"}
+                  aria-label={soundEnabled ? "Turn voice off" : "Turn voice on"}
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${
+                    soundEnabled
+                      ? "bg-white/15 text-white hover:bg-white/20"
+                      : "bg-white/5 text-indigo-200 hover:bg-white/15"
+                  }`}
                 >
-                  ↻
+                  {soundEnabled ? (
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="m3 3 18 18" />
+                      <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                    </svg>
+                  )}
                 </button>
 
+                {/* REFRESH */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsOpen(false);
-                    recognitionRef.current?.stop();
-
-                    if (
-                      typeof window !== "undefined" &&
-                      "speechSynthesis" in window
-                    ) {
-                      window.speechSynthesis.cancel();
-                    }
-                  }}
-                  aria-label="Close chatbot"
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-xl transition hover:bg-white/10"
+                  onClick={refreshChat}
+                  title="Refresh conversation"
+                  aria-label="Refresh conversation"
+                  className="group flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-indigo-100 transition hover:bg-white/20 hover:text-white"
                 >
-                  ×
+                  <svg
+                    className="h-4 w-4 transition-transform duration-500 group-hover:rotate-180"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M20 11a8.1 8.1 0 0 0-15.5-2" />
+                    <path d="M4 4v5h5" />
+                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2" />
+                    <path d="M20 20v-5h-5" />
+                  </svg>
+                </button>
+
+                {/* CLOSE */}
+                <button
+                  type="button"
+                  onClick={closeChat}
+                  title="Close assistant"
+                  aria-label="Close assistant"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-indigo-100 transition hover:bg-red-500/80 hover:text-white"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M6 6l12 12M18 6 6 18" />
+                  </svg>
                 </button>
               </div>
             </div>
 
-            <div className="relative mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-              <span className="text-xs">✨</span>
-              <span className="text-[10px] font-medium text-blue-100">
-                Ask me about products, prices, stock or recommendations.
-              </span>
+            <div className="relative mt-4 rounded-2xl border border-white/10 bg-white/5 px-3.5 py-3 backdrop-blur-sm">
+              <div className="flex items-start gap-2.5">
+                <div className="mt-0.5 text-sm">💡</div>
+
+                <p className="text-[11px] leading-4 text-indigo-100">
+                  Ask me about products, prices, stock, recommendations, or
+                  comparisons.
+                </p>
+              </div>
             </div>
-          </div>
+          </header>
 
           {/* QUICK QUESTIONS */}
-          <div className="border-b border-slate-100 bg-white px-4 py-3">
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-2.5">
+            <div className="flex gap-2 overflow-x-auto pb-0.5">
               {QUICK_QUESTIONS.map((question) => (
                 <button
                   key={question}
                   type="button"
                   disabled={loading}
                   onClick={() => {
-                    if (!loading) {
-                      setMessage(question);
-                    }
+                    setMessage(question);
+
+                    setTimeout(() => {
+                      const form = document.querySelector(
+                        "[data-chatbot-form]",
+                      ) as HTMLFormElement | null;
+
+                      form?.requestSubmit();
+                    }, 50);
                   }}
-                  className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[9px] font-bold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40"
+                  className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {question}
                 </button>
@@ -1307,198 +1811,227 @@ export default function Chatbot() {
           </div>
 
           {/* MESSAGES */}
-          <div className="flex-1 space-y-5 overflow-y-auto bg-linear-to-b from-slate-50 to-white px-4 py-5">
-            {messages.map((item, index) => {
-              return (
-                <div
-                  key={`${item.role}-${index}`}
-                  className={`flex gap-2.5 ${
-                    item.role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  {item.role === "assistant" && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 text-sm text-white shadow-sm">
-                      🤖
-                    </div>
-                  )}
+          <div className="min-h-0 flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white px-3.5 py-4">
+            <div className="mb-4 flex items-center justify-center gap-2">
+              <div className="h-px flex-1 bg-slate-200" />
 
+              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                Today
+              </span>
+
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <div className="space-y-4">
+              {messages.map((item, index) => {
+                if (item.role === "assistant") {
+                  return (
+                    <AssistantMessage
+                      key={`${index}-${item.content.slice(0, 15)}`}
+                      item={item}
+                      index={index}
+                    />
+                  );
+                }
+
+                return (
                   <div
-                    className={`flex max-w-[88%] flex-col ${
-                      item.role === "user" ? "items-end" : ""
-                    }`}
+                    key={`${index}-${item.content.slice(0, 15)}`}
+                    className="flex justify-end"
                   >
-                    <div
-                      className={`whitespace-pre-line rounded-2xl px-4 py-3 text-[12px] leading-5 shadow-sm ${
-                        item.role === "user"
-                          ? "rounded-br-md bg-linear-to-br from-blue-600 to-indigo-600 text-white"
-                          : "rounded-bl-md border border-slate-200 bg-white text-slate-700"
-                      }`}
-                    >
-                      {item.content}
+                    <div className="max-w-[82%] rounded-2xl rounded-tr-md bg-linear-to-br from-indigo-600 to-violet-600 px-3.5 py-3 text-[13px] leading-5 text-white shadow-md shadow-indigo-500/10">
+                      <p className="whitespace-pre-wrap">{item.content}</p>
                     </div>
+                  </div>
+                );
+              })}
 
-                    {item.role === "assistant" && (
-                      <button
-                        type="button"
-                        onClick={() => speakMessage(item.content, index)}
-                        className="mt-1.5 px-2 text-[9px] font-semibold text-slate-400 transition hover:text-blue-600"
-                      >
-                        {speakingIndex === index ? "🔇 Stop" : "🔊 Listen"}
-                      </button>
-                    )}
+              {loading && (
+                <div className="flex items-start gap-2.5">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-indigo-500 to-violet-600 text-sm text-white shadow-md">
+                    ✦
+                  </div>
 
-                    {item.products && item.products.length > 0 && (
-                      <div className="mt-3 w-full">
-                        {item.comparison ? (
-                          renderComparison(item.products)
-                        ) : (
-                          <div className="space-y-3">
-                            {item.products.map((product) =>
-                              renderProductCard(product),
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                  <div className="rounded-2xl rounded-tl-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-500" />
+
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-500 [animation-delay:120ms]" />
+
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-500 [animation-delay:240ms]" />
+
+                      <span className="ml-1 text-[10px] font-medium text-slate-400">
+                        Thinking...
+                      </span>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
+              )}
 
-            {/* TYPING */}
-            {loading && (
-              <div className="flex items-start gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 text-sm text-white">
-                  🤖
-                </div>
-
-                <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:150ms]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]" />
-                    <span className="ml-2 text-[9px] font-medium text-slate-400">
-                      Thinking...
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} />
+            </div>
           </div>
 
+          {/* ERRORS */}
+          {(voiceError || speechError) && (
+            <div className="shrink-0 border-t border-amber-100 bg-amber-50 px-3.5 py-2.5">
+              <div className="flex items-start gap-2">
+                <svg
+                  className="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M12 9v4" />
+                  <path d="M12 17h.01" />
+                  <path d="M10.3 3.5 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3l-7.8-13.5a2 2 0 0 0-3.4 0Z" />
+                </svg>
+
+                <p className="text-[10px] leading-4 text-amber-800">
+                  {voiceError || speechError}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* INPUT */}
-          <div className="border-t border-slate-100 bg-white p-4">
+          <div className="shrink-0 border-t border-slate-200 bg-white p-3">
             <form
               data-chatbot-form
               onSubmit={sendMessage}
-              className="rounded-2xl border border-slate-200 bg-slate-50 p-1.5 shadow-sm transition focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10"
+              className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 shadow-inner transition focus-within:border-indigo-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/5"
             >
-              <div className="flex items-center gap-1.5">
-                <input
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  disabled={loading}
-                  placeholder={
-                    isListening ? "Listening..." : "Ask me anything..."
-                  }
-                  className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-xs font-medium text-slate-800 outline-none placeholder:text-slate-400"
-                />
+              <input
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder={
+                  isListening ? "Listening..." : "Ask me anything..."
+                }
+                disabled={loading}
+                className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+              />
 
-                {/* VOICE */}
-                <button
-                  type="button"
-                  onClick={startVoiceInput}
-                  disabled={loading}
-                  aria-label={
-                    isListening ? "Stop voice input" : "Start voice input"
-                  }
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
-                    isListening
-                      ? "bg-red-500 text-white shadow-md shadow-red-500/20"
-                      : "bg-white text-slate-600 shadow-sm hover:bg-blue-50 hover:text-blue-600"
-                  }`}
-                >
-                  {isListening ? (
-                    "■"
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" x2="12" y1="19" y2="22" />
-                      <line x1="8" x2="16" y1="22" y2="22" />
-                    </svg>
-                  )}
-                </button>
+              {/* MICROPHONE */}
+              <button
+                type="button"
+                onClick={startVoiceInput}
+                disabled={loading || !recognitionSupported}
+                title={
+                  !recognitionSupported
+                    ? "Voice input is not supported"
+                    : isListening
+                      ? "Stop listening"
+                      : "Speak"
+                }
+                className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
+                  isListening
+                    ? "bg-red-500 text-white shadow-lg shadow-red-500/25"
+                    : recognitionSupported
+                      ? "bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-600"
+                      : "cursor-not-allowed bg-slate-100 text-slate-300"
+                }`}
+              >
+                {isListening && (
+                  <span className="absolute inset-0 animate-ping rounded-xl bg-red-400 opacity-20" />
+                )}
 
-                {/* SEND */}
-                <button
-                  type="submit"
-                  disabled={loading || !message.trim()}
-                  aria-label="Send message"
-                  className="flex h-10 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20 transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {loading ? (
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="9"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        className="opacity-30"
-                      />
-                      <path
-                        d="M21 12a9 9 0 0 0-9-9"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="m22 2-7 20-4-9-9-4Z" />
-                      <path d="M22 2 11 13" />
-                    </svg>
-                  )}
-                </button>
-              </div>
+                {isListening ? (
+                  <svg
+                    className="relative h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="8" y="8" width="8" height="8" rx="1" />
+                  </svg>
+                ) : (
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="9" y="2" width="6" height="13" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" />
+                  </svg>
+                )}
+              </button>
+
+              {/* SEND */}
+              <button
+                type="submit"
+                disabled={!message.trim() || loading}
+                title="Send message"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20 transition hover:from-indigo-700 hover:to-violet-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {loading ? (
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="9" className="opacity-25" />
+
+                    <path d="M21 12a9 9 0 0 0-9-9" />
+                  </svg>
+                ) : (
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="m4 4 16 8-16 8 3-8-3-8Z" />
+                    <path d="M7 12h13" />
+                  </svg>
+                )}
+              </button>
             </form>
 
-            <div className="mt-2 flex items-center justify-center gap-1 text-[8px] font-medium text-slate-400">
-              <span>✨</span>
-              <span>ShopEase Assistant</span>
-              <span>•</span>
-              <span>Smart shopping help</span>
+            <div className="mt-2 flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    recognitionSupported ? "bg-emerald-500" : "bg-slate-300"
+                  }`}
+                />
+
+                <span className="text-[9px] font-medium text-slate-400">
+                  {recognitionSupported
+                    ? isListening
+                      ? "Listening for your voice..."
+                      : "Voice input ready"
+                    : "Voice input unavailable"}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[9px] font-medium text-slate-400">
+                <span
+                  className={
+                    soundEnabled && speechSupported ? "text-indigo-500" : ""
+                  }
+                >
+                  {soundEnabled && speechSupported
+                    ? "Voice replies on"
+                    : "Voice replies off"}
+                </span>
+
+                {voicesAvailable && soundEnabled && (
+                  <span className="h-1 w-1 rounded-full bg-indigo-300" />
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       )}
     </>
   );
+
+  return createPortal(chatbotUI, document.body);
 }
