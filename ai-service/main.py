@@ -19,7 +19,10 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-6-luna")
 
-PRODUCTS_API_URL = "http://localhost:3001/products"
+PRODUCTS_API_URL = os.getenv(
+    "PRODUCTS_API_URL",
+    "http://localhost:3001/products"
+)
 
 if not OPENAI_API_KEY:
     print("WARNING: OPENAI_API_KEY is not configured.")
@@ -36,6 +39,12 @@ app = FastAPI(
     version="1.0.0",
 )
 
+FRONTEND_URLS = [
+    origin.strip()
+    for origin in os.getenv("FRONTEND_URL", "").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -45,6 +54,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
         "http://127.0.0.1:3002",
+        *FRONTEND_URLS,
     ],
     allow_credentials=True,
     allow_methods=["*"],

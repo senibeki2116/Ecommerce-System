@@ -38,3 +38,5 @@ node_modules/
 dist/
 .windsurf/
 frontend/.next_old/
+**/venv/
+**/__pycache__/

@@ -40,35 +40,23 @@ export default function LoginPage() {
         );
       }
 
-      // =====================================================
       // SAVE JWT TOKEN
-      // =====================================================
-
       if (data.accessToken) {
         localStorage.setItem("accessToken", data.accessToken);
       }
 
-      // =====================================================
       // SAVE LOGGED-IN USER
-      // =====================================================
-
       if (data.user) {
         localStorage.setItem("user", JSON.stringify(data.user));
       }
 
-      // =====================================================
       // CHECK USER ROLE
-      // =====================================================
-
       const userRole = String(
         data.user?.role || data.user?.roles?.[0] || data.user?.userRole || "",
       ).toUpperCase();
 
-      // =====================================================
       // ADMIN → ADMIN PAGE
       // USER → HOME PAGE
-      // =====================================================
-
       if (userRole === "ADMIN") {
         router.push("/admin");
       } else {
@@ -87,9 +75,7 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-white">
-      {/* =====================================================
-          NAVBAR
-      ===================================================== */}
+      {/* NAVBAR */}
       <header className="border-b border-slate-100 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
           {/* Logo */}
@@ -149,12 +135,9 @@ export default function LoginPage() {
         </div>
       </header>
 
-      {/* =====================================================
-          LOGIN AREA
-      ===================================================== */}
+      {/* LOGIN AREA */}
       <section className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-linear-to-br from-blue-50 via-white to-violet-50">
         {/* Background decorations */}
-
         <div className="absolute -left-40 top-20 h-96 w-96 rounded-full bg-blue-200/40 blur-3xl" />
 
         <div className="absolute -right-40 bottom-0 h-125 w-125 rounded-full bg-violet-200/40 blur-3xl" />
@@ -162,13 +145,10 @@ export default function LoginPage() {
         <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fuchsia-100/30 blur-3xl" />
 
         <div className="relative mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl items-center gap-12 px-5 py-12 lg:grid-cols-2 lg:px-8 lg:py-16">
-          {/* =================================================
-              LEFT SIDE
-          ================================================= */}
+          {/* LEFT SIDE */}
           <div className="hidden lg:block">
             <div className="max-w-xl">
               {/* Small badge */}
-
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-4 py-2 shadow-sm">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs text-white">
                   ✦
@@ -180,7 +160,6 @@ export default function LoginPage() {
               </div>
 
               {/* Heading */}
-
               <h1 className="text-5xl font-black leading-[1.05] tracking-[-0.04em] text-slate-900 xl:text-6xl">
                 Your shopping
                 <br />
@@ -195,7 +174,6 @@ export default function LoginPage() {
               </p>
 
               {/* Product visual */}
-
               <div className="relative mt-10 h-77.5 overflow-hidden rounded-[2.5rem] border border-white bg-white p-3 shadow-2xl shadow-blue-100">
                 <div className="relative h-full overflow-hidden rounded-4xl bg-linear-to-br from-blue-100 via-violet-100 to-fuchsia-100">
                   <img
@@ -205,7 +183,6 @@ export default function LoginPage() {
                   />
 
                   {/* Image overlay */}
-
                   <div className="absolute inset-x-5 bottom-5 rounded-2xl border border-white/50 bg-white/85 p-4 shadow-xl backdrop-blur-xl">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -231,11 +208,9 @@ export default function LoginPage() {
               </div>
 
               {/* Trust items */}
-
               <div className="mt-7 flex gap-8">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🔒</span>
-
                   <span className="text-xs font-bold text-slate-500">
                     Secure
                   </span>
@@ -243,13 +218,11 @@ export default function LoginPage() {
 
                 <div className="flex items-center gap-2">
                   <span className="text-lg">⚡</span>
-
                   <span className="text-xs font-bold text-slate-500">Fast</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span className="text-lg">💙</span>
-
                   <span className="text-xs font-bold text-slate-500">
                     Trusted
                   </span>
@@ -258,12 +231,9 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* =================================================
-              RIGHT LOGIN CARD
-          ================================================= */}
+          {/* RIGHT LOGIN CARD */}
           <div className="mx-auto w-full max-w-md">
             {/* Mobile brand */}
-
             <div className="mb-8 text-center lg:hidden">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-blue-600 to-violet-600 text-2xl font-black text-white shadow-xl shadow-blue-200">
                 E
@@ -279,10 +249,8 @@ export default function LoginPage() {
             </div>
 
             {/* Card */}
-
             <div className="rounded-4xl border border-slate-200 bg-white p-7 shadow-2xl shadow-slate-200/60 sm:p-9">
               {/* Card header */}
-
               <div className="mb-8">
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-xl">
                   👋
@@ -298,20 +266,20 @@ export default function LoginPage() {
               </div>
 
               {/* Error */}
-
               {error && (
                 <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3.5 text-sm text-red-600">
                   <span className="mt-0.5">⚠️</span>
-
                   <p className="leading-5">{error}</p>
                 </div>
               )}
 
-              {/* Form */}
-
-              <form onSubmit={handleSubmit} className="space-y-5">
+              {/* LOGIN FORM */}
+              <form
+                onSubmit={handleSubmit}
+                className="space-y-5"
+                autoComplete="off"
+              >
                 {/* Email */}
-
                 <div>
                   <label
                     htmlFor="email"
@@ -327,19 +295,19 @@ export default function LoginPage() {
 
                     <input
                       id="email"
+                      name="login-email"
                       type="email"
                       required
-                      autoComplete="email"
+                      autoComplete="off"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder="Enter your email address"
                       className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                     />
                   </div>
                 </div>
 
                 {/* Password */}
-
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <label
@@ -361,15 +329,17 @@ export default function LoginPage() {
 
                     <input
                       id="password"
+                      name="login-password"
                       type={showPassword ? "text" : "password"}
                       required
-                      autoComplete="current-password"
+                      autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
                       className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-14 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
                     />
 
+                    {/* Show / Hide password */}
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
@@ -383,8 +353,7 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Remember / help */}
-
+                {/* Remember / Help */}
                 <div className="flex items-center justify-between pt-1">
                   <label className="flex cursor-pointer items-center gap-2">
                     <input
@@ -403,7 +372,6 @@ export default function LoginPage() {
                 </div>
 
                 {/* Login button */}
-
                 <button
                   type="submit"
                   disabled={loading}
@@ -426,7 +394,6 @@ export default function LoginPage() {
               </form>
 
               {/* Divider */}
-
               <div className="my-7 flex items-center gap-4">
                 <div className="h-px flex-1 bg-slate-100" />
 
@@ -438,7 +405,6 @@ export default function LoginPage() {
               </div>
 
               {/* Register */}
-
               <Link
                 href="/register"
                 className="flex h-13 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
@@ -447,7 +413,6 @@ export default function LoginPage() {
               </Link>
 
               {/* Back */}
-
               <div className="mt-6 text-center">
                 <Link
                   href="/"
@@ -459,10 +424,8 @@ export default function LoginPage() {
             </div>
 
             {/* Bottom security message */}
-
             <div className="mt-5 flex items-center justify-center gap-2 text-xs font-medium text-slate-400">
               <span>🔒</span>
-
               <span>Your information is protected and secure</span>
             </div>
           </div>

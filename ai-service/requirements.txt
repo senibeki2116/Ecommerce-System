@@ -3,3 +3,5 @@ httpx
 openai
 pydantic
 python-dotenv
+requests
+uvicorn[standard]
