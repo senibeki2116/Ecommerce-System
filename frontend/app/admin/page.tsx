@@ -370,21 +370,21 @@ export default function AdminDashboard() {
 
       const [ordersRes, usersRes, productsRes, paymentsRes] = await Promise.all(
         [
-          fetch("http://localhost:3001/admin/orders", {
+          fetch("https://ecommerce-system-apkd.onrender.com/admin/orders", {
             headers,
             cache: "no-store",
           }),
 
-          fetch("http://localhost:3001/admin/users", {
+          fetch("https://ecommerce-system-apkd.onrender.com/admin/users", {
             headers,
             cache: "no-store",
           }),
 
-          fetch("http://localhost:3001/products", {
+          fetch("https://ecommerce-system-apkd.onrender.com/products", {
             cache: "no-store",
           }),
 
-          fetch("http://localhost:3001/payments/admin/all", {
+          fetch("https://ecommerce-system-apkd.onrender.com/payments/admin/all", {
             headers,
             cache: "no-store",
           }),
@@ -492,7 +492,7 @@ export default function AdminDashboard() {
       }
 
       const response = await fetch(
-        "http://localhost:3001/notifications/admin/alerts",
+        "https://ecommerce-system-apkd.onrender.com/notifications/admin/alerts",
         {
           headers: {
             Authorization: `Bearer ${token}`,

@@ -331,7 +331,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
    HELPERS
 ========================================================= */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://ecommerce-system-apkd.onrender.com";
 
 const getNumber = (value: unknown): number => {
   const number = Number(value);

@@ -193,7 +193,7 @@ export default function OrderDetailsPage() {
         }
 
         const response = await fetch(
-          `http://localhost:3001/orders/${orderId}`,
+          `https://ecommerce-system-apkd.onrender.com/orders/${orderId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -275,7 +275,7 @@ export default function OrderDetailsPage() {
       }
 
       const response = await fetch(
-        `http://localhost:3001/orders/${orderId}/cancel`,
+        `https://ecommerce-system-apkd.onrender.com/orders/${orderId}/cancel`,
         {
           method: "PATCH",
           headers: {

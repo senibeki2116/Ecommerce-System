@@ -20,6 +20,6 @@ export function getServiceUrl(
 export function getApiUrl(): string {
   return getServiceUrl(
     process.env.NEXT_PUBLIC_API_URL,
-    "http://localhost:3001",
+    "https://ecommerce-system-apkd.onrender.com",
   );
 }

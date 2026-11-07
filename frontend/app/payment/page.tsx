@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://ecommerce-system-apkd.onrender.com";
 
 type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-const API_URL = "http://localhost:3001";
+const API_URL = "https://ecommerce-system-apkd.onrender.com";
 
 type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 

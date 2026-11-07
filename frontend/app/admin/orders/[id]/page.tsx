@@ -63,7 +63,7 @@ export default function AdminOrderDetailsPage() {
         return;
       }
 
-      const response = await fetch(`http://localhost:3001/admin/orders/${id}`, {
+      const response = await fetch(`https://ecommerce-system-apkd.onrender.com/admin/orders/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -113,7 +113,7 @@ export default function AdminOrderDetailsPage() {
       setError("");
 
       const response = await fetch(
-        `http://localhost:3001/admin/orders/${order.id}/status`,
+        `https://ecommerce-system-apkd.onrender.com/admin/orders/${order.id}/status`,
         {
           method: "PATCH",
           headers: {

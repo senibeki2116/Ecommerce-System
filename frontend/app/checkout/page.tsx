@@ -53,7 +53,7 @@ export default function CheckoutPage() {
           return;
         }
 
-        const response = await fetch("http://localhost:3001/auth/profile", {
+        const response = await fetch("https://ecommerce-system-apkd.onrender.com/auth/profile", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -315,7 +315,7 @@ export default function CheckoutPage() {
       /*
        * CREATE ORDER
        */
-      const response = await fetch("http://localhost:3001/orders", {
+      const response = await fetch("https://ecommerce-system-apkd.onrender.com/orders", {
         method: "POST",
 
         headers: {

@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { useCart } from "../app/Context/CartContext";
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3001";
+  process.env.NEXT_PUBLIC_API_URL?.trim() || "https://ecommerce-system-apkd.onrender.com";
 
 const AI_API_URL =
   process.env.NEXT_PUBLIC_AI_API_URL?.trim() || "http://127.0.0.1:8000";

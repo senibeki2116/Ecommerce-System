@@ -205,7 +205,7 @@ export default function AdminUsersPage() {
         return;
       }
 
-      const response = await fetch("http://localhost:3001/admin/users", {
+      const response = await fetch("https://ecommerce-system-apkd.onrender.com/admin/users", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -273,7 +273,7 @@ export default function AdminUsersPage() {
       }
 
       const response = await fetch(
-        `http://localhost:3001/admin/users/${userId}/role`,
+        `https://ecommerce-system-apkd.onrender.com/admin/users/${userId}/role`,
         {
           method: "PATCH",
           headers: {
@@ -331,7 +331,7 @@ export default function AdminUsersPage() {
       }
 
       const response = await fetch(
-        `http://localhost:3001/admin/users/${user.id}`,
+        `https://ecommerce-system-apkd.onrender.com/admin/users/${user.id}`,
         {
           method: "DELETE",
           headers: {
